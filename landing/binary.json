@@ -1,6 +1,6 @@
 {
-  "version": null,
-  "url": null,
-  "sha256": null,
-  "note": "No public release yet. The download CTAs keep their static href to the releases page until scripts/landing-update-binary.mjs writes a real url here. This file exists so the page's fetch resolves instead of logging a 404 in every visitor's console."
+  "version": "1.0.0",
+  "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.0.0/Cernix-Setup-1.0.0.exe",
+  "sha256": "408e2b777f2c74a43ad15137c97512d9a1ffedb0db8127934a41f974a934005d",
+  "note": "Written from the GitHub Release's own asset digest. The page's CTAs read `url` and fall back to the releases listing without it; `sha256` is shown under the button so an unsigned installer can be checked. Regenerate with scripts/landing-update-binary.mjs after the next release."
 }
