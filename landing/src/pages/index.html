@@ -211,7 +211,6 @@
           <svg class="w-4 h-4 shrink-0"><use href="#i-arrow-right"/></svg>
         </a>
         </div>
-        <p id="cta-sha" class="mt-space-3 text-landing-micro font-mono text-text-disabled tracking-widest" aria-live="polite"></p>
       </div>
 
       <!--
@@ -2943,14 +2942,23 @@
         <a class="underline hover:text-text-muted transition-colors" href="https://github.com/YoItsRdL/cernix" target="_blank" rel="noopener">Read the source or build it yourself.</a>
       </p>
       <!-- Unsigned-binary disclosure. Code signing is a recurring cost
-           this project doesn't carry, so Windows will warn on download.
-           Saying so here is better than letting it look like a malware
-           hit; the `#cta-sha` line under the hero CTA carries the
-           checksum people can verify against. -->
+           this project doesn't carry, so Windows warns on first run.
+           Saying so here is better than letting it read as a malware
+           hit, which is what an unexplained warning looks like.
+
+           It used to end by offering a sha256 to check the download
+           against, and the hero carried the hash itself. Both are
+           gone. This page is written for photographers, and a
+           checksum is not a thing they verify; it was 64 characters
+           of hex sitting under the primary button. Nor was it good
+           advice: a hash served beside the download it describes only
+           shows the file arrived intact, which HTTPS already does.
+           Anyone who genuinely wants one has it on the release page,
+           published by GitHub rather than by us. -->
       <p class="mt-space-4 text-landing-micro text-text-disabled max-w-md mx-auto leading-relaxed">
         Code signing is a yearly fee this project does not pay, so Windows will warn you
-        the first time. Choose <span class="text-text-muted">More info → Run anyway</span>. If you would
-        rather not take that on trust, every release publishes a sha256. Check the download against it.
+        the first time. Choose <span class="text-text-muted">More info → Run anyway</span>. The
+        source is public if you would rather read it, or build the app yourself.
       </p>
     </div>
   </section>
@@ -3010,17 +3018,12 @@
     (function () {
       var FALLBACK = 'https://github.com/YoItsRdL/cernix/releases'
       var ctas = document.querySelectorAll('.cta-download')
-      var shaLine = document.getElementById('cta-sha')
 
       fetch('binary.json', { cache: 'no-cache' })
         .then(function (r) { return r.ok ? r.json() : null })
         .then(function (info) {
           if (!info || !info.url) return
           ctas.forEach(function (cta) { cta.setAttribute('href', info.url) })
-          if (info.sha256 && shaLine) {
-            shaLine.textContent = 'sha256 ' + info.sha256
-            shaLine.style.opacity = '1'
-          }
         })
         .catch(function () { /* swallow, fallback href stays */ })
 
