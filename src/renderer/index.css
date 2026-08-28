@@ -1,0 +1,114 @@
+/* Electron renderer stylesheet entry.
+ *
+ * Tailwind v4: a single `@import "tailwindcss"` replaces the three
+ * `@tailwind` directives, and the theme lives in CSS rather than a JS
+ * config. See src/shared/tokens.css, which the landing page imports
+ * too so both surfaces resolve identical values.
+ *
+ * `tw-animate-css` replaces `tailwindcss-animate`, which is not
+ * maintained for v4. It supplies the `animate-in` / `animate-out`,
+ * `fade-*`, `zoom-*` and `slide-in-from-*` utilities that the Radix
+ * wrappers in components/ui depend on. 37 usages, so it is load
+ * bearing, not decorative.
+ */
+@import "tailwindcss" source(none);
+@import "tw-animate-css";
+@import "../shared/tokens.css";
+@import "../shared/scrollbar.css";
+
+/* v4 has no `darkMode` config equivalent, so the variant is declared
+ * here, and it must match the selector the theme export uses. This
+ * export selects on a `.dark` class. If the two ever disagree, every
+ * dark: utility goes inert while the primitives switch correctly,
+ * which reads as a half-dark UI rather than an obvious break. */
+@custom-variant dark (&:is(.dark *));
+
+/* `source(none)` above turns off v4's automatic content detection,
+ * which is additive rather than a default. Left on, it walked up to the
+ * package root and pulled the landing page into this bundle. 97KB
+ * against v3's 60KB, all of it utilities the renderer never uses. */
+@source "./**/*.{ts,tsx}";
+
+@layer base {
+  * {
+    /* `outline-ring/50` comes from the tweakcn export's own base layer.
+     * Merged here rather than duplicated, so the app keeps its
+     * selection styling and font smoothing alongside it. */
+    @apply border-border outline-ring/50 selection:bg-primary/30 selection:text-text-emphatic;
+    -webkit-font-smoothing: subpixel-antialiased;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans overflow-hidden min-h-screen cursor-default;
+    font-family: var(--font-sans);
+    /* Baseline is body, not heading. The app default should be the
+     * size ordinary text is set at. */
+    font-size: var(--text-body);
+  }
+
+  /* Pointer cursor on interactive elements.
+   *
+   * Tailwind v3's preflight carried `button, [role="button"] { cursor:
+   * pointer }`. v4 dropped it to match the bare browser default, so
+   * every button in the app silently went back to an arrow, and
+   * because `body` sets `cursor: default` and cursor inherits, they had
+   * nothing to fall back to either.
+   *
+   * Restored here rather than by adding `cursor-pointer` to ~157 call
+   * sites: it is one rule, it cannot be forgotten on the next new
+   * button, and it keeps the behaviour identical to what the app had
+   * before the v4 migration.
+   *
+   * Disabled controls are excluded. A pointer on something that does
+   * not respond is a lie about affordance. `:disabled` covers real form
+   * controls; `[aria-disabled]` covers the Radix wrappers, which stay
+   * focusable and mark themselves that way instead. */
+  button:not(:disabled):not([aria-disabled='true']),
+  [role='button']:not([aria-disabled='true']),
+  a[href],
+  summary,
+  label[for],
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+
+  #root {
+    @apply w-full h-screen;
+  }
+}
+
+@layer components {
+
+  /* ── The caption strip ──
+   *
+   * The window has no OS title bar; the app's own top row is it.
+   * Something in that row has to be draggable or the window cannot be
+   * moved at all.
+   *
+   * `-webkit-app-region: drag` is not a hover-and-then-click surface.
+   * Chromium hands the whole gesture to the window manager, so a
+   * control inside a drag region stops receiving clicks. Every button,
+   * input and toggle that sits in the strip needs `.app-no-drag`, and
+   * the rule is easier to keep by making the strip's background drag
+   * and the controls opt out than the other way round.
+   *
+   * Not Tailwind utilities: v4 has no app-region namespace, and a pair
+   * of classes here is less machinery than teaching the theme one. */
+  .app-drag {
+    -webkit-app-region: drag;
+  }
+
+  .app-no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  /* Images are drag sources by default, so grabbing a photo started a
+   * Chromium image-drag and the tile's own dragstart never fired. The
+   * grid looked draggable and wasn't. Suppressing it here rather than
+   * per-component: every image in this app sits inside something that
+   * either owns the drag or does not want one. */
+  img {
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+}

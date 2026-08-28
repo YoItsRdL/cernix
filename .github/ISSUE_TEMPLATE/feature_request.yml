@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest something Cernix should do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Cernix is maintained by one person, so the honest answer to most requests is "not soon". Describing the problem rather than the solution makes it much likelier something useful happens: sometimes the fix is smaller than the feature.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The workflow you're stuck on, not the feature you have in mind for it.
+      placeholder: |
+        After a shoot I need to hand a client a subset of frames, and right now that means…
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you think would solve it
+      description: Optional. If you have a shape in mind, describe it.
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: What you do today
+      description: Whatever you currently do instead, including using another tool.

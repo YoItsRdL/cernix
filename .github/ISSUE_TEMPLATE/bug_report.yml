@@ -1,0 +1,82 @@
+name: Bug report
+description: Something in Cernix doesn't work
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Most desktop bugs come down to three things: which Windows, which build, and whether Drive is connected. The fields below ask for those up front so nobody has to go back and forth.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+      placeholder: |
+        I inserted an SD card, the scan found 2,259 files, and clicking Begin Ingest…
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: Smallest reliable sequence you know of. "Happens every time I open the editor" is a useful answer.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Cernix version
+      description: Settings, under About. Also in the installer filename.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: "`winver` will tell you. Include the build number if you have it."
+      placeholder: "Windows 11 23H2 (22631.4317)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: drive
+    attributes:
+      label: Is Google Drive connected?
+      description: A surprising share of bugs turn out to be auth-related.
+      options:
+        - "Yes, connected and working"
+        - "Yes, but it's erroring"
+        - "No, running local-only"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you get Cernix?
+      options:
+        - "Downloaded the installer from Releases"
+        - "Built from source"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        If the app failed to start, attach `startup-error.log` from `%APPDATA%\cernix`.
+        If it started but misbehaved, the in-app Output panel usually has the relevant lines.
+      render: text
+
+  - type: textarea
+    id: files
+    attributes:
+      label: Camera and file format
+      description: Only if the bug involves specific images, camera model and extension (`.ARW`, `.NEF`, `.CR3`, `.DNG`). RAW support varies by format.

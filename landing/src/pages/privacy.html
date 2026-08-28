@@ -1,0 +1,346 @@
+<!-- {"out":"privacy.html","base":"/","cta":"","privacyInk":"text-text-emphatic","termsInk":"text-text-muted"} -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Cernix Privacy Policy. Desktop app, runs on your machine, no servers, no telemetry. Google Drive scopes and every outbound request explained." />
+  <title>Privacy Policy: Cernix</title>
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Cernix" />
+  <meta property="og:title" content="Cernix Privacy Policy" />
+  <meta property="og:description" content="What Cernix reads, what it sends to Google, and what stays on your machine." />
+  <meta property="og:image" content="https://cernix.app/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Cernix Privacy Policy" />
+  <meta name="twitter:description" content="What Cernix reads, what it sends to Google, and what stays on your machine." />
+  <meta name="twitter:image" content="https://cernix.app/og.png" />
+
+  {{> head-assets }}
+</head>
+<body>
+
+  <!-- The first tab stop on every page. Nineteen of this page's
+       forty-five focusables live inside a drawing of the app; even now
+       they are out of the tab order, a visitor arriving by keyboard
+       should not have to walk the header to reach the page. Visually
+       hidden until focused, which is the only state it needs. -->
+  <a href="#main" class="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-space-3 focus-visible:left-space-3 focus-visible:z-[60] focus-visible:h-8 focus-visible:px-space-4 focus-visible:inline-flex focus-visible:items-center focus-visible:rounded-pill focus-visible:bg-accent-primary focus-visible:text-primary-foreground focus-visible:text-landing-nav focus-visible:font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus">Skip to content</a>
+
+
+  {{> header }}
+
+
+  <!--
+    ─── ARTICLE ──────────────────────────────────────────────────────
+    Policy text on the site's own grid. The outer container is the
+    max-w-7xl px-space-6 that the header and footer already use, so the
+    h1 starts on the same left edge as the wordmark above it; the prose
+    holds a max-w-3xl measure inside that, because 1232px of monospace
+    is not a readable line. Before this the article was max-w-3xl
+    mx-auto, which centred it and left nothing on the page aligned to
+    anything else.
+    body uses text-landing-body (15 px); h2 uses text-landing-title.
+    Every concrete claim references a real file or scope in the
+    codebase: this page is the canonical truth for OAuth review.
+  -->
+  <main id="main">
+  <article class="py-24 lg:py-32">
+    <div class="max-w-7xl mx-auto px-space-6">
+      <!-- `minmax(0,1fr)` at EVERY width, not just lg. A grid item's
+           default min-width is auto, which is its min-content size, so
+           the column refused to go below the widest unbreakable string
+           in the prose: 338px on a phone that only had 262. The lg rule
+           already said minmax(0,1fr); the base one was implicit `auto`
+           and inherited the fault.
+
+           `min-w-0` on the prose column says the same thing a second
+           way, deliberately: the grid track can shrink, and so can the
+           item sitting in it.
+
+           `break-words` is the last line: a path like %APPDATA%\Cernix
+           or a hostname has no space to break at, and the page carries
+           several. Without it they set a floor no column can honour. -->
+      <div class="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_280px] gap-12 lg:gap-20 items-start">
+        <div class="min-w-0 max-w-3xl break-words">
+
+          <header class="mb-16">
+            <p class="text-landing-nav text-text-disabled mb-space-4">
+              <span>§</span>
+              <span class="text-text-muted ml-1">Legal</span>
+            </p>
+            <h1 class="text-hero font-semibold text-text-emphatic tracking-tight mb-space-4">
+              Privacy Policy
+            </h1>
+            <p class="text-landing-nav font-mono text-text-disabled tracking-widest uppercase">
+              Last updated · 2026-05-24
+            </p>
+          </header>
+
+
+          <!-- ─── Overview ──────────────────────────────────────── -->
+          <section class="mb-16">
+            <p class="text-landing-sub text-text-emphatic mb-space-4">
+              Cernix is a Windows desktop application. It runs entirely on your
+              computer.
+            </p>
+            <p class="text-landing-body text-text-muted mb-space-4">
+              We do not operate an application server, run analytics, collect
+              telemetry, or maintain user accounts of the username-and-password
+              variety. When you connect Cernix to your Google Drive (optional),
+              the app talks to Google's API directly from your machine: your
+              photos and metadata go to your own Drive account, not to us. We
+              could not collect them even if we wanted to: there is nowhere for
+              them to land.
+            </p>
+            <p class="text-landing-body text-text-muted mb-space-4">
+              Cernix is free and open source. There is no purchase, no licence
+              key, and no payment processor, so there is no billing data to
+              collect. The only external services involved are the ones
+              <em>you</em> opt into (Google Drive), plus the fonts the app loads at startup.
+            </p>
+            <p class="text-landing-body text-text-muted">
+              This page documents every external request Cernix makes, every
+              OAuth scope it requests, and every byte it writes to your disk. If
+              something on this page is not accurate, that is a bug: please
+              <a class="text-accent-primary hover:underline" href="https://github.com/YoItsRdL/cernix/issues" target="_blank" rel="noopener">file an issue</a>.
+            </p>
+          </section>
+
+
+          <!-- ─── What Cernix accesses on your machine ─────────── -->
+          <section id="what-cernix-reads-on-your-machine" class="mb-16 pt-16 border-t border-border-subtle scroll-mt-24">
+            <h2 class="text-landing-title font-semibold text-text-emphatic mb-space-4">
+              What Cernix reads on your machine
+            </h2>
+            <ul class="space-y-space-3 text-landing-body text-text-muted">
+              <li class="flex gap-space-3">
+                <span class="text-text-disabled font-mono shrink-0">1.</span>
+                <span class="min-w-0"><span class="text-text-emphatic">Removable drives.</span> When you insert an SD card or USB stick, Cernix's volume watcher reads its file list, EXIF metadata, and chosen files (you decide which). Originals stay on the card unless you explicitly stage them.</span>
+              </li>
+              <li class="flex gap-space-3">
+                <span class="text-text-disabled font-mono shrink-0">2.</span>
+                <span class="min-w-0"><span class="text-text-emphatic">Your local archive folder.</span> Once you sweep files off a card, Cernix writes them to a date-organised local folder (<span translate="no" class="font-mono text-text-emphatic">YYYY / Month / DD</span>) under the directory you pick.</span>
+              </li>
+              <li class="flex gap-space-3">
+                <span class="text-text-disabled font-mono shrink-0">3.</span>
+                <span class="min-w-0"><span class="text-text-emphatic">XMP sidecars.</span> Every adjustment you make in the editor is written to a tiny <span translate="no" class="font-mono text-text-emphatic">.xmp</span> file next to the RAW. Your RAW pixels are never modified.</span>
+              </li>
+              <li class="flex gap-space-3">
+                <span class="text-text-disabled font-mono shrink-0">4.</span>
+                <span class="min-w-0"><span class="text-text-emphatic">App-data files.</span> An encrypted token file (<span translate="no" class="font-mono text-text-emphatic">auth-tokens.enc</span>, see "What's sent to Google" below) and a SQLite ledger (<span translate="no" class="font-mono text-text-emphatic">sync.db</span>) live in <span translate="no" class="font-mono text-text-emphatic">%APPDATA%\Cernix</span>. The ledger records which files you've already uploaded so Cernix doesn't re-push them.</span>
+              </li>
+              <li class="flex gap-space-3">
+                <span class="text-text-disabled font-mono shrink-0">5.</span>
+                <span class="min-w-0"><span class="text-text-emphatic">Caches.</span> Thumbnail, preset-preview, and generative-fill caches under <span translate="no" class="font-mono text-text-emphatic">%APPDATA%\Cernix</span>. Safe to delete; they regenerate.</span>
+              </li>
+            </ul>
+          </section>
+
+
+          <!-- ─── What's sent to Google ────────────────────────────── -->
+          <section id="what-cernix-sends-to-google" class="mb-16 pt-16 border-t border-border-subtle scroll-mt-24">
+            <h2 class="text-landing-title font-semibold text-text-emphatic mb-space-4">
+              What Cernix sends to Google
+            </h2>
+            <p class="text-landing-body text-text-muted mb-space-6">
+              Two separate destinations. Drive is opt-in and does nothing until you connect an account; fonts are not: see below.
+            </p>
+
+            <h3 class="text-landing-sub font-medium text-text-emphatic mb-space-3 mt-space-6">
+              1. Google Drive (when you connect your account)
+            </h3>
+            <p class="text-landing-body text-text-muted mb-space-4">
+              OAuth scopes Cernix requests:
+            </p>
+            <ul class="space-y-space-2 text-landing-caption font-mono text-text-emphatic mb-space-6 pl-space-4 border-l border-border-subtle">
+              <li><span class="text-accent-primary">drive.file</span> <span class="text-text-muted"> access limited to files Cernix itself creates. It can upload RAW + XMP pairs into its own folder and browse what it put there; the rest of your Drive is invisible to it, including to a compromised copy of the app.</span></li>
+              <li><span class="text-accent-primary">userinfo.email</span> <span class="text-text-muted"> the email address linked to your Google account, shown in the app so you know which account is connected.</span></li>
+              <li><span class="text-accent-primary">userinfo.profile</span> <span class="text-text-muted"> display name and avatar, shown in the in-app account widget.</span></li>
+            </ul>
+            <p class="text-landing-body text-text-muted mb-space-4">
+              Tokens received from Google are encrypted with Electron's
+              <span translate="no" class="font-mono text-text-emphatic">safeStorage</span> (which delegates to the
+              OS keystore: DPAPI on Windows) and written to
+              <span translate="no" class="font-mono text-text-emphatic">auth-tokens.enc</span>. They never leave your
+              machine except to be refreshed against Google's own token endpoint.
+            </p>
+            <p class="text-landing-body text-text-muted">
+              When you sync, Cernix uploads the RAW + XMP files you select to the
+              <span translate="no" class="font-mono text-text-emphatic">Cernix</span> folder in your Drive. That's the
+              only destination. There is no Cernix server in the loop.
+            </p>
+
+            <h3 class="text-landing-sub font-medium text-text-emphatic mb-space-3 mt-12">
+              2. Google Fonts (on every launch)
+            </h3>
+            <p class="text-landing-body text-text-muted mb-space-4">
+              This is the one request Cernix makes without being asked. The app
+              loads its two typefaces from
+              <span translate="no" class="font-mono text-text-emphatic">fonts.googleapis.com</span> and
+              <span translate="no" class="font-mono text-text-emphatic">fonts.gstatic.com</span> at startup, which means
+              Google sees your IP address and approximate location every time you open it:
+              even if you never connect Drive.
+            </p>
+            <p class="text-landing-body text-text-muted mb-space-4">
+              No account, no cookie, and nothing identifying you as an Cernix user is
+              attached; it is the same request any website using Google Fonts makes. We
+              would rather it did not happen at all, and bundling the fonts with the app
+              would remove it. That is a change we intend to make.
+            </p>
+            <p class="text-landing-body text-text-muted">
+              Offline, the request fails silently and the app falls back to a system font.
+              Nothing else about Cernix depends on it.
+            </p>
+          </section>
+
+
+
+          <!-- ─── What we never collect ────────────────────────────── -->
+          <section id="what-cernix-never-collects-or-transmits" class="mb-16 pt-16 border-t border-border-subtle scroll-mt-24">
+            <h2 class="text-landing-title font-semibold text-text-emphatic mb-space-4">
+              What Cernix never collects or transmits
+            </h2>
+            <ul class="space-y-space-3 text-landing-body text-text-muted">
+              <li class="flex gap-space-3">
+                <span class="text-status-success font-mono shrink-0">·</span>
+                <span class="min-w-0"><span class="text-text-emphatic">No analytics.</span> No Google Analytics, no Mixpanel, no Sentry, no PostHog. Open the network panel and you will see the app talk to Google's APIs and nothing else.</span>
+              </li>
+              <li class="flex gap-space-3">
+                <span class="text-status-success font-mono shrink-0">·</span>
+                <span class="min-w-0"><span class="text-text-emphatic">No telemetry.</span> Cernix sends zero usage data: no event counts, no feature usage, no error reports.</span>
+              </li>
+              <li class="flex gap-space-3">
+                <span class="text-status-success font-mono shrink-0">·</span>
+                <span class="min-w-0"><span class="text-text-emphatic">No crash reporting.</span> If the app crashes, the crash stays on your machine.</span>
+              </li>
+              <li class="flex gap-space-3">
+                <span class="text-status-success font-mono shrink-0">·</span>
+                <span class="min-w-0"><span class="text-text-emphatic">No device fingerprinting.</span> Cernix does not generate or transmit a device ID.</span>
+              </li>
+              <li class="flex gap-space-3">
+                <span class="text-status-success font-mono shrink-0">·</span>
+                <span class="min-w-0"><span class="text-text-emphatic">No IP logging.</span> Because there is no Cernix server, there is no Cernix access log.</span>
+              </li>
+              <li class="flex gap-space-3">
+                <span class="text-status-success font-mono shrink-0">·</span>
+                <span class="min-w-0"><span class="text-text-emphatic">No third-party trackers.</span> This page loads no third-party scripts, fonts, or beacons: the app does load its fonts from Google, disclosed above. The network panel on first load shows requests only against this site's own origin.</span>
+              </li>
+              <li class="flex gap-space-3">
+                <span class="text-status-success font-mono shrink-0">·</span>
+                <span class="min-w-0"><span class="text-text-emphatic">No cookies.</span> The desktop app is not a web app; this landing page sets no cookies.</span>
+              </li>
+            </ul>
+          </section>
+
+
+          <!-- ─── Your rights / control ────────────────────────────── -->
+          <section id="your-data-your-control" class="mb-16 pt-16 border-t border-border-subtle scroll-mt-24">
+            <h2 class="text-landing-title font-semibold text-text-emphatic mb-space-4">
+              Your data, your control
+            </h2>
+            <ul class="space-y-space-3 text-landing-body text-text-muted">
+              <li class="flex gap-space-3">
+                <span class="text-text-disabled font-mono shrink-0">→</span>
+                <span class="min-w-0"><span class="text-text-emphatic">Disconnect Google Drive.</span> Settings → Account → Disconnect inside the app, or revoke Cernix's access directly at <a class="text-accent-primary hover:underline" href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.</span>
+              </li>
+              <li class="flex gap-space-3">
+                <span class="text-text-disabled font-mono shrink-0">→</span>
+                <span class="min-w-0"><span class="text-text-emphatic">Delete all local data.</span> Uninstall Cernix, then delete <span translate="no" class="font-mono text-text-emphatic">%APPDATA%\Cernix</span>. Token, ledger, caches: all gone.</span>
+              </li>
+              <li class="flex gap-space-3">
+                <span class="text-text-disabled font-mono shrink-0">→</span>
+                <span class="min-w-0"><span class="text-text-emphatic">Files in your Google Drive.</span> They stay until you delete them in Drive. Disconnecting Cernix does not touch them.</span>
+              </li>
+            </ul>
+          </section>
+
+
+          <!-- ─── Changes ─────────────────────────────────────────── -->
+          <section id="changes-to-this-policy" class="mb-16 pt-16 border-t border-border-subtle scroll-mt-24">
+            <h2 class="text-landing-title font-semibold text-text-emphatic mb-space-4">
+              Changes to this policy
+            </h2>
+            <p class="text-landing-body text-text-muted">
+              Material changes will be reflected here with an updated
+              <span translate="no" class="font-mono text-text-emphatic">Last updated</span> date at the top. Cernix has
+              no email list, so we cannot notify you of changes: please re-read
+              this page after each app update.
+            </p>
+          </section>
+
+
+          <!-- ─── Contact ─────────────────────────────────────────── -->
+          <section id="contact" class="pt-16 border-t border-border-subtle scroll-mt-24">
+            <h2 class="text-landing-title font-semibold text-text-emphatic mb-space-4">
+              Contact
+            </h2>
+            <p class="text-landing-body text-text-muted">
+              Questions or concerns about anything on this page:
+              <a class="text-accent-primary hover:underline" href="https://github.com/YoItsRdL/cernix/issues" target="_blank" rel="noopener">file an issue on GitHub</a>.
+            </p>
+          </section>
+
+        </div>
+        <!-- Section index. The width this page gained by moving onto the
+             site container was otherwise empty, and a policy with
+             6 clauses is a document people arrive at looking for one
+             of them. Hidden below lg: a long index stacked above the text
+             is friction on a phone, where the document reads linearly
+             anyway. -->
+        <nav class="hidden lg:block lg:sticky lg:top-24" aria-label="On this page">
+          <p class="text-landing-meta font-bold uppercase tracking-[0.15em] text-text-disabled mb-space-4">On this page</p>
+          <ul class="flex flex-col gap-space-3 border-l border-border-subtle">
+            <li>
+              <a
+                href="#what-cernix-reads-on-your-machine"
+                class="block -ml-px border-l border-transparent pl-space-4 text-landing-caption text-text-muted hover:text-text-emphatic hover:border-border-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus transition-colors"
+              >What Cernix reads on your machine</a>
+            </li>
+            <li>
+              <a
+                href="#what-cernix-sends-to-google"
+                class="block -ml-px border-l border-transparent pl-space-4 text-landing-caption text-text-muted hover:text-text-emphatic hover:border-border-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus transition-colors"
+              >What Cernix sends to Google</a>
+            </li>
+            <li>
+              <a
+                href="#what-cernix-never-collects-or-transmits"
+                class="block -ml-px border-l border-transparent pl-space-4 text-landing-caption text-text-muted hover:text-text-emphatic hover:border-border-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus transition-colors"
+              >What Cernix never collects or transmits</a>
+            </li>
+            <li>
+              <a
+                href="#your-data-your-control"
+                class="block -ml-px border-l border-transparent pl-space-4 text-landing-caption text-text-muted hover:text-text-emphatic hover:border-border-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus transition-colors"
+              >Your data, your control</a>
+            </li>
+            <li>
+              <a
+                href="#changes-to-this-policy"
+                class="block -ml-px border-l border-transparent pl-space-4 text-landing-caption text-text-muted hover:text-text-emphatic hover:border-border-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus transition-colors"
+              >Changes to this policy</a>
+            </li>
+            <li>
+              <a
+                href="#contact"
+                class="block -ml-px border-l border-transparent pl-space-4 text-landing-caption text-text-muted hover:text-text-emphatic hover:border-border-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus transition-colors"
+              >Contact</a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    </div>
+  </article>
+
+
+  </main>
+
+  {{> footer }}
+
+  {{> theme-toggle-script }}
+</body>
+</html>

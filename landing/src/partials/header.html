@@ -1,0 +1,49 @@
+<!--
+  ─── HEADER ───────────────────────────────────────────────────────
+  Shared by every page, stamped in at build time from
+  landing/src/partials/header.html. Sticky 56px on
+  surface-workspace/80 with a backdrop blur: wordmark left, nav
+  centre, appearance toggle and download pill right.
+
+  Real destinations only. No Product/Resources dropdowns, no
+  Customers/Pricing/Log-in/Sign-up, because Cernix is free and open
+  source and none of those exist. {{base}} is empty on the landing
+  page and "/" on the legal pages, so the anchors point home from
+  wherever they are rendered.
+-->
+<header class="sticky top-0 z-50 h-14 bg-surface-workspace/80 backdrop-blur-md border-b border-border-subtle">
+  <div class="max-w-7xl mx-auto h-full px-space-6 flex items-center justify-between">
+    <a href="{{base}}#top" class="flex items-center gap-space-2 text-text-emphatic">
+      <span class="flex h-8 w-8 items-center justify-center rounded-soft bg-accent-primary text-primary-foreground shrink-0">
+        {{> brand-mark }}
+      </span>
+      <span class="text-landing-body font-semibold tracking-tight">Cernix</span>
+    </a>
+
+    <!-- Real destinations only. No Product/Resources dropdowns,
+         no Customers/Pricing/Log-in/Sign-up, Cernix is free and
+         open source, so none of those exist. The CTA pill triggers
+         the actual binary download via the `cta-download` class. -->
+    <nav class="hidden md:flex items-center gap-space-1">
+      <a href="{{base}}#features" class="px-space-3 py-space-2 text-landing-nav text-text-muted hover:text-text-emphatic transition-colors">Features</a>
+      <a href="{{base}}#download" class="px-space-3 py-space-2 text-landing-nav text-text-muted hover:text-text-emphatic transition-colors">Download</a>
+      <a href="https://github.com/YoItsRdL/cernix" target="_blank" rel="noopener" class="px-space-3 py-space-2 text-landing-nav text-text-muted hover:text-text-emphatic transition-colors">GitHub</a>
+    </nav>
+
+    <div class="flex items-center gap-space-4">
+      <!-- Appearance. The same control as the app's sidebar rail: an
+           icon button showing the theme it switches TO, so it reads
+           as an action rather than a state. Hover paints an inset
+           pill; the glyph grows slightly, and the press scales the
+           button, matching ActivityButton in Sidebar.tsx. -->
+      <button id="theme-toggle" type="button" aria-label="Dark mode" class="theme-toggle">
+        <span class="theme-toggle-pill" aria-hidden="true"></span>
+        {{> icon-sun }}
+        {{> icon-moon }}
+      </button>
+      <a href="{{base}}#download" class="{{cta}}inline-flex items-center justify-center whitespace-nowrap h-8 px-4 rounded-pill bg-secondary text-secondary-foreground text-landing-nav font-medium hover:bg-secondary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus">
+        Download
+      </a>
+    </div>
+  </div>
+</header>

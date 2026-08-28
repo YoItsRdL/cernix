@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Cernix">
+  <!-- The header's brand tile at favicon size: the mark in
+       primary-foreground on an accent-primary square, rounded-soft.
+       Geometry is the tile's own, scaled rather than redrawn: a 20px
+       mark centred in a 32px tile is scale(0.8333) at an offset of 6.
+
+       Hex rather than the oklch tokens because a favicon is fetched as
+       a standalone document and never sees the site's stylesheet. These
+       are accent-primary and primary-foreground resolved to sRGB.
+
+       The light pair in both browser themes, deliberately. The mark is
+       a product identity, not a UI surface, so it should look the same
+       everywhere the product is named, and the desktop icon it sits
+       beside already pins the light theme's primary button colours and
+       never varies (build-resources/icon.svg). A prefers-color-scheme
+       block here used to flip the mark to near-black on a dark-theme
+       machine, which put a dark favicon next to a light app icon. -->
+  <style>
+    .tile { fill: #de7949; }
+    .mark { stroke: #f9f0e7; fill: none; }
+    .blade { fill: #f9f0e7; }
+  </style>
+  <rect class="tile" width="32" height="32" rx="8" ry="8"/>
+  <g transform="translate(6 6) scale(0.83333)">
+    <g class="mark" stroke-width="1.5" stroke-linecap="butt">
+      <path d="M14.31 8 L20.05 17.94"/>
+      <path d="M9.69 8 L21.17 8"/>
+      <path d="M7.38 12 L13.12 2.06"/>
+      <path d="M9.69 16 L3.95 6.06"/>
+      <path d="M14.31 16 L2.83 16"/>
+      <path d="M16.62 12 L10.88 21.94"/>
+    </g>
+    <path class="mark" d="M20.48 6.7 A10 10 0 1 1 16.23 2.94" stroke-width="2" stroke-linecap="round"/>
+    <path class="blade" d="M18.61 4.05 L15.22 5.08 L17.23 0.79 Z" stroke="none"/>
+  </g>
+</svg>

@@ -1,0 +1,73 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+out/
+build/
+
+# Landing build output. The carve-out that used to keep
+# landing/dist/images/ committed went with the hero compare curtain
+# that was the only thing referencing it.
+landing/dist/
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+
+# Electron
+release/
+dist-electron/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Staging directory (local ingest data)
+staging/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Coverage
+coverage/
+
+# SQLite database files (user data, not committed)
+*.db
+*.sqlite
+*.sqlite3
+
+# Icon previews and scratch host page: regenerable with `npm run icons`.
+# build-resources/icon.{svg,ico,png} are committed; the packaged build
+# needs the .ico and the .svg is the editable source.
+build-resources/preview-*.png
+build-resources/.icon-host.html
+
+# Local Netlify folder
+.netlify
+
+# ── Working material, not published ──
+#
+# The planning and process record: tickets, decisions, reference docs
+# and working notes. It stays on disk and out of the published
+# repository. What a reader of the source needs is in the comments
+# beside the code, in README.md and in CONTRIBUTING.md.
+docs/
+tickets/
+decisions/
+.claude/
+.agents/
+skills-lock.json
+AGENTS.md
+CLAUDE.md

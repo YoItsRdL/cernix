@@ -1,0 +1,6 @@
+{
+  "version": null,
+  "url": null,
+  "sha256": null,
+  "note": "No public release yet. The download CTAs keep their static href to the releases page until scripts/landing-update-binary.mjs writes a real url here. This file exists so the page's fetch resolves instead of logging a 404 in every visitor's console."
+}

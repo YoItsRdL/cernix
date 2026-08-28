@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cernix OG card source, 1200×630</title>
+
+  <!--
+    CNX-908 (Phase 9 launch readiness).
+
+    This file is the *source* for `og.png`. Open it in Chrome, set
+    DevTools to a 1200×630 device viewport (Settings → Device
+    Toolbar → "Add custom device" → 1200×630), then DevTools →
+    three-dot menu → "Capture full size screenshot." Save as
+    `landing/og.png` next to this file.
+
+    Every visual choice pulls from the same Tailwind tokens the
+    rest of the landing page consumes (compiled output: dist/style.css),
+    so regenerating the image when brand colours change is one
+    screenshot away, no Figma round-trip.
+
+    Twitter Card Validator: https://cards-dev.twitter.com/validator
+    LinkedIn Post Inspector: https://www.linkedin.com/post-inspector/
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="dist/style.css" />
+  <style>
+    /* Lock the body to the OG card dimensions so screenshot tools
+       capture exactly 1200×630 and nothing else. */
+    html, body { margin: 0; padding: 0; }
+    body {
+      width: 1200px;
+      height: 630px;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body class="bg-surface-workspace text-text-emphatic font-sans antialiased">
+
+  <!-- Card composition: 1200×630, split between the two brand grounds.
+       Secondary carries the wordmark and the promise on the left; the
+       accent strip carries licence and cost on the right.
+
+       Text on each side takes that ground's own -foreground token, not
+       the body default, which is set for the sand background and goes
+       unreadable the moment a panel stops being sand. -->
+  <div class="w-full h-full flex">
+
+    <!-- Left: wordmark + tagline + version line -->
+    <div class="flex-1 flex flex-col justify-center px-16 bg-secondary text-secondary-foreground">
+      <div class="flex items-center gap-space-3 mb-space-6">
+        <span class="flex h-14 w-14 items-center justify-center rounded-soft bg-accent-primary text-primary-foreground shrink-0">
+          <svg class="w-9 h-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <g stroke-width="1.5" stroke-linecap="butt">
+              <path d="M14.31 8 L20.05 17.94"/>
+              <path d="M9.69 8 L21.17 8"/>
+              <path d="M7.38 12 L13.12 2.06"/>
+              <path d="M9.69 16 L3.95 6.06"/>
+              <path d="M14.31 16 L2.83 16"/>
+              <path d="M16.62 12 L10.88 21.94"/>
+            </g>
+            <path d="M20.48 6.7 A10 10 0 1 1 16.23 2.94" stroke-width="2" stroke-linecap="round"/>
+            <path d="M18.61 4.05 L15.22 5.08 L17.23 0.79 Z" fill="currentColor"
+                  stroke-width="0.5" stroke-linejoin="round" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="text-landing-display font-semibold tracking-tight">Cernix</span>
+      </div>
+
+      <p class="text-hero font-semibold tracking-tight leading-[1.1] text-balance">
+        From the card<br/>to the client.
+      </p>
+
+      <p class="mt-space-6 text-landing-sub text-secondary-foreground/80 max-w-xl">
+        Ingest, cull, edit and deliver. On your machine, to your own Drive.
+      </p>
+    </div>
+
+    <!-- Right: vertical accent strip with the licence + cost.
+         The accent-primary background is the brand accent used
+         throughout the rest of the site; primary-foreground is the
+         text-on-accent pairing the tokens already define for it.
+         -->
+    <div class="w-96 bg-accent-primary flex flex-col justify-between p-16">
+      <div>
+        <p class="text-primary-foreground text-landing-stat font-semibold leading-none">Free</p>
+        <p class="text-primary-foreground/80 text-landing-sub mt-space-2">&amp; open source</p>
+      </div>
+      <div>
+        <p class="text-primary-foreground text-landing-body leading-relaxed">
+          MIT licensed.<br/>Windows.
+        </p>
+        <p class="text-primary-foreground/60 text-landing-caption mt-space-3 font-mono">
+          cernix.app
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

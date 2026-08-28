@@ -1,0 +1,18 @@
+<!-- Theme toggle. Writes the same cernix-theme key the pre-paint
+     script above reads, so the choice travels with the visitor. -->
+<script>
+  (function () {
+    var toggle = document.getElementById('theme-toggle')
+    if (!toggle) return
+    var sync = function () {
+      var dark = document.documentElement.classList.contains('dark')
+      toggle.setAttribute('aria-label', dark ? 'Light mode' : 'Dark mode')
+    }
+    sync()
+    toggle.addEventListener('click', function () {
+      var dark = document.documentElement.classList.toggle('dark')
+      try { localStorage.setItem('cernix-theme', dark ? 'dark' : 'light') } catch (e) {}
+      sync()
+    })
+  })()
+</script>

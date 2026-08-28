@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!--
+    Cernix app icon.
+
+    An aperture whose outer rim is broken and terminates in an arrowhead,
+    so one ring reads as both the iris and a sync cue. Keeping it to a
+    single ring is what makes it survive 16px; an aperture inside a
+    separate sync ring turns to mush at that size.
+
+    One colour throughout, flat, no gradient on the mark, so the whole
+    thing reads as a single cut object rather than layered materials.
+
+    Both colours come from the light theme, and specifically from its
+    primary button: the tile is the primary token and the mark is
+    primary-foreground. Icon and primary button therefore carry the same
+    two colours, and the icon changes whenever that button does.
+
+    The mark was espresso for a while, back when we overrode
+    primary-foreground to clear AA. That override is gone; the theme now
+    matches its tweakcn reference and pairs the pale foreground with
+    terracotta, so the icon follows. The measured ratio is about 2.69 to
+    1, which the design system records as a deliberate deviation. An icon
+    is not text, and the rim carries the silhouette here regardless of
+    the fill, so the small sizes survive it. See the accent-contrast
+    entry beside the ACCEPTED map in scripts/check-contrast.cjs.
+
+    Values are read back from a browser rather than converted by hand:
+    the tile gradient brackets the primary token above and below in
+    OKLCH lightness, so it stays the same hue and chroma.
+
+    Note that a double hyphen cannot appear in an XML comment, so tokens
+    are named in prose rather than written out.
+
+    The iris geometry is lucide's `aperture` scaled up (r=10 at 24px to
+    r=76 at 256px). The app's UI is lucide throughout, so the icon and
+    the interface share a drawing language rather than just a palette.
+  -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ed8757"/>
+      <stop offset="1" stop-color="#ce6b3b"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="256" height="256" rx="56" fill="url(#tile)"/>
+  <rect x="0.75" y="0.75" width="254.5" height="254.5" rx="55.25"
+        fill="none" stroke="#2e1e0a" stroke-opacity="0.10" stroke-width="1.5"/>
+
+  <!--
+    The whole mark in one pass, one fill, one stroke colour.
+
+    Blades sit lighter in weight than the rim rather than lighter in
+    colour: the rim carries the silhouette at small sizes while the
+    blades read as interior cuts in the same material.
+
+    Butt caps, not round. A round cap is a pen stroke ending; a flat one
+    is a cut edge, which is what a single machined material wants. It
+    also sharpens the inner hexagon, since the blade ends now meet at
+    flat faces instead of overlapping domes.
+  -->
+  <g stroke="#f9f0e7" fill="#f9f0e7" stroke-linecap="butt">
+    <g stroke-width="12" fill="none">
+      <path d="M145.56 97.6 L189.18 173.14"/>
+      <path d="M110.44 97.6 L197.69 97.6"/>
+      <path d="M92.89 128 L136.51 52.46"/>
+      <path d="M110.44 158.4 L66.82 82.86"/>
+      <path d="M145.56 158.4 L58.31 158.4"/>
+      <path d="M163.11 128 L119.49 203.54"/>
+    </g>
+
+    <!--
+      Rim: 327 degrees, gap at the upper right.
+
+      Starts at 328 degrees, not 335. The horizontal blade meets the
+      circle at 336.4 degrees and is about 9 degrees wide, so a rim
+      starting at 335 left roughly 3 degrees of blade sticking out past
+      its flat end face: a visible notch in the gap. Round caps used to
+      cover it; butt caps do not. Blade ends sit every 60 degrees from
+      336.4, so the next one round is at 276.4 and the gap stays clear.
+    -->
+    <path d="M192.45 87.73 A76 76 0 1 1 160.12 59.12"
+          fill="none" stroke-width="20" stroke-linecap="round"/>
+
+    <!--
+      Arrowhead terminating the rim.
+
+      Stroked in its own fill colour rather than filled alone. The stroke
+      does two jobs: stroke-linejoin rounds the three corners, and the
+      3.5 of outward growth closes the gap between the triangle's base
+      and the rim's end, which showed as a hairline of tile colour
+      running down the join.
+    -->
+    <path d="M178.25 67.57 L152.51 75.43 L167.73 42.81 Z"
+          stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+</svg>

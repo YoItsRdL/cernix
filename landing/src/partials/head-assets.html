@@ -1,0 +1,26 @@
+<meta name="theme-color" content="#171717" /> <!-- design-allow: theme-color must be a literal colour; mirrors --surface-workspace (HSL 0 0% 9%). -->
+
+<!-- The header's brand tile, at tab size. SVG so it stays sharp at any
+     scale and can answer prefers-color-scheme; the PNG is for iOS, which
+     wants a square it can mask itself and does not read SVG here. -->
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Theme, resolved before the first paint. A stored choice wins;
+     otherwise the OS preference decides. Inline and synchronous on
+     purpose: deferring it shows a frame of the wrong palette. -->
+<script>
+  (function () {
+    try {
+      var saved = localStorage.getItem('cernix-theme')
+      var dark = saved ? saved === 'dark'
+        : window.matchMedia('(prefers-color-scheme: dark)').matches
+      if (dark) document.documentElement.classList.add('dark')
+    } catch (e) { /* private mode: stay light */ }
+  })()
+</script>
+
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="dist/style.css" />

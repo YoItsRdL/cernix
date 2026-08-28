@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# Pre-commit gate:
+#   1. lint-staged: ESLint on changed files (enforces design-system +
+#      hand-rolled-control rules at `error`, warnings stay visible).
+#   2. typecheck:   tsc --noEmit on the whole project. tsc needs the
+#      full tsconfig to resolve paths, so we don't scope it to touched
+#      files.
+# Bypass with `git commit --no-verify` only when the user explicitly
+# asks for it.
+npx lint-staged && npm run typecheck

@@ -1,0 +1,813 @@
+/*
+ * Design tokens, shared by the Electron renderer and the landing page.
+ *
+ * Imported by:
+ *   - src/renderer/index.css
+ *   - landing/src/style.css
+ *
+ * ── Two layers, one direction ──────────────────────────────────────
+ *
+ *   LAYER 1  the tweakcn export, used exactly as exported. The only
+ *            place a primitive colour, radius, shadow or font is
+ *            written down.
+ *   LAYER 2  Cernix's own roles, DERIVED from layer 1.
+ *
+ * Dependency runs one way. A role may be defined in terms of a
+ * primitive; a primitive must never be defined in terms of a role. If
+ * a surface looks wrong, the derivation is wrong. Do not write a
+ * colour into a component.
+ *
+ * ── Why layer 2 exists ─────────────────────────────────────────────
+ *
+ * shadcn's vocabulary is smaller than this app's: three surface levels
+ * where the UI uses four, two text levels where it uses four, and
+ * nothing for status-* or cat-*. Deriving keeps one editable source
+ * without flattening hierarchy the interface relies on.
+ *
+ * ── Overriding a layer-1 token needs BOTH blocks ───────────────────
+ *
+ * Layer 2 comes after layer 1 in this file and its :root has the same
+ * specificity as layer 1's .dark. An override written only in layer
+ * 2's :root therefore wins in dark mode as well, silently discarding
+ * the export's dark value. Every such override must be restated in
+ * layer 2's .dark block. Either with the export's value, to leave
+ * dark alone, or with a deliberate dark-specific one.
+ *
+ * This has bitten three times: derived roles binding to the light
+ * palette on :root, checkers simulating dark with a nested element,
+ * and this. All three share a shape. Dark mode failing quietly while
+ * light mode looks correct.
+ *
+ * ── Derived roles live in @theme inline, never :root ────────────────
+ *
+ * A custom property declared on :root has its var() references
+ * substituted against :root, so .dark would inherit already-substituted
+ * LIGHT values. Inline, Tailwind substitutes the expression into each
+ * utility and the var() resolves against the element. Getting this
+ * wrong ships a dark mode wearing light colours, silently.
+ *
+ * Roles mix toward --foreground rather than a fixed black or white, so
+ * one expression steps the right way in both modes.
+ *
+ * ── Naming trap ────────────────────────────────────────────────────
+ *
+ * --text-* means two things. Below, --text-emphatic and friends are
+ * COLOURS; inside @theme, Tailwind v4's --text-* namespace is the FONT
+ * SIZE scale. They coexist because the colours only ever enter the
+ * theme as --color-text-*, and the sizes are declared with literal
+ * values (--text-body: var(--text-body) is a self-reference that
+ * silently resolves to nothing).
+ */
+
+/* ══════════════════════════════════════════════════════════════════
+   LAYER 1: tweakcn export, verbatim
+   ══════════════════════════════════════════════════════════════════ */
+
+:root {
+  --background: oklch(0.9290 0.0252 69.4290);
+  --foreground: oklch(0.2502 0.0405 70.1305);
+  --card: oklch(0.9597 0.0154 67.6422);
+  --card-foreground: oklch(0.2502 0.0405 70.1305);
+  --popover: oklch(0.9597 0.0154 67.6422);
+  --popover-foreground: oklch(0.2502 0.0405 70.1305);
+  --primary: oklch(0.6803 0.1404 44.9592);
+  --primary-foreground: oklch(0.9597 0.0154 67.6422);
+  --secondary: oklch(0.5605 0.0503 197.5642);
+  --secondary-foreground: oklch(0.9597 0.0154 67.6422);
+  --muted: oklch(0.8812 0.0301 70.6894);
+  --muted-foreground: oklch(0.4510 0.0402 70.8428);
+  --accent: oklch(0.8812 0.0301 70.6894);
+  --accent-foreground: oklch(0.2502 0.0405 70.1305);
+  --destructive: oklch(0.5507 0.1203 24.9690);
+  --destructive-foreground: oklch(0.9597 0.0154 67.6422);
+  --border: oklch(0.8006 0.0396 69.7570);
+  --input: oklch(0.8006 0.0396 69.7570);
+  --ring: oklch(0.6803 0.1404 44.9592);
+  --chart-1: oklch(0.6803 0.1404 44.9592);
+  --chart-2: oklch(0.5605 0.0503 197.5642);
+  --chart-3: oklch(0.6999 0.0800 79.4985);
+  --chart-4: oklch(0.4510 0.0492 248.9659);
+  --chart-5: oklch(0.5502 0.0608 129.7925);
+  --sidebar: oklch(0.9095 0.0305 69.0250);
+  --sidebar-foreground: oklch(0.2502 0.0405 70.1305);
+  --sidebar-primary: oklch(0.6803 0.1404 44.9592);
+  --sidebar-primary-foreground: oklch(0.9597 0.0154 67.6422);
+  --sidebar-accent: oklch(0.5605 0.0503 197.5642);
+  --sidebar-accent-foreground: oklch(0.9597 0.0154 67.6422);
+  --sidebar-border: oklch(0.8006 0.0396 69.7570);
+  --sidebar-ring: oklch(0.6803 0.1404 44.9592);
+  --font-sans: Geist Mono, ui-monospace, monospace;
+  --font-serif: serif;
+  --font-mono: JetBrains Mono, monospace;
+  --radius: 0.75rem;
+  --shadow-x: 0px;
+  --shadow-y: 1px;
+  --shadow-blur: 4px;
+  --shadow-spread: 0px;
+  --shadow-opacity: 0.05;
+  --shadow-color: #000000;
+  --shadow-2xs: 0px 1px 4px 0px hsl(0 0% 0% / 0.03);
+  --shadow-xs: 0px 1px 4px 0px hsl(0 0% 0% / 0.03);
+  --shadow-sm: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 1px 2px -1px hsl(0 0% 0% / 0.05);
+  --shadow: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 1px 2px -1px hsl(0 0% 0% / 0.05);
+  --shadow-md: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 2px 4px -1px hsl(0 0% 0% / 0.05);
+  --shadow-lg: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 4px 6px -1px hsl(0 0% 0% / 0.05);
+  --shadow-xl: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 8px 10px -1px hsl(0 0% 0% / 0.05);
+  --shadow-2xl: 0px 1px 4px 0px hsl(0 0% 0% / 0.13);
+  --tracking-normal: 0rem;
+  --spacing: 0.25rem;
+}
+
+.dark {
+  --background: oklch(0.1710 0.0079 67.2580);
+  --foreground: oklch(0.8109 0 0);
+  --card: oklch(0.1822 0 0);
+  --card-foreground: oklch(0.8109 0 0);
+  --popover: oklch(0.1797 0.0043 308.1928);
+  --popover-foreground: oklch(0.8109 0 0);
+  --primary: oklch(0.7214 0.1337 49.9802);
+  --primary-foreground: oklch(0.1797 0.0043 308.1928);
+  --secondary: oklch(0.5940 0.0443 196.0233);
+  --secondary-foreground: oklch(0 0 0);
+  --muted: oklch(0.2520 0 0);
+  --muted-foreground: oklch(0.6268 0 0);
+  --accent: oklch(0.3211 0 0);
+  --accent-foreground: oklch(0.8109 0 0);
+  --destructive: oklch(0.5940 0.0443 196.0233);
+  --destructive-foreground: oklch(0.1797 0.0043 308.1928);
+  --border: oklch(0.2520 0 0);
+  --input: oklch(0.2520 0 0);
+  --ring: oklch(0.7214 0.1337 49.9802);
+  --chart-1: oklch(0.5940 0.0443 196.0233);
+  --chart-2: oklch(0.7214 0.1337 49.9802);
+  --chart-3: oklch(0.8721 0.0864 68.5474);
+  --chart-4: oklch(0.6268 0 0);
+  --chart-5: oklch(0.6830 0 0);
+  --sidebar: oklch(0.1822 0 0);
+  --sidebar-foreground: oklch(0.8109 0 0);
+  --sidebar-primary: oklch(0.7214 0.1337 49.9802);
+  --sidebar-primary-foreground: oklch(0.1797 0.0043 308.1928);
+  --sidebar-accent: oklch(0.3211 0 0);
+  --sidebar-accent-foreground: oklch(0.8109 0 0);
+  --sidebar-border: oklch(0.2520 0 0);
+  --sidebar-ring: oklch(0.7214 0.1337 49.9802);
+  --font-sans: Geist Mono, ui-monospace, monospace;
+  --font-serif: serif;
+  --font-mono: JetBrains Mono, monospace;
+  --radius: 0.75rem;
+  --shadow-x: 0px;
+  --shadow-y: 1px;
+  --shadow-blur: 4px;
+  --shadow-spread: 0px;
+  --shadow-opacity: 0.05;
+  --shadow-color: #000000;
+  --shadow-2xs: 0px 1px 4px 0px hsl(0 0% 0% / 0.03);
+  --shadow-xs: 0px 1px 4px 0px hsl(0 0% 0% / 0.03);
+  --shadow-sm: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 1px 2px -1px hsl(0 0% 0% / 0.05);
+  --shadow: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 1px 2px -1px hsl(0 0% 0% / 0.05);
+  --shadow-md: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 2px 4px -1px hsl(0 0% 0% / 0.05);
+  --shadow-lg: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 4px 6px -1px hsl(0 0% 0% / 0.05);
+  --shadow-xl: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 8px 10px -1px hsl(0 0% 0% / 0.05);
+  --shadow-2xl: 0px 1px 4px 0px hsl(0 0% 0% / 0.13);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-serif: var(--font-serif);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --shadow-2xs: var(--shadow-2xs);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow: var(--shadow);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-2xl: var(--shadow-2xl);
+  --tracking-tighter: calc(var(--tracking-normal) - 0.05em);
+  --tracking-tight: calc(var(--tracking-normal) - 0.025em);
+  --tracking-normal: var(--tracking-normal);
+  --tracking-wide: calc(var(--tracking-normal) + 0.025em);
+  --tracking-wider: calc(var(--tracking-normal) + 0.05em);
+  --tracking-widest: calc(var(--tracking-normal) + 0.1em);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   LAYER 2: Cernix roles, derived from layer 1
+   ══════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── No layer-1 colour is overridden ──
+   *
+   * We tried. The export puts near-white on terracotta in light mode
+   * (2.69:1) and near-white on the muted teal in both modes (4.03:1),
+   * and both were darkened here until they cleared AA. The result
+   * stopped looking like the theme we picked, and matching the
+   * reference won.
+   *
+   * The ratios are not hidden: scripts/check-contrast.cjs still
+   * measures these pairs and prints them, marked ACCEPTED against the
+   * justification recorded beside each entry there. Nothing else in the
+   * app is allowed to sit below AA.
+   *
+   * If you do override a layer-1 token here, it must ALSO be restated
+   * in the .dark block below. See the cascade note at the top of this
+   * file. An override declared only here wins in BOTH modes and
+   * silently replaces the export's dark value. */
+
+  /* ── Status ──
+   * `danger` aliases the export's --destructive in light. The other
+   * three have no primitive and carry their own values, pitched into
+   * the same vintage register. `info` borrows the palette's teal so it
+   * reads as part of the set rather than an imported blue. */
+  --status-success: oklch(0.52 0.10 145);
+  --status-warn: oklch(0.58 0.10 75);
+  --status-danger: var(--destructive);
+  --status-info: var(--secondary);
+
+  /* ── Categorical tints ──
+   * Not status. Terminal log sources and file-type icons, separable
+   * from each other and from the warm chrome.
+   *
+   * `cat-editor` was `cat-ai` until the phase-4 census: nothing had
+   * emitted an `ai` log source since the AI removal, while `editor`
+   * logs were emitted with no tint at all, falling back to the same
+   * grey as `system`. Same hue, now attached to something real. */
+  --cat-sweep: oklch(0.50 0.07 198);
+  --cat-upload: oklch(0.48 0.10 300);
+  --cat-editor: oklch(0.52 0.12 350);
+  --cat-video: oklch(0.48 0.10 300);
+
+  /* ── Interaction overlays ──
+   * Translucent washes: darkening on light, lightening on dark, so the
+   * dark block restates them rather than deriving.
+   *
+   * Explicit alpha rather than mixing toward transparent, deliberately.
+   * Tailwind emits a no-color-mix fallback for such expressions and the
+   * fallback is the OPAQUE colour. A solid wash where a 6% tint was
+   * intended. Electron is fine either way; the landing page is not. */
+  --overlay-hover: oklch(0.25 0.04 70 / 0.07);
+  --overlay-active: oklch(0.25 0.04 70 / 0.12);
+  --overlay-strong: oklch(0.25 0.04 70 / 0.20);
+
+  /* The modal backdrop, and a panel that floats over content. Both
+   * carry their own alpha rather than relying on the caller to add a
+   * /60. See the note on --color-surface-overlay below for what that
+   * cost us. Explicit per mode rather than color-mix toward transparent,
+   * because that mix falls back to the opaque colour. */
+  /* ── Tone-curve channels ──
+   * R/G/B stay red, green and blue: they are not decoration, they are
+   * the colour channels being edited, so a palette accent would be a
+   * lie. Only their lightness moves per theme, enough to hold up on
+   * parchment here and on near-black in the dark block.
+   *
+   * Luma follows the ink instead. It was hardcoded rgba(255,255,255).
+   * Pure white on a cream plot in light mode, which is why the curve was
+   * all but invisible. */
+  --curve-luma: oklch(0.35 0.02 70);
+  --curve-r: oklch(0.53 0.20 27);
+  --curve-g: oklch(0.48 0.15 145);
+  --curve-b: oklch(0.48 0.18 260);
+
+  --scrim: oklch(0 0 0 / 0.5);
+  --surface-floating: oklch(0.9597 0.0154 67.6422 / 0.88);
+
+  /* ── Scrims ──
+   * Backdrops behind modals and over imagery. Always darkening in both
+   * modes: a light scrim over a photo would wash it out, and a modal
+   * backdrop has to recede regardless of theme. */
+  --scrim-soft: oklch(0 0 0 / 0.20);
+  --scrim-medium: oklch(0 0 0 / 0.40);
+  --scrim-heavy: oklch(0 0 0 / 0.70);
+
+  /* ── Editor canvas surround ──
+   * The ground the photo is judged against. Neutral in dark; in light
+   * it carries 0.01 of chroma at the palette's hue, which is under half
+   * of what --background carries and enough to belong beside it.
+   *
+   * That is a decision with a cost, recorded here rather than found
+   * later: a tinted surround shifts perceived white balance, and an
+   * edit judged against it drifts the other way everywhere else it is
+   * looked at. Lightroom and Capture One are neutral grey for exactly
+   * that reason. Weighed against a grey stage reading as a different
+   * application inside warm chrome, and settled that way deliberately.
+   *
+   * Out of scripts/check-canvas-neutral.mjs for the same reason; that
+   * check now guards the viewer's chrome, which sits ON a photograph
+   * rather than around it. Put this back in the list if it ever returns
+   * to neutral. */
+  --canvas-surround: oklch(0.93 0.01 67.64);
+
+  /* ── The viewing room ──
+   * The full-screen viewer's own field, and the chrome that floats on
+   * it.
+   *
+   * The FIELD is --background: the viewer covers the whole window, and
+   * a room in its own grey made the application look like it had handed
+   * the screen to a different program. The chrome is still achromatic
+   * and still guarded by check-canvas-neutral.mjs; the field is not,
+   * and is the one place the judging-surface rule is knowingly not
+   * applied. --canvas-surround, where an edit is actually made, stays
+   * zero-chroma: the cost of a warm ground is a white balance judged
+   * against it, and looking is not judging.
+   *
+   * The room follows the theme in LIGHTNESS only. It used to be
+   * --scrim-full, 95% black in both modes, which meant a user in light
+   * mode opened a photograph and the whole application went black
+   * around it. The one surface that ignored the theme entirely.
+   *
+   * Its chrome is restated per mode because the field is. That is the
+   * opposite of what this block said when the field was constant: the
+   * rule is not "viewer chrome never follows the theme", it is "viewer
+   * chrome follows the FIELD, not --background". A light chip on a
+   * light room and a dark chip on a dark one. Getting that backwards is
+   * what put a cream chip and dark-on-dark text on a black field, and
+   * check:contrast measures both modes precisely so it cannot recur.
+   *
+   * The field is opaque. At 95% the old scrim was showing 5% of the
+   * app through a full-screen backdrop-blur, which cost a blur pass on
+   * every frame to render something nobody could see. */
+  --viewer-field: var(--background);
+  --viewer-chip: oklch(0.95 0 0 / 0.88);
+  --viewer-chip-hover: oklch(1 0 0 / 0.92);
+  --viewer-border: oklch(0 0 0 / 0.20);
+  --viewer-text: oklch(0.25 0 0);
+  --viewer-text-muted: oklch(0.45 0 0);
+}
+
+.dark {
+  /* Nothing from layer 1 is restated here any more: layer 2 no longer
+   * overrides any layer-1 colour, so there is no :root declaration to
+   * contain. Only the roles below, whose light values go muddy against
+   * near-black, are re-pitched. */
+
+  /* Status and categorical tints restated: values pitched for contrast
+   * against parchment go muddy against near-black.
+   *
+   * The export's dark --destructive is the teal, not a red, so
+   * status-danger stops aliasing it here. A danger state that reads as
+   * teal is not a danger state. */
+  --status-success: oklch(0.75 0.13 145);
+  --status-warn: oklch(0.80 0.11 75);
+  --status-danger: oklch(0.70 0.17 25);
+  --status-info: oklch(0.72 0.07 198);
+
+  --cat-sweep: oklch(0.76 0.08 198);
+  --cat-upload: oklch(0.74 0.11 300);
+  --cat-editor: oklch(0.76 0.12 350);
+  --cat-video: oklch(0.74 0.11 300);
+
+  /* Overlays invert: the light washes are espresso, these are the pale
+   * foreground, so hover lightens instead of darkening. */
+  --overlay-hover: oklch(0.81 0 0 / 0.08);
+  --overlay-active: oklch(0.81 0 0 / 0.13);
+  --overlay-strong: oklch(0.81 0 0 / 0.22);
+
+  /* Dark needs a heavier scrim: --card sits 0.0025 L above --background,
+   * so without one the modal has nothing to lift off. --surface-floating
+   * tracks the dark --card. */
+  /* Lifted for the dark plot; same hues. */
+  --curve-luma: oklch(0.92 0 0);
+  --curve-r: oklch(0.72 0.19 27);
+  --curve-g: oklch(0.78 0.19 145);
+  --curve-b: oklch(0.70 0.15 260);
+
+  --scrim: oklch(0 0 0 / 0.65);
+  --surface-floating: oklch(0.1822 0 0 / 0.88);
+
+  --canvas-surround: oklch(0.24 0 0);
+
+  /* The dark viewing room. Near-black rather than --canvas-surround's
+   * 0.28: the editor's surround is a panel with chrome around it, while
+   * this is the whole window, and a full screen of mid-grey is a lot of
+   * light to look at a photograph through. The chips lift off it by
+   * roughly the same distance they do in light mode. */
+  --viewer-field: var(--background);
+  --viewer-chip: oklch(0.30 0 0 / 0.88);
+  --viewer-chip-hover: oklch(0.40 0 0 / 0.92);
+  --viewer-border: oklch(1 0 0 / 0.20);
+  --viewer-text: oklch(0.95 0 0);
+  --viewer-text-muted: oklch(0.74 0 0);
+}
+
+@theme inline {
+  /* `inline` is load-bearing, not decoration: it substitutes these
+   * expressions into the generated utilities instead of emitting a
+   * :root variable, so every var() resolves against the element being
+   * styled and therefore against .dark when it applies. */
+
+  /* Surfaces. Four levels from three primitives; `raised` is the
+   * interpolated one. A step from `card` toward the text colour, which
+   * darkens on light and lightens on dark, so one expression separates
+   * the plane correctly in both modes. */
+  --color-surface-workspace: var(--background);
+  --color-surface-panel: var(--card);
+  --color-surface-raised: color-mix(in oklab, var(--card) 92%, var(--foreground));
+
+  /* Raw black, opaque, and ONLY correct with an explicit alpha:
+   * `bg-surface-overlay/60`. Reserved for the crop mask, where the
+   * darkening has to be true black in both themes regardless of palette.
+   *
+   * This comment used to claim all usages applied an alpha. Eight did
+   * not, and a bare `bg-surface-overlay` is opaque black: it painted
+   * the Settings backdrop pitch black, and put --text-muted on solid
+   * black in six editor chips, which in light mode is dark-on-black.
+   * Six of those also carried a backdrop-blur that could never do
+   * anything behind an opaque fill. The tell that the author expected
+   * translucency and the token did not give it.
+   *
+   * Use --color-scrim for a modal backdrop and --color-surface-floating
+   * for a chip over content. Both carry their own alpha, so forgetting a
+   * modifier cannot produce this again, and `npm run check:design`
+   * fails on a bare bg-surface-overlay. */
+  --color-surface-overlay: oklch(0 0 0);
+
+  /* Backdrop behind a modal. Darkens what is behind it; never holds
+   * text. */
+  --color-curve-luma: var(--curve-luma);
+  --color-curve-r: var(--curve-r);
+  --color-curve-g: var(--curve-g);
+  --color-curve-b: var(--curve-b);
+
+  --color-scrim: var(--scrim);
+
+  /* A panel floating over content: editor toolbars, badges on
+   * thumbnails. Follows the theme, so the normal text and border tokens
+   * stay readable on it, and is translucent, so a backdrop-blur beside
+   * it means something. */
+  --color-surface-floating: var(--surface-floating);
+
+  /* Text. Four levels from two primitives, so `default` and `disabled`
+   * are interpolated. `disabled` mixes toward the background.
+   * Receding, not merely dimmer. */
+  --color-text-emphatic: var(--foreground);
+  --color-text-default: color-mix(in oklab, var(--foreground) 75%, var(--muted-foreground));
+  --color-text-muted: var(--muted-foreground);
+  --color-text-disabled: color-mix(in oklab, var(--muted-foreground) 60%, var(--background));
+
+  --color-accent-primary: var(--primary);
+  --color-accent-muted: color-mix(in oklab, var(--primary) 40%, var(--background));
+
+  --color-border-subtle: var(--border);
+  --color-border-strong: color-mix(in oklab, var(--border) 85%, var(--foreground));
+  --color-border-focus: var(--ring);
+
+  --color-status-success: var(--status-success);
+  --color-status-warn: var(--status-warn);
+  --color-status-danger: var(--status-danger);
+  --color-status-info: var(--status-info);
+
+  --color-cat-sweep: var(--cat-sweep);
+  --color-cat-upload: var(--cat-upload);
+  --color-cat-editor: var(--cat-editor);
+  --color-cat-video: var(--cat-video);
+
+  --color-overlay-hover: var(--overlay-hover);
+  --color-overlay-active: var(--overlay-active);
+  --color-overlay-strong: var(--overlay-strong);
+
+  --color-scrim-soft: var(--scrim-soft);
+  --color-scrim-medium: var(--scrim-medium);
+  --color-scrim-heavy: var(--scrim-heavy);
+
+  --color-canvas-surround: var(--canvas-surround);
+
+  --color-viewer-field: var(--viewer-field);
+  --color-viewer-chip: var(--viewer-chip);
+  --color-viewer-chip-hover: var(--viewer-chip-hover);
+  --color-viewer-border: var(--viewer-border);
+  --color-viewer-text: var(--viewer-text);
+  --color-viewer-text-muted: var(--viewer-text-muted);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   Scales: independent of the palette
+   ══════════════════════════════════════════════════════════════════ */
+
+@theme {
+  /* `soft` is the app-wide chrome radius. It now derives from the
+   * export's --radius rather than carrying its own number, so the
+   * chrome rounds with the theme. --radius is 0.75rem, making soft 8px
+   * , which is where the reference's buttons and nav pills sit. `pill`
+   * stays absolute; a capsule is not a scaled corner. */
+  --radius-soft: calc(var(--radius) - 4px);
+  --radius-pill: 9999px;
+
+  /* Radii for a control sitting *inside* another one: a segmented
+   * toggle, a filter tab, the icon clusters in both toolbars.
+   *
+   * Concentric corners: the child's radius is the parent's minus the
+   * whole distance between the two border boxes. Give the child the
+   * parent's 8px and the corners fight. The gap between them stays
+   * even along the straight edges and swells through the curve, which
+   * reads as a misfit even when the sizes are exactly right.
+   *
+   * Measured, not assumed: at 4x the real geometry, a child rounded to
+   * the parent's radius drifts 2.75px wider through the corner than
+   * along the edge, and one rounded to parent-minus-padding still
+   * drifts 2px. Subtracting the border as well holds it to 0.5px, the
+   * limit of what antialiasing can resolve. Skipping the border is the
+   * easy mistake: it is only 1px, but it is 1px the child is inset by.
+   *
+   * nested. Inside 2px of padding and a 1px border: 8 - 3 = 5px.
+   * flush. Hard against the border, no padding: 8 - 1 = 7px. The
+   *          column stepper, whose buttons fill their group edge to
+   *          edge and are divided by a rule rather than by space.
+   *
+   * Both are derived, so they follow --radius. Revisit if a group's
+   * padding or border width changes. */
+  --radius-nested: calc(var(--radius) - 7px);
+  --radius-flush: calc(var(--radius) - 5px);
+
+  /* Type scale.
+   *
+   * Rank order is the contract, enforced by
+   * scripts/check-type-scale.mjs:
+   *
+   *   micro 10  <  metadata 11 = caption 11  <  code 12
+   *             <  body 13 = label 13  <  heading 15
+   *             <  subtitle 17  <  title 22  <  display 32
+   *
+   * `label` backs buttons, menu items and form labels and sits at body
+   * size on purpose. macOS control text and body text are both 13pt; a
+   * control is not more important than the heading above it. The old
+   * scale had label at 13.5 and heading at 10.5, so every button
+   * outranked every heading. Invisible while everything was tiny, and
+   * glaring the moment the scale grew.
+   *
+   * Each role carries its line height, and the numeric roles carry
+   * tabular figures. Literal values, not var() references. See the
+   * naming-trap note at the top of this file. */
+  --text-micro: 10px;
+  --text-micro--line-height: 1;
+  --text-micro--font-feature-settings: "tnum";
+  --text-metadata: 11px;
+  --text-metadata--line-height: 1;
+  --text-metadata--font-feature-settings: "tnum";
+  --text-caption: 11px;
+  --text-caption--line-height: 1.2;
+  --text-code: 12px;
+  --text-code--line-height: 1.5;
+  --text-code--font-feature-settings: "tnum";
+  --text-body: 13px;
+  --text-body--line-height: 1.4;
+  --text-label: 13px;
+  --text-label--line-height: 1.3;
+  --text-heading: 15px;
+  --text-heading--line-height: 1.2;
+  --text-subtitle: 17px;
+  --text-subtitle--line-height: 1.3;
+  --text-title: 22px;
+  --text-title--line-height: 1.2;
+  --text-display: 32px;
+  --text-display--line-height: 1;
+  --text-display--font-feature-settings: "tnum";
+
+  /* Landing-page scale. Web-normal sizes, fluid where it matters. */
+  /* ── The landing ramp is one curve, not four ──────────────────────
+   *
+   * hero, display and title were three independent clamps with
+   * unrelated floors, coefficients and ceilings, so the ratio between
+   * them wandered: measured at 1.06 on a phone, 1.5 in the middle and
+   * 1.29 on a desktop. At 1.06 a beat heading and the page's own
+   * headline are the same size, and since the heading is a sentence and
+   * the headline is three words, the heading reads BIGGER.
+   *
+   * They are now the same curve scaled by a constant 1.286 a step, and
+   * every one reaches its ceiling at the same 1200px viewport, which
+   * is what actually holds the ratio, floors and ceilings included.
+   *
+   * The hero outranks the beat headlines by more than one step, on
+   * purpose: the page's own title should not sit a hair above the
+   * section headings. 80 / 56 is 1.43 against the 1.286 that separates
+   * every other rank.
+   *
+   * The floor moved with it, and the reason the old one was 34 has
+   * gone. That number was measured against "photography", the longest
+   * word in the previous headline, which needed 7.47px of width per px
+   * of font size where a 320px phone leaves 262. The headline is "From
+   * the card to the client" now and its longest word is "client", so
+   * the binding constraint is roughly a third of what it was: 38px
+   * needs about 137px of measure and has 262.
+   *
+   * The relation the other ranks are built on still holds here: floor =
+   * ceiling / 2.116, coefficient = ceiling / 1200 in vw, so all three
+   * leave their floors and reach their ceilings at the same two
+   * viewports. 80 / 2.116 is 37.8; 80 / 1200 is 6.667vw. */
+  --text-hero: clamp(34px, 6vw, 72px);
+  --text-hero--line-height: 1.1;
+  --text-landing-meta: 11px;
+  --text-landing-meta--line-height: 1.4;
+  --text-landing-micro: 12px;
+  --text-landing-micro--line-height: 1.4;
+  --text-landing-caption: 13px;
+  --text-landing-caption--line-height: 1.5;
+  --text-landing-nav: 14px;
+  --text-landing-nav--line-height: 1.5;
+  --text-landing-body: 16px;
+  --text-landing-body--line-height: 1.6;
+  /* Fluid, because --text-hero is. The hero clamps down to 34px on a
+   * phone while this sat at a flat 19, so the two converged to a ratio
+   * of 1.8 and the subhead read as a second headline. Clamped on the
+   * same curve it holds around 2.3 at the narrow end and widens from
+   * there; 1.55vw reaches the 19px ceiling at 1226px, so nothing
+   * changes on a laptop. */
+  --text-landing-sub: clamp(15px, 1.583vw, 19px);
+  --text-landing-sub--line-height: 1.55;
+  /* hero / 1.286 / 1.286: two steps down. */
+  /* Two steps below the hero. The coefficient is on the curve; the
+   * floor is 21px rather than the 18.9 the relation gives, and that is
+   * deliberate: this is the legal pages' section heading, and 18.9
+   * against a 16px body is not a heading. It costs a small wobble in
+   * the title-to-display ratio between 567 and 630px, and nothing
+   * else. */
+  --text-landing-title: clamp(21px, 3.333vw, 40px);
+  --text-landing-title--line-height: 1.3;
+  /* hero / 1.286: one step down, at every width. */
+  /* One step below the hero: 56 / 72 = 0.778, with the floor and the
+   * coefficient derived so that step holds at every width rather than
+   * only at the ceiling. */
+  --text-landing-display: clamp(26.5px, 4.667vw, 56px);
+  --text-landing-display--line-height: 1.1;
+  --text-landing-stat: 48px;
+  --text-landing-stat--line-height: 1;
+
+  /* Spacing. The space-N ramp plus named layout dimensions, which in v4
+   * also feed min-w-*, max-w-* and max-h-*. Text-bearing columns are
+   * measured against real strings at the real sizes. `rail` stays at
+   * 48px: it is an icon column and the icons did not change size. */
+  --spacing-space-0\.5: 2px;
+  --spacing-space-1: 4px;
+  --spacing-space-1\.5: 6px;
+  --spacing-space-2: 8px;
+  --spacing-space-3: 12px;
+  --spacing-space-4: 16px;
+  --spacing-space-5: 20px;
+  --spacing-space-6: 24px;
+  --spacing-rail: 48px;
+  /* The caption buttons the app draws for itself, now that the window
+   * has no OS title bar.
+   *
+   * 46px wide is not a taste call: Windows draws its own at 46, and the
+   * overlay this replaced measured 136px for three buttons on this
+   * display. 45.3 each. Matching it means the window still feels like
+   * a Windows window under the app's own colours. The height is the
+   * top row's, `rail`, so the buttons fill the strip rather than
+   * floating in it.
+   *
+   * `caption` is the reserve: what any control sitting at the right of
+   * the top row has to keep clear. Derived, so the two cannot drift. */
+  --spacing-caption-button: 46px;
+  --spacing-caption: calc(var(--spacing-caption-button) * 3);
+  --spacing-sidebar: 200px;
+  --spacing-aside: 280px;
+  --spacing-modal: 440px;
+  --spacing-toast: 420px;
+  --spacing-terminal: 200px;
+  /* Collapsed, the terminal is just its title bar. The toast surface
+   * offsets by one of these two so it always sits on the terminal's top
+   * edge rather than floating over it. */
+  --spacing-terminal-bar: 28px;
+  --spacing-dropdown-lg: 32rem;
+  --spacing-metadata: 120px;
+  --spacing-counter-sm: 16px;
+  --spacing-counter: 20px;
+  --spacing-log-source: 64px;
+
+  /* Motion.
+   *
+   * The same three speeds as lib/motion.ts, in the units CSS wants.
+   * Before these, nine components had each picked a number. 150ms in
+   * one class, 0.2s in a Framer transition, 300ms in another, so two
+   * things opening beside each other settled at visibly different
+   * moments. Tailwind's own duration-150/200/300 happen to line up,
+   * which is why the drift went unnoticed for so long.
+   *
+   * Kept in step with the TypeScript side by check-motion.cjs. */
+  --duration-fast: 150ms;
+  --duration-standard: 200ms;
+  --duration-slow: 300ms;
+  /* The landing page's fourth speed, and the only one the app has no
+   * use for. 150/200/300 are interface speeds: a control answering a
+   * click. A section arriving as you scroll to it is a different act
+   * and reads as twitchy at 300. It was a raw 0.6s in three places in
+   * landing/src/style.css before it had a name. */
+  --duration-reveal: 600ms;
+
+  /* The house curve, matching EASE_STANDARD. */
+  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* The placeholder pulse.
+   *
+   * Tailwind's own animate-pulse runs 1 -> 0.5 on cubic-bezier(0.4, 0,
+   * 0.6, 1): it accelerates through the middle and holds at both ends,
+   * which reads as a blink rather than a breath. This is symmetric
+   * ease-in-out over a slightly longer beat, and a shallower trough.
+   * The movement should be noticed only if you look for it.
+   *
+   * 1.6s because a placeholder that cycles faster than roughly a second
+   * and a half reads as urgency, and nothing here is urgent. */
+  --animate-skeleton: skeleton-pulse 1.6s ease-in-out infinite;
+
+  /* Animations. None of these six are referenced anywhere in the tree;
+   * carried across the v4 migration unchanged and still deletion
+   * candidates. */
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-fade-in: fade-in 0.4s ease-out forwards;
+  --animate-scale-in: scale-in 0.2s ease-out forwards;
+  --animate-slide-in-right: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-spin-slow: spin 3s linear infinite;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@keyframes accordion-down {
+  from { height: 0; }
+  to { height: var(--radix-accordion-content-height); }
+}
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height); }
+  to { height: 0; }
+}
+@keyframes fade-in {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes scale-in {
+  0% { opacity: 0; transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes slide-in-right {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(0); }
+}
+
+/* ── Reduce Motion ──────────────────────────────────────────────────
+ *
+ * Both macOS and Windows have a system-wide "reduce motion" setting,
+ * and until now this app ignored it entirely: there was a
+ * useReducedMotion() helper in lib/motion.ts, exported, documented,
+ * and called by nothing.
+ *
+ * One block rather than a branch in every component. Motion sickness
+ * is not a per-component preference, and a rule that has to be
+ * remembered at four hundred call sites is a rule that will be missed
+ * at some of them.
+ *
+ * Movement is removed, not the feedback. Durations collapse to
+ * near-zero rather than zero so transitionend still fires. Code that
+ * waits for a transition to finish would otherwise hang, and colour
+ * and opacity still change, because those carry meaning here (what is
+ * selected, what is disabled) rather than decoration.
+ */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}

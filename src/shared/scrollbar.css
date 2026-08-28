@@ -1,0 +1,61 @@
+/* ── Scrollbars ──
+ *
+ * Shared by the renderer and the landing page, the same way
+ * tokens.css is. It lived in src/renderer/index.css and the landing
+ * page had none, so the app's panels scrolled under a thin inset pill
+ * and the page's scrolled under whatever the OS draws. Including the
+ * editor mockup, which is a drawing of one of those panels.
+ *
+ * Chromium only, deliberately: the app is Electron, and the
+ * `::-webkit-scrollbar` pseudo-elements are still the way to size a
+ * scrollbar there. Every browser the landing page has to survive is
+ * Chromium or falls back to its own bar, which is correct rather than
+ * broken. The standard `scrollbar-width` is supported too and takes
+ * precedence over these when both are set, so it is left alone rather
+ * than fighting them.
+ *
+ * The track used to be --scrim-soft, which is 20% black in BOTH themes:
+ * a dark stripe down the side of every parchment panel in light
+ * mode. Transparent instead, so the panel behind it shows through and
+ * the scrollbar reads as part of whatever it is scrolling.
+ *
+ * The thumb is an overlay token, so it follows the theme, and the
+ * transparent border with background-clip keeps it inset from the edge
+ * instead of welded to it. */
+@layer base {
+  ::-webkit-scrollbar {
+    @apply w-2.5 h-2.5;
+  }
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-overlay-active rounded-pill border-2 border-transparent bg-clip-padding;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-overlay-strong bg-clip-padding;
+  }
+
+  /* Available, and currently used by nothing.
+   *
+   * Six components referenced this class while it was undefined, so it
+   * did nothing and every one of them showed a scrollbar. Defining it
+   * turned six panels bare at once. Including both photo grids, where
+   * the scrollbar is the only clue that there is more below. Those
+   * references are gone rather than kept, so the global bar is genuinely
+   * global.
+   *
+   * Reach for it only where a scrollbar would actively mislead, and
+   * check what disappears when you do. */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    @apply hidden;
+  }
+}

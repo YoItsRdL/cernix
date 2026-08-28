@@ -1,0 +1,879 @@
+/* Landing-page CSS entry. Compiled by the root-level `tailwindcss`
+ * CLI invoked via `npm run landing:build` (output: ./dist/style.css).
+ *
+ * Tokens are imported from the shared source `src/shared/tokens.css`
+ *: the same file the Electron renderer's `index.css` imports. Zero
+ * duplication: a colour role tweaked in the app updates on the
+ * landing page on next build, and vice versa.
+ */
+
+@import "tailwindcss" source(none);
+@import "../../src/shared/tokens.css";
+@import "../../src/shared/scrollbar.css";
+
+/* v4 infers content paths from the stylesheet location, which would
+ * reach up into the Electron renderer. Declared explicitly so this
+ * bundle only scans the landing page. */
+/* Every page at the landing root, not just index.html. privacy.html and
+ * terms.html sat outside the scan, so a utility used only there was
+ * silently never generated - the class was in the markup and the rule
+ * was missing from the bundle. They looked correct only because
+ * index.html happened to use the same utilities. */
+@source "../*.html";
+@source "../src/**/*.{html,css,js}";
+
+@layer base {
+  /* The chevron is the disclosure indicator; the browser's own marker
+   * is a second one saying the same thing. Every accordion on this page
+   * is a <details>, so this is set once here rather than as a variant
+   * repeated at each summary. */
+  summary { list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+
+  /* Tells the browser which palette its own chrome should match.
+   * Without it the scrollbar stays light for the whole dark half
+   * of the page. */
+  :root { color-scheme: light; }
+  :root.dark { color-scheme: dark; }
+
+  /* Emoji need a font that has them. The page sets Geist Mono, which
+   * does not, and a codepoint with no glyph in the stack falls back to
+   * whatever the OS offers or renders as tofu. Named here so the answer
+   * is the same on every platform rather than left to chance.
+   *
+   * `aria-hidden` on every one of them in the markup: the heading
+   * already says what it says, and "Every frame gets a verdict star"
+   * is not an improvement for anyone listening.
+   *
+   * The size is dialled back a little. At full size an emoji outweighs
+   * the type it sits beside, because it is the only coloured thing in
+   * a line of near-black. */
+  .emoji {
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+    font-size: 0.78em;
+    line-height: 1;
+    vertical-align: 0.06em;
+    margin-left: 0.28em;
+    -webkit-font-smoothing: auto;
+  }
+
+  /* Every tap waits ~300ms for a possible second tap before it fires,
+   * unless the element opts out. Nothing on this page wants
+   * double-tap-to-zoom: the text reflows and the mockups have their own
+   * scroller. Set on the controls rather than globally so pinch-zoom,
+   * which is an accessibility affordance, is untouched. */
+  a, button, summary, [role="button"] {
+    touch-action: manipulation;
+  }
+
+  body {
+    /* Landing-page body diverges from the renderer's: the page must
+     * scroll (no overflow-hidden), cursor stays default browser-style,
+     * and the baseline font-size is `text-body` rather than the
+     * renderer's `text-heading`. */
+    @apply bg-surface-workspace text-text-default font-sans min-h-screen antialiased;
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+  }
+}
+
+@layer components {
+  /* ── Mockups below the width their layout holds at ────────────────
+   *
+   * A mockup on this page is a copy of a real surface, so it is never
+   * re-laid-out to fit: dropping the size and type columns off a file
+   * row would draw a list the app does not have. The component itself
+   * has no answer either: ReviewView's metadata group is `shrink-0`
+   * and 304px wide, and Electron never gives it a 262px window.
+   *
+   * So below lg the drawing keeps its true width and the reader moves
+   * it, in a scroller that is deliberate and visible rather than a
+   * silent clip. The page itself still never scrolls sideways.
+   *
+   * The padding is for the panel's own shadow and border radius, which
+   * a scroll container would otherwise shave off at both edges.
+   */
+  .mockup-scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: var(--spacing-space-2);
+    /* Full bleed. The scroller cancels the page gutter with a negative
+     * margin and puts it back as its own padding, so the drawing can
+     * travel all the way to both edges of the screen instead of being
+     * cropped inside a 24px frame, and it still STARTS inset, because
+     * the padding is inside the scroll box rather than outside it.
+     * The end padding is honoured in scroll overflow, so the right edge
+     * gets the same air as the left when you reach it. */
+    margin-inline: calc(var(--spacing-space-6) * -1);
+    padding-inline: var(--spacing-space-6);
+  }
+  .mockup-scroll > * {
+    min-width: var(--mockup-w, 820px);
+  }
+  @media (min-width: 64rem) {
+    .mockup-scroll {
+      overflow-x: visible;
+      padding-bottom: 0;
+      margin-inline: 0;
+      padding-inline: 0;
+    }
+    .mockup-scroll > * {
+      min-width: 0;
+    }
+  }
+
+  /* Hero stagger reveal. Sub-headline + CTA start at opacity:0 and
+   * fade up with a 100ms / 200ms delay after first paint. The
+   * headline above them appears immediately (no `.reveal-stagger-*`
+   * class) so the first impression isn't an empty frame.
+   *
+   * `prefers-reduced-motion: reduce` collapses the animation: opacity
+   * jumps to 1 with no delay, no transform. Content is visible from
+   * initial paint.
+   */
+  @keyframes hero-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .reveal-stagger-1 {
+    animation: hero-fade-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards;
+  }
+
+  .reveal-stagger-2 {
+    animation: hero-fade-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal-stagger-1,
+    .reveal-stagger-2 {
+      animation: none;
+      opacity: 1;
+    }
+  }
+
+  /* Feature-beat scroll reveal. Each `.beat-reveal` section starts
+   * at opacity:0 + translateY(16px). The IntersectionObserver in
+   * index.html adds `.beat-revealed` when the section's top crosses
+   * 80% of viewport height, transitioning to fully visible.
+   * Observer fires once per element (unobserves after).
+   *
+   * `prefers-reduced-motion: reduce` makes sections visible from
+   * initial paint with no transition.
+   */
+  .beat-reveal {
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity var(--duration-reveal) var(--ease-standard),
+                transform var(--duration-reveal) var(--ease-standard);
+  }
+  .beat-revealed {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* -- Inside a beat, the copy arrives before the window -------------
+   *
+   * The whole beat used to fade as one block, which says everything on
+   * it matters equally. It does not: the sentence is the claim and the
+   * window is the evidence, so the sentence lands first and the window
+   * follows it in.
+   *
+   * `--i` sets an element's place in the order. Two steps is the whole
+   * vocabulary; a third would be choreography for its own sake.
+   */
+  /* Scoped to a beat, deliberately. Marked on an element OUTSIDE
+   * one, `opacity: 0` would have no rule to undo it and the thing
+   * would never appear at all, which is exactly what happened to
+   * the hero window, since the hero is not a .beat-reveal. */
+  .beat-reveal .beat-step {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  .beat-revealed .beat-step {
+    animation: beat-step-in var(--duration-reveal) var(--ease-standard) forwards;
+    animation-delay: calc(var(--i, 0) * 120ms);
+  }
+  @keyframes beat-step-in {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* -- The terminal fills the way a terminal fills -------------------
+   *
+   * A log that is simply THERE misrepresents what a log is. These lines
+   * are a sync running, so they arrive in the order the app writes
+   * them. 70ms apart: quick enough to read as output rather than as a
+   * list being performed at you.
+   */
+  .log-line {
+    opacity: 0;
+  }
+  .beat-revealed .log-line {
+    animation: log-line-in var(--duration-standard) var(--ease-standard) forwards;
+    animation-delay: calc(320ms + var(--i, 0) * 70ms);
+  }
+  @keyframes log-line-in {
+    from { opacity: 0; transform: translateY(3px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* -- The progress bar is a progress bar ----------------------------
+   *
+   * 62% drawn as a static width is a screenshot of a moment. scaleX
+   * rather than width so it composites instead of laying out, origin
+   * left so it grows from the start of its track.
+   */
+  .upload-bar {
+    transform: scaleX(0);
+    transform-origin: left center;
+  }
+  .beat-revealed .upload-bar {
+    animation: upload-bar-fill var(--duration-reveal) var(--ease-standard) 420ms forwards;
+  }
+  @keyframes upload-bar-fill {
+    to { transform: scaleX(1); }
+  }
+
+  /* All of the above is decoration on a page that already reads. Under
+   * Reduce Motion the page IS that still page: every element at its
+   * final state, nothing animating, and no delay holding content back
+   * from someone who asked not to be moved. */
+  @media (prefers-reduced-motion: reduce) {
+    .beat-reveal {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+    /* Matched at the same specificity as the rules they undo.
+     * Written as bare class selectors these lost to
+     * `.beat-revealed .upload-bar`, so the animation still ran:
+     * identity to identity, invisible but running, which is not
+     * what someone asking for less motion is owed. */
+    .beat-reveal .beat-step,
+    .beat-revealed .beat-step,
+    .log-line,
+    .beat-revealed .log-line,
+    .upload-bar,
+    .beat-revealed .upload-bar {
+      opacity: 1;
+      transform: none;
+      animation: none;
+    }
+  }
+
+  /* ── Theme crossfade ──────────────────────────────────────────────
+   *
+   * Flipping `.dark` on <html> swaps every colour token at once. With
+   * no transition that is a hard cut across the whole page, which
+   * reads as a repaint fault rather than a deliberate change.
+   *
+   * The palette itself is not defined here: `.dark` already lives in
+   * src/shared/tokens.css and compiles into this bundle, so the
+   * landing page and the app share one source for both themes.
+   *
+   * `:where()` holds specificity at 0 so every Tailwind colour
+   * utility, including hover states carrying their own transition,
+   * still wins over this rule.
+   */
+  @media (prefers-reduced-motion: no-preference) {
+    :where(body, body *) {
+      transition:
+        background-color var(--duration-slow) var(--ease-standard),
+        border-color var(--duration-slow) var(--ease-standard),
+        color var(--duration-slow) var(--ease-standard);
+    }
+  }
+
+  /* ── Theme toggle ─────────────────────────────────────────────────
+   *
+   * Mirrors ActivityButton in src/renderer/components/Sidebar.tsx: the
+   * glyph names the theme it switches TO, hover paints an inset pill
+   * rather than a background on the button itself, and the icon grows
+   * a little under the cursor.
+   *
+   * Only one glyph is in the layout at a time. Both are rendered so
+   * the swap needs no JS beyond the class on <html>.
+   */
+  .theme-toggle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    border-radius: var(--radius-soft);
+    transition: color var(--duration-standard) var(--ease-standard),
+                transform var(--duration-fast) var(--ease-standard);
+  }
+  .theme-toggle:hover { color: var(--color-text-emphatic); }
+  .theme-toggle:active { transform: scale(0.97); }
+  .theme-toggle:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--color-border-focus);
+  }
+
+  /* Inset like the rail’s, so it reads as a hovered item rather than
+   * a change of background. */
+  .theme-toggle-pill {
+    position: absolute;
+    inset: 2px;
+    border-radius: var(--radius-soft);
+    background-color: transparent;
+    pointer-events: none;
+    transition: background-color var(--duration-standard) var(--ease-standard);
+  }
+  .theme-toggle:hover .theme-toggle-pill {
+    background-color: var(--color-overlay-hover);
+  }
+
+  .theme-toggle-icon {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    stroke-width: 1.5;
+    transition: transform var(--duration-standard) var(--ease-standard),
+                height var(--duration-slow) var(--ease-standard),
+                border-radius var(--duration-slow) var(--ease-standard);
+  }
+  .theme-toggle:hover .theme-toggle-icon { transform: scale(1.1); }
+
+  /* Light now: offer the moon. Dark now: offer the sun. */
+  .theme-toggle-sun { display: none; }
+  :root.dark .theme-toggle-sun { display: block; }
+  :root.dark .theme-toggle-moon { display: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .theme-toggle,
+    .theme-toggle-pill,
+    .theme-toggle-icon {
+      transition: none;
+    }
+    .theme-toggle:hover .theme-toggle-icon { transform: none; }
+  }
+
+  /* ── Support button ───────────────────────────────────────────────
+   *
+   * A spilled coffee, not a button. No shadow: a shadow lifts an
+   * object off the page, and this one is meant to have landed on it. The silhouette is an asymmetric
+   * border-radius rather than an SVG path, for one reason that matters:
+   * the shape has to stretch when the sentence writes itself in on
+   * hover, and a percentage radius stretches organically while a path
+   * would either distort or need morphing.
+   *
+   * Two droplets sit off the edge as pseudo-elements, anchored LEFT.
+   * They were anchored right so the spread would leave them undisturbed,
+   * which held them at the trailing end: the one place a spill throws
+   * nothing. Anchored left they ride the leading edge and read as flung
+   * from the cup, which is the whole job of a splash.
+   *
+   * The order matters more than any single piece: the cup tips first,
+   * the stream draws on once the lip is actually pointing down, and the
+   * steam dies at the same moment, because a cup on its side has stopped
+   * being hot. Get the sequence wrong and it reads as a pill expanding
+   * to show a label, which is what this was before the pour existed.
+   */
+  /* The rail carries max-w-7xl and the page gutter, so the spill lines up
+   * with the content column instead of the viewport edge. It is inert;
+   * only the spill inside it takes the pointer. */
+  .support-fab-rail {
+    position: fixed;
+    left: 0;
+    right: 0;
+    /* Clear of the home indicator on a notched phone; the fallback
+     * inside max() is what every other device gets. */
+    bottom: max(var(--spacing-space-6), env(safe-area-inset-bottom));
+    z-index: 40;
+    display: flex;
+    justify-content: flex-end;
+    max-width: 80rem;
+    margin: 0 auto;
+    padding: 0 var(--spacing-space-6);
+    pointer-events: none;
+  }
+
+  .support-fab {
+    position: relative;
+    pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    /* Named because the pointer target below has to be exactly this and
+     * would otherwise be a second 52 nobody thinks to change. */
+    --fab-rest: 52px;
+    height: var(--fab-rest);
+    padding: 0 var(--spacing-space-2);
+    background-color: var(--color-accent-primary);
+    color: var(--color-primary-foreground);
+    border-radius: 34px 18px 28px 22px / 22px 30px 20px 28px;
+    transition: transform var(--duration-standard) var(--ease-standard),
+                padding-left var(--duration-slow) var(--ease-standard),
+                height var(--duration-slow) var(--ease-standard),
+                border-radius var(--duration-slow) var(--ease-standard);
+  }
+  /* The spill: the puddle spreads rather than the pill widening. Height
+   * grows with it so the area gains in both directions, and the leading
+   * (left) end goes bulbous the way liquid does when it runs. */
+  .support-fab:active { transform: scale(0.97); }
+
+  /* The pointer target, which does not move when the puddle spreads.
+   *
+   * Hover takes the height from 52px to 116px and deepens the
+   * bottom-right corner from 28/20px to 54/44px, while the right and
+   * bottom edges stay where they are. So the open shape carves away
+   * part of the shape it grew from: of the 2263 points that hit the
+   * button at rest, 352 miss it once it is open, every one of them in
+   * the lower-right quadrant. A pointer sitting in that crescent opens
+   * the spill, finds itself outside it, closes it, and is inside again.
+   * That is the flicker, and it covers about 15% of the resting target.
+   *
+   * This square sits where the button rests and never changes size, so
+   * whatever the blob does the pointer is still over a child of the
+   * link and the hover holds. An absolutely positioned child is
+   * hit-tested outside its parent's border-radius, which is precisely
+   * the area that goes missing. */
+  .support-fab-hit {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: var(--fab-rest);
+    height: var(--fab-rest);
+  }
+  .support-fab:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-surface-workspace), 0 0 0 4px var(--color-border-focus);
+  }
+
+  /* Splashes. Small, off-edge, left-anchored so they ride the leading
+   * edge out. They start tucked up and to the right: back at the cup:
+   * and travel down-left, so the motion is the throw and not a fade. */
+  .support-fab::before,
+  .support-fab::after {
+    content: "";
+    position: absolute;
+    background-color: var(--color-accent-primary);
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(11px, -7px) scale(0.2);
+    transition: opacity var(--duration-standard) var(--ease-standard),
+                transform var(--duration-slow) var(--ease-standard);
+  }
+  .support-fab::before {
+    left: -7px; bottom: 15px;
+    width: 9px; height: 7px;
+    border-radius: 58% 42% 48% 52% / 60% 45% 55% 40%;
+  }
+  .support-fab::after {
+    left: 17px; bottom: -7px;
+    width: 6px; height: 5px;
+    border-radius: 45% 55% 60% 40% / 50% 55% 45% 50%;
+  }
+
+  /* The third splash, and the largest. It needs a real element because
+   * ::before and ::after are already the other two, and it is thrown
+   * furthest so it lands last: a spill throws its biggest drop hardest. */
+  .support-fab-drop {
+    position: absolute;
+    left: -23px;
+    bottom: 2px;
+    width: 13px;
+    height: 11px;
+    border-radius: 52% 48% 44% 56% / 56% 42% 58% 44%;
+    background-color: var(--color-accent-primary);
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(16px, -8px) scale(0.15);
+    transition: opacity var(--duration-standard) var(--ease-standard) 70ms,
+                transform var(--duration-slow) var(--ease-standard) 70ms;
+  }
+
+  .support-fab-mark { position: relative; width: 36px; height: 36px; flex-shrink: 0; }
+  /* The cup tips to pour. Origin sits at its base so it pivots on the
+   * rim it is standing on rather than spinning about its middle, and it
+   * goes counter-clockwise because the spill spreads to the left. */
+  .support-fab-cup {
+    position: absolute; left: 50%; top: 50%;
+    width: 22px; height: 22px; margin: -11px 0 0 -11px;
+    transform-origin: 50% 82%;
+    transition: transform var(--duration-slow) var(--ease-standard);
+  }
+  /* -52deg, not the -34 this started at. A cup filled near the rim only
+   * begins to pour somewhere past 40 degrees, so -34 read as a cup
+   * leaning rather than a cup emptying, and the stream looked like it
+   * was escaping through the wall. Measured against the geometry: the
+   * pouring rim corner sits at (2.75, 7.33) in the 22px cup box, the
+   * pivot at (11, 18.04), so -52deg lands that corner at (4.5, 25.0) in
+   * the 36px mark, which is where the stream below starts. Change the
+   * angle and that start point moves; recompute it, do not nudge it. */
+  .support-fab-steam { position: absolute; left: 50%; top: 1px; width: 22px; height: 12px; margin-left: -11px; }
+
+  /* The pour. Not clipped to the mark: the stream and its drip fall past
+   * the 36px box and land on the puddle, which is the element itself. */
+  .support-fab-pour {
+    position: absolute;
+    left: 0; top: 0;
+    width: 36px; height: 36px;
+    overflow: visible;
+  }
+  .support-fab-stream {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    transition: stroke-dashoffset var(--duration-slow) var(--ease-standard);
+  }
+  /* Held back 90ms so the lip is already tipping when the liquid appears.
+   * Starting them together reads as the stream pushing the cup over. */
+  /* One drip, detached from the stream and falling past it. It is the
+   * only part of the spill that keeps moving once the puddle has settled,
+   * which is what stops the held state from going dead. */
+  .support-fab-drip {
+    fill: currentColor;
+    opacity: 0;
+  }
+
+  @keyframes fab-drip {
+    0%   { opacity: 0; transform: translateY(-4px) scale(0.5); }
+    18%  { opacity: 1; }
+    70%  { opacity: 1; transform: translateY(9px)  scale(1); }
+    100% { opacity: 0; transform: translateY(13px) scale(0.8); }
+  }
+
+  .support-fab-wisp {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    opacity: 0;
+    transform-origin: bottom center;
+    animation: fab-steam 3200ms var(--ease-standard) infinite;
+  }
+  .support-fab-wisp:nth-child(2) { animation-delay: 420ms; }
+  .support-fab-wisp:nth-child(3) { animation-delay: 840ms; }
+  .support-fab-wisp { transition: opacity var(--duration-standard) var(--ease-standard); }
+
+  @keyframes fab-steam {
+    0%   { opacity: 0;   transform: translateY(2px)  scaleY(0.7); }
+    35%  { opacity: 0.8; }
+    100% { opacity: 0;   transform: translateY(-7px) scaleY(1.2); }
+  }
+  @keyframes fab-write {
+    from { opacity: 0; transform: translateY(4px) rotate(-2.5deg); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .support-fab-reveal {
+    display: block;
+    max-width: 0;
+    overflow: hidden;
+    transition: max-width var(--duration-slow) var(--ease-standard);
+  }
+  .support-fab-text {
+    display: block;
+    padding-left: var(--spacing-space-1);
+    padding-right: var(--spacing-space-3);
+    width: 216px;
+    line-height: 1.45;
+    font-family: var(--font-mono);
+    font-size: var(--text-landing-nav);
+    font-weight: 500;
+    opacity: 0;
+  }
+
+
+
+  /* ── The spill is a hover state, and a phone has no hover ──────────
+   *
+   * A tap on a touch screen leaves a sticky :hover behind, so the cup
+   * tipped, the coffee poured and the note wrote itself out, and then
+   * stayed spilled until you tapped somewhere else. The whole
+   * animation is decoration on a link; on a phone the button is the
+   * 52px circle it starts as, and nothing more.
+   *
+   * `any-hover` rather than `hover`, so an iPad with a trackpad still
+   * gets it: the question is whether ANY pointer can hover, not
+   * whether the primary one can.
+   *
+   * The focus RING stays outside this block. Losing the spill on a
+   * phone costs nothing; losing the focus outline would cost a
+   * keyboard user the only sign of where they are. */
+  @media (any-hover: hover) {
+    .support-fab:hover,
+    .support-fab:focus-visible {
+      height: 116px;
+      /* The cup moves in as the puddle spreads. At rest 8px keeps it
+       * centred in a 52px circle; expanded, the same 8px leaves it pinned
+       * against the left lobe where the 62 and 68px corner curves are,
+       * with the whole mass of the note off to its right. */
+      padding-left: var(--spacing-space-6);
+      border-radius: 62px 40px 54px 68px / 50px 58px 44px 54px;
+    }
+    .support-fab:hover::before,
+    .support-fab:hover::after,
+    .support-fab:focus-visible::before,
+    .support-fab:focus-visible::after {
+      opacity: 1;
+      transform: translate(0, 0) scale(1);
+    }
+    .support-fab:hover .support-fab-drop,
+    .support-fab:focus-visible .support-fab-drop {
+      opacity: 1;
+      transform: translate(0, 0) scale(1);
+    }
+    .support-fab:hover .support-fab-cup,
+    .support-fab:focus-visible .support-fab-cup { transform: rotate(-52deg); }
+    .support-fab:hover .support-fab-stream,
+    .support-fab:focus-visible .support-fab-stream {
+      stroke-dashoffset: 0;
+      transition-delay: 90ms;
+    }
+    .support-fab:hover .support-fab-drip,
+    .support-fab:focus-visible .support-fab-drip {
+      animation: fab-drip 1400ms var(--ease-standard) 420ms infinite;
+    }
+    .support-fab:hover .support-fab-wisp,
+    .support-fab:focus-visible .support-fab-wisp { animation: none; opacity: 0; }
+    .support-fab:hover .support-fab-reveal,
+    .support-fab:focus-visible .support-fab-reveal {
+      /* The sentence wraps inside 216px, so the spill is a blob rather
+       * than a ribbon and the whole thing stays about 280px wide. That
+       * fits the gutter at every width the page supports, which is why
+       * there is no viewport clamp and no narrow-screen special case. */
+      max-width: 240px;
+    }
+    .support-fab:hover .support-fab-text,
+    .support-fab:focus-visible .support-fab-text {
+      animation: fab-write 420ms var(--ease-standard) 120ms forwards;
+    }
+  }
+  /* Still a spill, just a still one. */
+  @media (prefers-reduced-motion: reduce) {
+    .support-fab { transition: none; }
+    .support-fab:active { transform: none; }
+    .support-fab-wisp { animation: none; opacity: 0.5; transition: none; }
+    .support-fab-cup { transition: none; }
+    /* The stream still arrives, it just arrives whole. The drip is the
+     * one piece that cannot survive: it has no still frame worth holding,
+     * so it is dropped rather than frozen mid-fall. */
+    .support-fab-stream { transition: none; }
+    .support-fab:hover .support-fab-drip,
+    .support-fab:focus-visible .support-fab-drip { animation: none; }
+    .support-fab::before, .support-fab::after { transition: none; }
+    .support-fab-drop { transition: none; }
+    .support-fab-reveal { transition: none; }
+    .support-fab:hover .support-fab-text,
+    .support-fab:focus-visible .support-fab-text { animation: none; opacity: 1; }
+  }
+  /* ── Refusal notes ────────────────────────────────────────────────
+   *
+   * Each line in the manifesto rail carries the explanation the old
+   * grid cells used to print, on a card that appears when you point at
+   * the line and hangs off a chinagraph leader, the same hand the
+   * feature panels are marked up in.
+   *
+   * The two inks are mixed rather than alternated, for the reason the
+   * doodles are: a strict alternation reads as a scheme, and this page
+   * is meant to look marked up rather than generated. Arrow and card
+   * share one ink, so each pair reads as a single mark.
+   *
+   * Text on each card comes from that ground's own -foreground token.
+   * The card is a saturated block sitting on the page background, so it
+   * cannot inherit the body colour and stay readable.
+   *
+   * Nothing here is the only route to the information: the paragraph
+   * beside the rail already says all six things in prose. The cards are
+   * an affordance, which is why hiding them below lg costs nothing.
+   */
+  /* A card nobody knows is there is a card that is not there. The term
+   * carries a dotted underline at rest, which is the one typographic
+   * idiom the web already reads as "there is an explanation here", and
+   * costs no furniture on a section built out of hairlines. It carries
+   * the line's own ink, so the signal and the card that answers it are
+   * visibly the same mark. The cursor confirms it on arrival. */
+  .refusal { position: relative; cursor: help; }
+
+  .refusal-term {
+    text-decoration: underline dotted;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+  }
+  /* The underline carries the line's ink at rest, not on hover. A grey
+   * dotted rule only says "hover me" once you already have; in colour it
+   * says these six words mean something before the pointer arrives, and
+   * it tells you which mark is about to appear. */
+  .refusal-ink-primary .refusal-term { text-decoration-color: var(--color-accent-primary); }
+  .refusal-ink-secondary .refusal-term { text-decoration-color: var(--color-secondary); }
+
+  /* Below lg the cards are gone, so the promise the underline makes
+   * cannot be kept. It goes with them. */
+  @media (max-width: 1023px) {
+    .refusal { cursor: auto; }
+    .refusal-term { text-decoration: none; }
+  }
+
+  .refusal-lead {
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    margin-top: -12px;
+    margin-left: 2px;
+    width: 44px;
+    height: 24px;
+    z-index: 5;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--duration-standard) var(--ease-standard);
+  }
+
+  .refusal-note {
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    margin-left: 44px;
+    /* Set once and never animated: transitioning it as well would fight
+     * the centring and make the card jump as it fades in. */
+    transform: translateY(-50%) rotate(-1.5deg);
+    width: 300px;
+    z-index: 5;
+    border-radius: var(--radius);
+    padding: var(--spacing-space-3) var(--spacing-space-4);
+    box-shadow: var(--shadow-2xl);
+    font-size: var(--text-landing-caption);
+    line-height: 1.5;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--duration-standard) var(--ease-standard);
+  }
+
+  .refusal:hover .refusal-lead,
+  .refusal:hover .refusal-note { opacity: 1; }
+
+  /* One ink per line: the arrow and the card it points to are the same
+   * colour, so the pair reads as a single mark rather than as two. */
+  .refusal-ink-primary .refusal-lead { color: var(--color-accent-primary); }
+  .refusal-ink-primary .refusal-note {
+    background-color: var(--color-accent-primary);
+    color: var(--color-primary-foreground);
+  }
+  .refusal-ink-secondary .refusal-lead { color: var(--color-secondary); }
+  .refusal-ink-secondary .refusal-note {
+    background-color: var(--color-secondary);
+    color: var(--color-secondary-foreground);
+  }
+
+  /* Below lg the rail is full width and the card has nowhere to go
+   * without covering the line it explains. The prose beside it carries
+   * the same six facts, so nothing is lost. */
+  @media (max-width: 1023px) {
+    .refusal-lead, .refusal-note { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .refusal-lead, .refusal-note { transition: none; }
+  }
+  /* ── Grease-pencil annotations ────────────────────────────────────
+   *
+   * Photographers marked contact sheets with a chinagraph pencil long
+   * before any of this was software: a ring round the keeper, a cross
+   * through the reject, an arrow at whatever needed saying. The page
+   * is showing a contact sheet, so it gets marked the same way.
+   *
+   * The strokes draw themselves when the section scrolls into view,
+   * riding the `.beat-revealed` class the existing IntersectionObserver
+   * already sets. No second observer, no library, no scroll listener.
+   *
+   * `pathLength="1"` on every stroke normalises the dash maths, so one
+   * keyframe animates a 40px arrow and a 600px ellipse identically.
+   */
+  .doodle {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 20;
+    color: var(--color-accent-primary);
+    font-family: var(--font-mono);
+  }
+
+  /* A mark pinned to the panel's right edge instead of scaling with it.
+   *
+   * The editor's header buttons keep a constant distance from that edge
+   * rather than a constant fraction of the panel, so a mark drawn in
+   * panel coordinates aims at where the button was at one width only.
+   * Fixed box, fixed viewBox, no stretch: the arrow keeps its target and
+   * the label keeps its shape. */
+  .doodle-pin {
+    inset: 0 0 auto auto;
+    width: 760px;
+    height: 320px;
+  }
+
+  /* Two pencils, not one. Which annotation got which is deliberately
+   * irregular: a contact sheet marked in one sitting carries whichever
+   * pencil was nearer the hand, not an alternating scheme.
+   *
+   * The strokes and their label share a <g>, so the colour is set once
+   * per annotation and an arrowhead can never end up a different colour
+   * from the line it belongs to. */
+  .doodle-alt { color: var(--color-secondary); }
+  .doodle-ink {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.9;
+    /* Keeps the pencil weight even when the panel is not exactly the
+     * width the viewBox was drawn at. */
+    vector-effect: non-scaling-stroke;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+  .doodle-label {
+    fill: currentColor;
+    font-size: 14px;
+    opacity: 0;
+  }
+
+  .beat-revealed .doodle-ink {
+    animation: doodle-draw 760ms var(--ease-standard) forwards;
+    animation-delay: var(--d, 0ms);
+  }
+  .beat-revealed .doodle-label {
+    animation: doodle-label 420ms var(--ease-standard) forwards;
+    animation-delay: calc(var(--d, 0ms) + 520ms);
+  }
+
+  @keyframes doodle-draw {
+    from { stroke-dashoffset: 1; }
+    to   { stroke-dashoffset: 0; }
+  }
+  @keyframes doodle-label {
+    from { opacity: 0; transform: translateY(5px) rotate(-1deg); }
+    to   { opacity: 0.9; transform: none; }
+  }
+
+  /* The marks are content, so they stay. They just stop being drawn. */
+  @media (prefers-reduced-motion: reduce) {
+    .doodle-ink { stroke-dashoffset: 0; animation: none; }
+    .doodle-label { opacity: 0.9; animation: none; }
+  }
+
+  /* Below lg the panel reflows to fewer columns and the marks would
+   * point at the wrong things, so they are simply not drawn. */
+  @media (max-width: 1023px) {
+    .doodle { display: none; }
+  }
+}

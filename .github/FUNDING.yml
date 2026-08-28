@@ -1,0 +1,5 @@
+# Shown as the "Sponsor" button on the repository.
+#
+# Must stay in step with SUPPORT_URL in src/main/constants.ts and the
+# link in README.md: three places, one destination.
+custom: ["https://buymeacoffee.com/ibonescalap"]
