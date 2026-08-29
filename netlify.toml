@@ -6,8 +6,12 @@
 # scripts/landing-update-binary.mjs).
 #
 # No git provider is linked to the site, so nothing here runs on push.
-# Deploys happen when someone runs `netlify deploy --prod --build`;
-# a merge to `main` publishes nothing and says nothing about it.
+# A merge to `main` publishes nothing and says nothing about it.
+#
+# Deploy with `npm run landing:deploy`. Not `netlify deploy --prod`:
+# that began returning Forbidden for this project while reads, drafts
+# and API publishes all kept working, so the script deploys a draft and
+# promotes it. See scripts/landing-deploy.mjs.
 
 [build]
   command = "npm run landing:build"
