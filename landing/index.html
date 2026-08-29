@@ -43,7 +43,7 @@
   </script>
 
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dist/style.css" />
+  <link rel="stylesheet" href="dist/style.css?v=7adc933d" />
 </head>
 <body>
 
@@ -3159,8 +3159,14 @@
 
     <!-- Surface, border, radius and shadow are the same four utilities
          `ui/modal.tsx` uses, so the dialog on the page and the dialog in
-         the app are the same object in two places. -->
-    <div class="coffee-invite-card w-[calc(100vw-2rem)] max-w-md p-space-6 text-center bg-surface-panel border border-border-subtle shadow-2xl rounded-soft">
+         the app are the same object in two places.
+
+         `tabindex="-1"` so focus can enter here rather than on a
+         control, and `outline-none` because the browser would otherwise
+         ring the card itself. Reachable only programmatically, never by
+         Tab, so it has no focus state anyone can navigate to and
+         nothing is lost by suppressing it. -->
+    <div class="coffee-invite-card w-[calc(100vw-2rem)] max-w-md p-space-6 text-center bg-surface-panel border border-border-subtle shadow-2xl rounded-soft outline-none" tabindex="-1">
 
       <svg class="w-7 h-7 mx-auto text-accent-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M17 8h1a4 4 0 1 1 0 8h-1"/>
@@ -3206,10 +3212,10 @@
            Both at the same weight. Refusing should not read as the
            lesser answer when either one is genuinely fine.
 
-           "Maybe later" comes first in the DOM, so it is what takes
-           focus when the dialog opens. Deliberate: the other control is
-           a link out to a payment page, and a dialog that appears
-           unbidden must not put that under a stray Enter. On a phone
+           "Maybe later" comes first in the DOM, so it is what Tab
+           reaches first. Deliberate: the other control is a link out to
+           a payment page, and a dialog that appears unbidden must not
+           put that one keystroke away. On a phone
            `flex-col-reverse` still stacks the coffee on top, where a
            thumb expects the affirmative answer.
 
@@ -3340,8 +3346,14 @@
           try { localStorage.setItem(SEEN, '1') } catch (err) { /* asked anyway */ }
           opener = document.activeElement
           el.removeAttribute('hidden')
-          var items = focusables()
-          if (items.length) items[0].focus()
+          // The card, not a button. Focus has to enter the dialog so Tab
+          // is trapped and a screen reader announces it, but putting it
+          // on a control draws that control's focus ring, and the ring
+          // token is the primary colour: the dismiss opened looking
+          // outlined in terracotta, as if it were the accent action.
+          // A container with tabindex="-1" takes focus and paints
+          // nothing; Tab from there still reaches the first button.
+          el.querySelector('.coffee-invite-card').focus()
           document.addEventListener('keydown', onKey, true)
         }
 

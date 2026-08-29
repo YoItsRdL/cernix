@@ -20,7 +20,7 @@
     "check:hierarchy": "electron scripts/check-hierarchy.cjs",
     "test:ui": "electron scripts/ui-tests.cjs",
     "check:design": "node scripts/design-audit.mjs",
-    "landing:build": "npm run landing:html && tailwindcss -i landing/src/style.css -o landing/dist/style.css --minify",
+    "landing:build": "tailwindcss -i landing/src/style.css -o landing/dist/style.css --minify && npm run landing:html",
     "landing:dev": "tailwindcss -i landing/src/style.css -o landing/dist/style.css --watch",
     "release": "tsc && vite build && electron-builder --win nsis --publish never",
     "release:patch": "npm version patch --no-git-tag-version && npm run release",

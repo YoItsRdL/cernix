@@ -22,10 +22,19 @@
   # CI agree.
   NODE_VERSION = "20"
 
-# Long-cache the compiled stylesheet; it has a content-addressed name
-# once we add cache-busting (or just relies on the deploy-immutable
-# URL Netlify mints). Short-cache HTML so binary.json + copy edits
-# propagate immediately.
+# Long-cache the compiled stylesheet. `immutable` is a promise that the
+# bytes at this URL will never change, and it is kept by the `?v=<hash>`
+# the build stamps into the link: a new stylesheet is a new URL.
+#
+# For a long time it was not kept. The path was a bare `dist/style.css`
+# and the header claimed a year, so every returning visitor was pinned
+# to whatever stylesheet they first downloaded, and `immutable` stopped
+# the browser even revalidating. CSS changes reached new visitors only.
+# It surfaced when a dialog shipped without its rules and rendered in
+# page flow at the foot of the page.
+#
+# Short-cache HTML so binary.json and copy edits propagate immediately,
+# and so the versioned link itself is picked up on the next visit.
 [[headers]]
   for = "/dist/*"
   [headers.values]

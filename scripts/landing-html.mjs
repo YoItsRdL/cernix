@@ -22,6 +22,7 @@
  * use the page's variables.
  */
 import fs from 'node:fs'
+import crypto from 'node:crypto'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -77,18 +78,45 @@ function substitute(src, data, name) {
     return data[key]
   })
   for (const key of Object.keys(data)) {
-    if (key !== 'out' && !seen.has(key)) {
+    if (key !== 'out' && key !== 'assetv' && !seen.has(key)) {
       process.stderr.write(`  warning: ${name} defines "${key}" but never uses it\n`)
     }
   }
   return out
 }
 
+/**
+ * A content hash of the built stylesheet, stamped into its URL as
+ * `{{ assetv }}`.
+ *
+ * `/dist/*` is served `immutable` for a year, which is correct only if
+ * the URL changes when the bytes do. It did not: the path is a fixed
+ * `dist/style.css`, so every returning visitor was pinned to whatever
+ * stylesheet they first downloaded and `immutable` stopped the browser
+ * even asking. Any CSS change was invisible to them, which is how a
+ * dialog shipped with its rules missing and rendered in page flow.
+ *
+ * Eight hex characters is plenty to notice a change; this is a cache
+ * key, not a checksum anyone verifies.
+ *
+ * Requires the stylesheet to exist, so `landing:build` compiles CSS
+ * before HTML. Tailwind scans `src/**` as well as the built pages, so
+ * nothing is lost by generating the HTML second.
+ */
+const cssPath = path.join(ROOT, 'landing/dist/style.css')
+if (!fs.existsSync(cssPath)) {
+  throw new Error('landing/dist/style.css is missing: build the CSS before the HTML')
+}
+const assetv = crypto.createHash('sha256')
+  .update(fs.readFileSync(cssPath)).digest('hex').slice(0, 8)
+console.log(`  stylesheet ${assetv}`)
+
 let built = 0
 for (const file of fs.readdirSync(PAGES).sort()) {
   if (!file.endsWith('.html')) continue
   const src = read(path.join(PAGES, file))
   const { data, body } = frontMatter(src, file)
+  data.assetv = assetv
   const target = path.join(OUT, data.out || file)
 
   // Match whatever the file being replaced already used, so a page that
