@@ -2,6 +2,15 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { type IngestState, type ScannedFile } from '@/types'
 
+/**
+ * How long the renderer waits for `sweep:scan` before giving up on it.
+ *
+ * Longer than the 120s cap main puts on the scan itself, so main's own
+ * error wins whenever there is one: it names the real problem, and this
+ * one can only say that nothing came back.
+ */
+const SCAN_DEADLINE_MS = 135_000
+
 export function useIngest() {
   const [state, setState] = useState<IngestState>('idle')
   const [scannedFiles, setScannedFiles] = useState<ScannedFile[]>([])
@@ -32,6 +41,16 @@ export function useIngest() {
   // transition. Recreating callbacks on every state change tears down
   // and rebuilds the App.tsx subscription effect that depends on them:
   // a known foot-gun for stale closures around in-flight IPC calls.
+  /**
+   * The path the live scan is walking.
+   *
+   * The scanning screen said only "Discovering media files", which is
+   * true of every scan and so tells nobody anything. A card with a few
+   * thousand files takes a while, and with nothing on screen naming
+   * what it is working on, a slow scan and a hung one look identical.
+   */
+  const [scanningPath, setScanningPath] = useState<string | null>(null)
+
   const stateRef = useRef<IngestState>('idle')
   useEffect(() => { stateRef.current = state }, [state])
 
@@ -49,6 +68,7 @@ export function useIngest() {
       return
     }
 
+    let deadline: ReturnType<typeof setTimeout> | undefined
     try {
       // No toast here. The next line hands the whole content area over
       // to a spinner reading "Scanning files… / Discovering media
@@ -57,9 +77,30 @@ export function useIngest() {
       //
       // A toast is for something you would otherwise miss. This is the
       // opposite: it is the only thing on screen.
+      setScanningPath(path)
       transition('scanning')
       console.log('[useIngest] sweepScan invoke →', path)
-      const files = await window.electronAPI.sweepScan(path)
+
+      // A deadline, because `scanning` is otherwise terminal: the guard
+      // at the top of this function refuses every later attempt while
+      // it is the live state, so an invoke that never settles leaves
+      // the library spinning with no way back, and the only recovery is
+      // relaunching the app.
+      //
+      // Main caps the scan itself and rejects with its own message, so
+      // in the normal slow-card case that error arrives first and says
+      // something specific. This one is for no answer arriving at all:
+      // a renderer reloaded out from under the invoke, a handler that
+      // resolved into a window that no longer exists.
+      const files = await Promise.race([
+        window.electronAPI.sweepScan(path),
+        new Promise<never>((_, reject) => {
+          deadline = setTimeout(
+            () => reject(new Error('The scan never reported back. Try again.')),
+            SCAN_DEADLINE_MS,
+          )
+        }),
+      ])
       console.log('[useIngest] sweepScan resolved ←', {
         count: files?.length ?? 'nullish',
         isArray: Array.isArray(files),
@@ -86,6 +127,9 @@ export function useIngest() {
       console.error('[useIngest] startScan threw', err)
       setErrorMessage(err instanceof Error ? err.message : 'Scan failed')
       transition('error')
+    } finally {
+      if (deadline !== undefined) clearTimeout(deadline)
+      setScanningPath(null)
     }
   }, [transition])
 
@@ -227,6 +271,7 @@ export function useIngest() {
 
   return {
     state,
+    scanningPath,
     scannedFiles,
     selectedFiles,
     progress,
