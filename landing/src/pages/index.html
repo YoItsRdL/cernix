@@ -199,9 +199,14 @@
           <a href="https://github.com/YoItsRdL/cernix/releases" class="cta-download inline-flex items-center justify-center h-12 px-8 rounded-pill bg-accent-primary text-primary-foreground text-landing-body font-medium hover:bg-accent-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus">
             Download for Windows
           </a>
+        <!-- `min-h-12`, not `h-12`: it matches the download button's
+             height so the pair reads as one row, but this element is
+             allowed to wrap. The claims shed their tail at `sm` and
+             `flex-wrap` is the backstop for a future word; a fixed
+             height would let a second line overflow it. -->
         <a
           href="https://github.com/YoItsRdL/cernix" target="_blank" rel="noopener"
-          class="inline-flex flex-wrap justify-center items-center gap-space-2 max-w-full px-space-4 py-space-2 bg-surface-panel border border-border-subtle rounded-pill text-landing-nav text-text-muted hover:text-text-emphatic hover:border-border-strong transition-colors"
+          class="inline-flex flex-wrap justify-center items-center gap-space-2 max-w-full min-h-12 px-space-4 py-space-2 bg-surface-panel border border-border-subtle rounded-pill text-landing-nav text-text-muted hover:text-text-emphatic hover:border-border-strong transition-colors"
         >
           <span class="text-secondary font-medium">Free and open source</span>
           <span aria-hidden="true">·</span>
@@ -2969,6 +2974,99 @@
   {{> footer }}
 
 
+  <!-- ─── THE COFFEE INVITATION ────────────────────────────────────────
+       Four seconds after arrival, once per browser, never again.
+
+       The once-ness is the design, not a nicety. Two sections up this
+       page promises no account and nothing to cancel; a donation box
+       that reappeared on every visit would contradict it in the most
+       visible way available. `localStorage` is the right store for that
+       promise: per-browser, no server, nothing to opt out of.
+
+       It asks and then gets out of the way. Escape closes it, the scrim
+       closes it, the close control closes it, and the secondary action
+       is a real button with real words rather than a greyed-out "no
+       thanks" that makes refusing feel like a transaction.
+
+       Focus moves to the dialog on open and returns to whatever had it
+       before, and Tab is held inside while it is open. Without that,
+       Tab walks into the page behind and a screen-reader user is never
+       told anything happened.
+  -->
+  <div class="coffee-invite" id="coffee-invite" hidden role="dialog" aria-modal="true" aria-labelledby="coffee-invite-title">
+    <div class="coffee-invite-scrim bg-scrim" data-coffee-dismiss></div>
+
+    <!-- Surface, border, radius and shadow are the same four utilities
+         `ui/modal.tsx` uses, so the dialog on the page and the dialog in
+         the app are the same object in two places. -->
+    <div class="coffee-invite-card w-[calc(100vw-2rem)] max-w-md p-space-6 text-center bg-surface-panel border border-border-subtle shadow-2xl rounded-soft">
+
+      <svg class="w-7 h-7 mx-auto text-accent-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M17 8h1a4 4 0 1 1 0 8h-1"/>
+        <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/>
+        <line x1="6" y1="2" x2="6" y2="4"/>
+        <line x1="10" y1="2" x2="10" y2="4"/>
+        <line x1="14" y1="2" x2="14" y2="4"/>
+      </svg>
+
+      <h2 id="coffee-invite-title" class="mt-space-4 text-landing-sub font-medium tracking-tight text-text-emphatic">
+        Made with far too many coffees
+      </h2>
+
+      <p class="mt-space-3 text-landing-body text-text-muted leading-relaxed">
+        Cernix is free and open source. If it earns its place in your workflow, consider buying us a coffee as a kind way to say so.
+      </p>
+
+      <!-- The accept mirrors the page's download CTA; the dismiss
+           carries a foreground-derived outline and no fill, and takes a
+           hover wash.
+
+           `border-foreground`, not `border-border-*`. The border tokens
+           are mixed toward the warm palette, so on this card they read
+           as a tinted outline rather than a neutral one. `--foreground`
+           is the same value the label uses, so the outline and the text
+           it wraps come from one source, and at /20 it states the shape
+           without competing with the filled action beside it. Both at h-11 against the CTAs' h-12, because a dialog's
+           actions should not carry the weight of the page's primary
+           call.
+
+           The dismiss was a bordered pill on a panel fill, which is the
+           hero's secondary link. That treatment works on the page
+           background and collapses on this card: the card is the same
+           surface, so the fill vanished and only the border was left,
+           reading as an outline the page uses nowhere.
+
+           These began as *outlined* pills, a treatment the page uses
+           nowhere, and then briefly as the app's square buttons, which
+           was worse: app chrome on a marketing page, fighting every
+           rounded thing near it. A dialog belongs to the surface it
+           opens over.
+
+           Both at the same weight. Refusing should not read as the
+           lesser answer when either one is genuinely fine.
+
+           "Maybe later" comes first in the DOM, so it is what takes
+           focus when the dialog opens. Deliberate: the other control is
+           a link out to a payment page, and a dialog that appears
+           unbidden must not put that under a stray Enter. On a phone
+           `flex-col-reverse` still stacks the coffee on top, where a
+           thumb expects the affirmative answer.
+
+           Both carry data-coffee-dismiss, so accepting closes the
+           dialog too rather than leaving it behind the new tab. -->
+      <div class="mt-space-6 flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-center gap-space-3">
+        <button type="button" data-coffee-dismiss
+           class="inline-flex items-center justify-center h-11 px-6 rounded-pill border border-foreground/20 text-landing-body text-text-muted hover:border-foreground/40 hover:text-text-emphatic hover:bg-overlay-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus">
+          Maybe later
+        </button>
+        <a href="https://buymeacoffee.com/ibonescalap" target="_blank" rel="noopener" data-coffee-dismiss
+           class="inline-flex items-center justify-center h-11 px-6 rounded-pill bg-accent-primary text-primary-foreground text-landing-body font-medium hover:bg-accent-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus">
+          Support the project
+        </a>
+      </div>
+    </div>
+  </div>
+
   <!-- ─── SUPPORT ──────────────────────────────────────────────────────
        A spilled coffee in the corner. At rest it is the mark and nothing
        else; the sentence writes itself in on hover, because it is a
@@ -3026,6 +3124,73 @@
           ctas.forEach(function (cta) { cta.setAttribute('href', info.url) })
         })
         .catch(function () { /* swallow, fallback href stays */ })
+
+      // ── The coffee invitation ──────────────────────────────────
+      //
+      // Four seconds, once per browser. The guard is written the moment
+      // it opens rather than when it is dismissed: someone who closes
+      // the tab mid-view has still been asked, and asking them again on
+      // their next visit is the behaviour this is trying not to have.
+      //
+      // Every read and write of localStorage is wrapped, because it
+      // throws rather than returning null in a browser with site data
+      // blocked, and an exception here would take the rest of this
+      // script with it.
+      ;(function () {
+        var SEEN = 'cernix.coffee.invited'
+        var el = document.getElementById('coffee-invite')
+        if (!el) return
+
+        try { if (localStorage.getItem(SEEN)) return } catch (err) { return }
+
+        var opener = null
+
+        function focusables() {
+          return Array.prototype.slice.call(
+            el.querySelectorAll('a[href], button:not([disabled])')
+          )
+        }
+
+        function close() {
+          el.setAttribute('hidden', '')
+          document.removeEventListener('keydown', onKey, true)
+          // Back to whatever had focus, so dismissing does not dump the
+          // caret at the top of the document.
+          if (opener && opener.focus) opener.focus()
+        }
+
+        function onKey(e) {
+          if (e.key === 'Escape') { e.preventDefault(); close(); return }
+          if (e.key !== 'Tab') return
+          // Hold Tab inside the dialog. Without this it walks into the
+          // page behind, which is still fully interactive.
+          var items = focusables()
+          if (!items.length) return
+          var first = items[0]
+          var last = items[items.length - 1]
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault(); last.focus()
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault(); first.focus()
+          }
+        }
+
+        function open() {
+          try { localStorage.setItem(SEEN, '1') } catch (err) { /* asked anyway */ }
+          opener = document.activeElement
+          el.removeAttribute('hidden')
+          var items = focusables()
+          if (items.length) items[0].focus()
+          document.addEventListener('keydown', onKey, true)
+        }
+
+        Array.prototype.forEach.call(
+          el.querySelectorAll('[data-coffee-dismiss]'),
+          function (n) { n.addEventListener('click', close) }
+        )
+
+        window.setTimeout(open, 4000)
+      })()
 
       ctas.forEach(function (cta) {
         cta.addEventListener('click', function (e) {

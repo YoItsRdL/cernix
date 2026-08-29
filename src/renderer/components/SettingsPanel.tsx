@@ -98,7 +98,7 @@ export function SettingsPanel({ onClose, onShowShortcuts }: SettingsPanelProps) 
           <div className="space-y-space-3">
             <p className="text-metadata text-text-muted leading-relaxed">
               Cernix is free and open source, and stays that way. If it earns its
-              place in your workflow, you can buy me a coffee: it changes nothing
+              place in your workflow, you can buy us a coffee: it changes nothing
               about the app.
             </p>
             <Button
@@ -107,7 +107,7 @@ export function SettingsPanel({ onClose, onShowShortcuts }: SettingsPanelProps) 
               className="gap-space-2"
             >
               <Coffee size={12} />
-              Buy me a coffee
+              Buy us a coffee
             </Button>
           </div>
         </div>

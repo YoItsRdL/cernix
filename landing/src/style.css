@@ -77,6 +77,29 @@
   }
 }
 
+/* Tailwind v3's preflight carried `button, [role="button"] { cursor:
+ * pointer }`. v4 dropped it to match the bare browser default, so every
+ * button here silently went back to an arrow. Links were unaffected,
+ * which is why it went unnoticed: the page is mostly links, and the two
+ * controls that are real buttons (the theme toggle, the dialog's
+ * dismiss) are the ones that felt dead.
+ *
+ * The renderer fixes this the same way in `src/renderer/index.css`. The
+ * fix belongs in both because the two stylesheets share tokens, not
+ * base rules.
+ *
+ * Disabled controls are excluded: a pointer on something that does not
+ * respond is a lie about affordance. */
+@layer base {
+  button:not(:disabled):not([aria-disabled='true']),
+  [role='button']:not([aria-disabled='true']),
+  summary,
+  label[for],
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
 @layer components {
   /* ── Mockups below the width their layout holds at ────────────────
    *
@@ -383,6 +406,64 @@
    * being hot. Get the sequence wrong and it reads as a pill expanding
    * to show a label, which is what this was before the pour existed.
    */
+  /* ── The coffee invitation ──────────────────────────────────────
+   *
+   * Only what a utility class cannot express lives here: the fixed
+   * overlay, and the two animations. Every visual property (surface,
+   * border, radius, shadow, spacing, type) is a utility on the markup,
+   * matching `ui/modal.tsx` in the app so the two dialogs cannot drift.
+   *
+   * That split is not stylistic. The first version of this file wrote
+   * `var(--surface-panel)` and `var(--border-subtle)`, which do not
+   * exist: the tokens are exposed as `--color-surface-panel` and
+   * `--color-border-subtle`. CSS resolves a missing custom property to
+   * nothing and says nothing, so the card rendered fully transparent
+   * with the page showing through it. A utility class that does not
+   * exist produces no rule at all, which is just as wrong but visible
+   * immediately; a raw var() that does not exist looks like a design.
+   *
+   * Not a `<dialog>`: `showModal()` promotes the element to the
+   * browser's top layer, where its ::backdrop cannot read these tokens
+   * without duplicating them. A plain overlay keeps one palette.
+   */
+  .coffee-invite {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    place-items: center;
+  }
+
+  .coffee-invite[hidden] { display: none; }
+
+  .coffee-invite-scrim {
+    position: absolute;
+    inset: 0;
+    animation: coffee-invite-fade var(--duration-standard) var(--ease-standard) both;
+  }
+
+  .coffee-invite-card {
+    position: relative;
+    animation: coffee-invite-rise var(--duration-standard) var(--ease-standard) both;
+  }
+
+  @keyframes coffee-invite-fade {
+    from { opacity: 0 }
+    to   { opacity: 1 }
+  }
+
+  /* 8px, not a slide. Enough that it reads as arriving rather than
+   * appearing, short enough that it never feels like a takeover. */
+  @keyframes coffee-invite-rise {
+    from { opacity: 0; transform: translateY(8px) }
+    to   { opacity: 1; transform: none }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .coffee-invite-scrim,
+    .coffee-invite-card { animation: none }
+  }
+
   /* The rail carries max-w-7xl and the page gutter, so the spill lines up
    * with the content column instead of the viewport edge. It is inert;
    * only the spill inside it takes the pointer. */

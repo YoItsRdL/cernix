@@ -5,6 +5,7 @@ import { Sidebar } from './components/Sidebar'
 import { EmptyState } from './components/EmptyState'
 import { ReviewView } from './components/ReviewView'
 import { SettingsPanel } from './components/SettingsPanel'
+import { CoffeeInvite } from './components/CoffeeInvite'
 import { KeyboardShortcuts } from './components/KeyboardShortcuts'
 import { ShareModal } from './components/ShareModal'
 import { Distiller } from './components/Distiller'
@@ -35,6 +36,7 @@ export default function App() {
   // ── Ingest ──
   const {
     state: sweepState,
+    scanningPath,
     scannedFiles,
     selectedFiles,
     progress,
@@ -341,7 +343,17 @@ export default function App() {
                         <motion.div key="scanning" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col items-center justify-center p-12 text-center">
                           <RefreshCw className="w-6 h-6 text-text-muted animate-spin mb-6" />
                           <h2 className="text-heading font-medium text-text-emphatic mb-1">Scanning files…</h2>
-                          <p className="text-body text-text-muted">Discovering media files</p>
+                          {/* Naming the volume is the difference between
+                              a slow scan and an apparently hung one. A
+                              card with a few thousand files takes real
+                              time, and "Discovering media files" alone
+                              is true of every scan, so it reassures
+                              nobody that anything is happening. */}
+                          <p className="text-body text-text-muted">
+                            {scanningPath
+                              ? <>Reading <span className="font-mono text-text-default">{scanningPath}</span></>
+                              : 'Discovering media files'}
+                          </p>
                         </motion.div>
                       ) : sweepState === 'review' ? (
                         <ReviewView
@@ -506,6 +518,13 @@ export default function App() {
           </div>
         </main>
       </div>
+
+      {/* Asks once per install, a few seconds after launch, and then
+          never again. Outside AnimatePresence because it owns its own
+          open state and is not one of the mutually exclusive shell
+          modals; it should not be able to displace Settings or be
+          displaced by it. */}
+      <CoffeeInvite />
 
       {/* Global Overlays */}
       <AnimatePresence>

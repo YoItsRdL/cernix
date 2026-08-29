@@ -184,7 +184,7 @@ export function Sidebar({
             contacts the host itself. Nothing here is gated on it. */}
         <ActivityButton
           icon={<Coffee size={18} strokeWidth={1.5} />}
-          label="Buy me a coffee"
+          label="Buy us a coffee"
           active={false}
           expanded={isExpanded}
           onClick={() => { void window.electronAPI.supportOpen() }}
