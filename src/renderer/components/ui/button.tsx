@@ -34,18 +34,31 @@ const buttonVariants = cva(
         // choice the user is meant to see is not an outline.
         secondary:
           'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/90',
+        // The outline comes from `--foreground`, not the border tokens.
+        // Those are mixed toward the warm palette, so against a warm
+        // surface they read as a tinted edge rather than a neutral one,
+        // and next to a terracotta primary the relation is visible. The
+        // foreground is the same value the label uses, so a button's
+        // edge and its text come from one source.
+        //
         // What used to be called `secondary`: no palette colour at all,
         // just a panel with a border. Reset, Retry, Cancel. Actions that
         // are second-tier in *emphasis* rather than an alternative to
         // anything. Renamed because one name for both meanings is how
         // every neutral button in the app would have turned teal.
         neutral:
-          'bg-surface-panel border border-border-strong text-text-emphatic shadow-sm hover:bg-overlay-hover',
-        ghost: 'text-text-default hover:bg-overlay-hover hover:text-text-emphatic',
+          'bg-surface-panel border border-foreground/20 text-text-emphatic shadow-sm hover:border-foreground/40 hover:bg-overlay-hover',
+        // Outlined like the others, because a control with no fill has
+        // nothing else to state where it is. The icon size opts back
+        // out below: a glyph is already its own affordance, and an
+        // edge around every toolbar icon is a box the eye has to
+        // discount rather than information.
+        ghost:
+          'border border-foreground/20 text-text-default hover:border-foreground/40 hover:bg-overlay-hover hover:text-text-emphatic',
         danger:
           'bg-status-danger text-destructive-foreground shadow-sm hover:bg-status-danger/90',
         outline:
-          'border border-border-strong bg-transparent text-text-default hover:bg-overlay-hover hover:text-text-emphatic',
+          'border border-foreground/20 bg-transparent text-text-default hover:border-foreground/40 hover:bg-overlay-hover hover:text-text-emphatic',
       },
       size: {
         default: 'h-8 px-4',
@@ -60,6 +73,13 @@ const buttonVariants = cva(
         hero: 'h-14 px-12 text-subtitle',
       },
     },
+    compoundVariants: [
+      // An icon button keeps the ghost's behaviour and drops its edge.
+      // `border-transparent` rather than `border-0`, so the box keeps
+      // the same geometry as every other button and a row of mixed
+      // sizes still lines up on the pixel.
+      { variant: 'ghost', size: 'icon', class: 'border-transparent hover:border-transparent' },
+    ],
     defaultVariants: {
       variant: 'primary',
       size: 'default',
