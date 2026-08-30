@@ -100,6 +100,9 @@
       "package.json"
     ],
     "asar": true,
+    "asarUnpack": [
+      "**/node_modules/exiftool-vendored.*/**/*"
+    ],
     "icon": "build-resources/icon.ico",
     "target": "nsis",
     "nsis": {

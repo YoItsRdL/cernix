@@ -1,5 +1,22 @@
 # Cernix Workstation Changelog
 
+## [Unreleased]
+
+### Packaging
+- **ExifTool now ships where the OS can run it.** `asarUnpack` was never
+  set, so the bundled ExifTool sat inside `app.asar`. An asar is a single
+  file to the operating system and `execve` cannot reach inside one, so
+  every packaged build has resolved an ExifTool path that does not exist
+  on disk. `better-sqlite3` escaped this automatically, because of its
+  `.node`; nothing did the same for a Perl script. EXIF reads during
+  ingest — which is what dates the folders — and the EXIF/ICC copy on
+  export both failed and fell back to their degraded paths. This is not
+  Linux-specific: it is the same configuration on every target, and it
+  was found while checking the Linux package. Verified fixed on Linux;
+  worth confirming against a Windows build before the next release.
+
+---
+
 ## [1.0.0] - 2026-08-28
 
 **Cernix is now free, open source, and MIT licensed.** This is the first
