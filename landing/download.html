@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Download Cernix. A Windows installer, and source instructions for Linux and macOS. Free, MIT licensed, no account." />
+  <title>Download: Cernix</title>
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Cernix" />
+  <meta property="og:title" content="Download Cernix" />
+  <meta property="og:description" content="Every way to get Cernix: the Windows installer, and building from source on Linux and macOS." />
+  <meta property="og:image" content="https://cernix.app/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Download Cernix" />
+  <meta name="twitter:description" content="Every way to get Cernix: the Windows installer, and building from source on Linux and macOS." />
+  <meta name="twitter:image" content="https://cernix.app/og.png" />
+
+  <meta name="theme-color" content="#171717" /> <!-- design-allow: theme-color must be a literal colour; mirrors --surface-workspace (HSL 0 0% 9%). -->
+
+  <!-- The header's brand tile, at tab size. SVG so it stays sharp at any
+       scale and can answer prefers-color-scheme; the PNG is for iOS, which
+       wants a square it can mask itself and does not read SVG here. -->
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Theme, resolved before the first paint. A stored choice wins;
+       otherwise the OS preference decides. Inline and synchronous on
+       purpose: deferring it shows a frame of the wrong palette. -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('cernix-theme')
+        var dark = saved ? saved === 'dark'
+          : window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (dark) document.documentElement.classList.add('dark')
+      } catch (e) { /* private mode: stay light */ }
+    })()
+  </script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="dist/style.css?v=f60c8c1e" />
+</head>
+<body>
+
+  <a href="#main" class="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-space-3 focus-visible:left-space-3 focus-visible:z-[60] focus-visible:h-8 focus-visible:px-space-4 focus-visible:inline-flex focus-visible:items-center focus-visible:rounded-pill focus-visible:bg-accent-primary focus-visible:text-primary-foreground focus-visible:text-landing-nav focus-visible:font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus">Skip to content</a>
+
+
+  <!--
+    ─── HEADER ───────────────────────────────────────────────────────
+    Shared by every page, stamped in at build time from
+    landing/src/partials/header.html. Sticky 56px on
+    surface-workspace/80 with a backdrop blur: wordmark left, nav
+    centre, appearance toggle and download pill right.
+
+    Real destinations only. No Product/Resources dropdowns, no
+    Customers/Pricing/Log-in/Sign-up, because Cernix is free and open
+    source and none of those exist. / is empty on the landing
+    page and "/" on the legal pages, so the anchors point home from
+    wherever they are rendered.
+  -->
+  <header class="sticky top-0 z-50 h-14 bg-surface-workspace/80 backdrop-blur-md border-b border-border-subtle">
+    <div class="max-w-7xl mx-auto h-full px-space-6 flex items-center justify-between">
+      <a href="/#top" class="flex items-center gap-space-2 text-text-emphatic">
+        <span class="flex h-8 w-8 items-center justify-center rounded-soft bg-accent-primary text-primary-foreground shrink-0">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <g stroke-width="1.5" stroke-linecap="butt">
+            <path d="M14.31 8 L20.05 17.94"/>
+            <path d="M9.69 8 L21.17 8"/>
+            <path d="M7.38 12 L13.12 2.06"/>
+            <path d="M9.69 16 L3.95 6.06"/>
+            <path d="M14.31 16 L2.83 16"/>
+            <path d="M16.62 12 L10.88 21.94"/>
+            </g>
+            <path d="M20.48 6.7 A10 10 0 1 1 16.23 2.94" stroke-width="2" stroke-linecap="round"/>
+            <path d="M18.61 4.05 L15.22 5.08 L17.23 0.79 Z" fill="currentColor"
+            stroke-width="0.5" stroke-linejoin="round" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="text-landing-body font-semibold tracking-tight">Cernix</span>
+      </a>
+
+      <!-- Real destinations only. No Product/Resources dropdowns,
+           no Customers/Pricing/Log-in/Sign-up, Cernix is free and
+           open source, so none of those exist. The CTA pill triggers
+           the actual binary download via the `cta-download` class. -->
+      <nav class="hidden md:flex items-center gap-space-1">
+        <a href="/#features" class="px-space-3 py-space-2 text-landing-nav text-text-muted hover:text-text-emphatic transition-colors">Features</a>
+        <a href="/#download" class="px-space-3 py-space-2 text-landing-nav text-text-muted hover:text-text-emphatic transition-colors">Download</a>
+        <a href="https://github.com/YoItsRdL/cernix" target="_blank" rel="noopener" class="px-space-3 py-space-2 text-landing-nav text-text-muted hover:text-text-emphatic transition-colors">GitHub</a>
+      </nav>
+
+      <div class="flex items-center gap-space-4">
+        <!-- Appearance. The same control as the app's sidebar rail: an
+             icon button showing the theme it switches TO, so it reads
+             as an action rather than a state. Hover paints an inset
+             pill; the glyph grows slightly, and the press scales the
+             button, matching ActivityButton in Sidebar.tsx. -->
+        <button id="theme-toggle" type="button" aria-label="Dark mode" class="theme-toggle">
+          <span class="theme-toggle-pill" aria-hidden="true"></span>
+          <svg class="theme-toggle-icon theme-toggle-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
+          </svg>
+          <svg class="theme-toggle-icon theme-toggle-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/>
+          </svg>
+        </button>
+        <!-- `data-cta-label="keep"`: this pill is a 32px chip with
+             `whitespace-nowrap`, sized for the word "Download". The
+             script that renames the page's other CTAs to "Download for
+             Windows" would push the header out at every width, so this
+             one takes the new href and keeps its own label. -->
+        <a data-cta-label="keep" href="/#download" class="inline-flex items-center justify-center whitespace-nowrap h-8 px-4 rounded-pill bg-secondary text-secondary-foreground text-landing-nav font-medium hover:bg-secondary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus">
+          Download
+        </a>
+      </div>
+    </div>
+  </header>
+
+
+  <main id="main">
+  <!--
+    ─── DOWNLOAD ─────────────────────────────────────────────────────
+    The page every CTA falls back to.
+
+    It exists because the buttons on the landing page name one platform:
+    the visitor's. That is right for the common case and wrong for
+    everyone on a machine the detection did not recognise, everyone
+    without JavaScript, and anyone who wants the build for a machine
+    they are not sitting at. This page is the answer to all three, so it
+    states every platform at once and never detects anything.
+
+    The table is the honest part. Cernix is released for Windows and
+    built from source everywhere else, and this says so in those words
+    rather than offering a button that 404s. When a Linux or macOS
+    build is published, `binary.json` gains an entry and the row's
+    status is what changes.
+
+    Same container as the legal pages: max-w-7xl px-space-6, matching
+    the header and footer.
+  -->
+  <article class="max-w-7xl mx-auto px-space-6 py-space-10 lg:py-space-16">
+    <div class="max-w-3xl">
+
+      <h1 class="text-landing-title font-semibold tracking-tight text-text-emphatic text-balance">
+        Download Cernix
+      </h1>
+      <p class="mt-space-4 text-landing-body text-text-muted text-balance">
+        Free, MIT licensed, and open source. No account, no subscription,
+        no trial, no telemetry. Version <span translate="no" class="font-mono text-text-emphatic" data-binary-version>1.0.0</span>.
+      </p>
+
+      <!-- ─── The platforms ──────────────────────────────────────────
+           A list rather than a table: every row is a heading, a state
+           and an action, and at 320 a table of three columns would
+           either scroll sideways or drop a column. The document never
+           scrolls sideways, so the row is a stack that becomes a row at
+           `sm`, which is the breakpoint that returns secondary chrome
+           everywhere else on the site.
+
+           `min-w-0` on the text column: a URL or a path in the status
+           line sets a min-content floor otherwise, and that is the
+           fault behind most of this page family's overflow. -->
+      <ul class="mt-space-8 flex flex-col gap-space-4" role="list">
+
+        <!-- Windows. The one published build. `data-platform-row`
+             lets the script mark the visitor's own platform without
+             changing what any row says. -->
+        <li data-platform-row="windows" class="flex flex-col sm:flex-row sm:items-center gap-space-4 p-space-5 bg-surface-panel border border-border-subtle rounded-soft">
+          <div class="min-w-0 flex-1">
+            <h2 class="text-landing-body font-medium text-text-emphatic">
+              Windows
+              <span data-platform-you class="hidden ml-space-2 align-middle px-space-2 py-px rounded-pill bg-accent-primary/10 text-accent-primary text-landing-caption font-medium">Your system</span>
+            </h2>
+            <p class="mt-space-1 text-landing-caption text-text-muted">
+              Installer, 64-bit. Not code-signed: SmartScreen shows
+              <span class="text-text-emphatic">“Windows protected your PC”</span> on first run, and
+              <span class="text-text-emphatic">More info → Run anyway</span> starts it.
+            </p>
+          </div>
+          <a
+            data-platform-download="windows"
+            href="https://github.com/YoItsRdL/cernix/releases"
+            class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-10 px-space-5 rounded-pill bg-accent-primary text-primary-foreground text-landing-nav font-medium hover:bg-accent-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+          >
+            Download
+          </a>
+        </li>
+
+        <!-- Linux. Runs, and is not released: `npm run release:linux`
+             produces an AppImage. Saying "build from source" is the
+             whole point of this row, so the action goes to the build
+             instructions rather than to a releases page with nothing
+             on it for this platform. -->
+        <li data-platform-row="linux" class="flex flex-col sm:flex-row sm:items-center gap-space-4 p-space-5 bg-surface-panel border border-border-subtle rounded-soft">
+          <div class="min-w-0 flex-1">
+            <h2 class="text-landing-body font-medium text-text-emphatic">
+              Linux
+              <span data-platform-you class="hidden ml-space-2 align-middle px-space-2 py-px rounded-pill bg-accent-primary/10 text-accent-primary text-landing-caption font-medium">Your system</span>
+            </h2>
+            <p class="mt-space-1 text-landing-caption text-text-muted">
+              No published binary yet. Cernix runs on Linux, and
+              <span translate="no" class="font-mono text-text-emphatic">npm run release:linux</span>
+              builds an AppImage from source.
+            </p>
+          </div>
+          <a
+            data-platform-download="linux"
+            href="https://github.com/YoItsRdL/cernix#build-from-source"
+            target="_blank" rel="noopener"
+            class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-10 px-space-5 rounded-pill bg-surface-workspace border border-border-strong text-text-emphatic text-landing-nav font-medium hover:border-border-strong hover:bg-overlay-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+          >
+            Build from source
+          </a>
+        </li>
+
+        <!-- macOS. Builds, and has never been run on a Mac, which is a
+             different claim from Linux's and is made in different
+             words. Overstating this is the exact failure the copy rule
+             in .claude/rules/landing.md exists to prevent. -->
+        <li data-platform-row="macos" class="flex flex-col sm:flex-row sm:items-center gap-space-4 p-space-5 bg-surface-panel border border-border-subtle rounded-soft">
+          <div class="min-w-0 flex-1">
+            <h2 class="text-landing-body font-medium text-text-emphatic">
+              macOS
+              <span data-platform-you class="hidden ml-space-2 align-middle px-space-2 py-px rounded-pill bg-accent-primary/10 text-accent-primary text-landing-caption font-medium">Your system</span>
+            </h2>
+            <p class="mt-space-1 text-landing-caption text-text-muted">
+              No published binary, and the macOS build has not yet been
+              run on a Mac.
+              <span translate="no" class="font-mono text-text-emphatic">npm run release:mac</span>
+              produces it; treat it as untested.
+            </p>
+          </div>
+          <a
+            data-platform-download="macos"
+            href="https://github.com/YoItsRdL/cernix#build-from-source"
+            target="_blank" rel="noopener"
+            class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-10 px-space-5 rounded-pill bg-surface-workspace border border-border-strong text-text-emphatic text-landing-nav font-medium hover:border-border-strong hover:bg-overlay-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+          >
+            Build from source
+          </a>
+        </li>
+      </ul>
+
+      <!-- ─── Source ─────────────────────────────────────────────── -->
+      <h2 class="mt-space-10 text-landing-sub font-semibold tracking-tight text-text-emphatic">
+        Building it yourself
+      </h2>
+      <p class="mt-space-3 text-landing-body text-text-muted">
+        Every platform builds from the same tree. Node 20.19 or newer and
+        below 25; the repository’s
+        <span translate="no" class="font-mono text-text-emphatic">README</span>
+        carries the rest.
+      </p>
+      <!-- `overflow-x-auto` on the block, not on the document: a command
+           is one unbreakable string and wrapping it would make it
+           uncopyable. The page still never scrolls sideways. -->
+      <div class="mt-space-4 overflow-x-auto rounded-soft border border-border-subtle bg-surface-workspace">
+        <pre class="p-space-5 text-landing-caption text-text-default"><code translate="no">git clone https://github.com/YoItsRdL/cernix.git
+cd cernix
+npm ci
+npx electron-builder install-app-deps
+
+npm run release          # this platform
+npm run release:linux    # AppImage
+npm run release:mac      # dmg and zip</code></pre>
+      </div>
+
+      <p class="mt-space-6 text-landing-caption text-text-muted">
+        Google Drive sync needs your own OAuth client id; everything else
+        works without one. Cernix is
+        <a href="https://github.com/YoItsRdL/cernix" target="_blank" rel="noopener" class="text-text-emphatic underline underline-offset-4 decoration-border-strong hover:decoration-text-emphatic transition-colors">on GitHub</a>
+        under the MIT licence.
+      </p>
+
+    </div>
+  </article>
+  </main>
+
+  <!--
+    ─── FOOTER ───────────────────────────────────────────────────────
+    Only links to real destinations. No "Pricing / Documentation / API /
+    Community / Careers / Privacy / Terms" placeholders, none of those
+    surfaces exist pre-launch.
+  -->
+  <footer class="border-t border-border-subtle py-16 mb-12">
+    <div class="max-w-7xl mx-auto px-space-6">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
+
+        <div class="col-span-2 md:col-span-1">
+          <a href="/#top" class="flex items-center gap-space-2 mb-space-4 text-text-emphatic">
+            <span class="flex h-8 w-8 items-center justify-center rounded-soft bg-accent-primary text-primary-foreground shrink-0">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <g stroke-width="1.5" stroke-linecap="butt">
+                <path d="M14.31 8 L20.05 17.94"/>
+                <path d="M9.69 8 L21.17 8"/>
+                <path d="M7.38 12 L13.12 2.06"/>
+                <path d="M9.69 16 L3.95 6.06"/>
+                <path d="M14.31 16 L2.83 16"/>
+                <path d="M16.62 12 L10.88 21.94"/>
+                </g>
+                <path d="M20.48 6.7 A10 10 0 1 1 16.23 2.94" stroke-width="2" stroke-linecap="round"/>
+                <path d="M18.61 4.05 L15.22 5.08 L17.23 0.79 Z" fill="currentColor"
+                stroke-width="0.5" stroke-linejoin="round" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="text-landing-body font-semibold tracking-tight">Cernix</span>
+          </a>
+          <p class="text-landing-caption text-text-disabled">Cull, edit and deliver, from your own Drive.</p>
+        </div>
+
+        <div>
+          <h3 class="text-landing-caption font-medium text-text-emphatic mb-space-4">Product</h3>
+          <ul class="space-y-2.5">
+            <li><a href="/#features" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">Features</a></li>
+            <li><a href="https://github.com/YoItsRdL/cernix/releases" target="_blank" rel="noopener" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">Releases</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="text-landing-caption font-medium text-text-emphatic mb-space-4">Resources</h3>
+          <ul class="space-y-2.5">
+            <li><a href="https://github.com/YoItsRdL/cernix" target="_blank" rel="noopener" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">GitHub</a></li>
+            <li><a href="https://github.com/YoItsRdL/cernix#readme" target="_blank" rel="noopener" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">Read me</a></li>
+            <li><a href="https://github.com/YoItsRdL/cernix#first-launch" target="_blank" rel="noopener" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">SmartScreen note</a></li>
+            <!-- The same ask the spill in the corner makes, for anyone who
+                 scrolled past it or never had a pointer to hover with. -->
+            <li><a href="https://buymeacoffee.com/ibonescalap" target="_blank" rel="noopener" class="inline-flex items-center gap-space-2 text-landing-caption text-text-muted hover:text-text-emphatic transition-colors"><svg class="w-3.5 h-3.5 text-accent-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2v2"/><path d="M14 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/><path d="M6 2v2"/></svg>Buy us a coffee</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="text-landing-caption font-medium text-text-emphatic mb-space-4">Legal</h3>
+          <ul class="space-y-2.5">
+            <li><a href="/privacy.html" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">Privacy</a></li>
+            <li><a href="/terms.html" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">Terms</a></li>
+            <li><a href="https://github.com/YoItsRdL/cernix/blob/main/LICENSE" target="_blank" rel="noopener" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">Licence</a></li>
+            <li><a href="https://github.com/YoItsRdL/cernix/issues" target="_blank" rel="noopener" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">Report an issue</a></li>
+          </ul>
+        </div>
+
+      </div>
+
+      <div class="flex flex-col md:flex-row items-center justify-between gap-space-4 pt-8 border-t border-border-subtle">
+        <p class="text-landing-caption text-text-disabled">© 2026 Cernix</p>
+        <a href="https://github.com/YoItsRdL/cernix" target="_blank" rel="noopener" class="text-text-disabled hover:text-text-emphatic transition-colors" aria-label="Cernix on GitHub">
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ─── Per-platform state ──────────────────────────────────────
+       Two jobs, both progressive: mark the visitor's own row, and
+       point the Windows action at the real installer once binary.json
+       has been read. Every row is already correct and actionable
+       without this script running at all, which is what makes this
+       page the no-JavaScript fallback for the landing page's CTAs. -->
+  <script>
+    (function () {
+      var info = null
+
+      function detect() {
+        var d = navigator.userAgentData
+        var p = (d && d.platform) || navigator.platform || ''
+        var ua = navigator.userAgent || ''
+        // Android reports "Linux" in every legacy field, so it is
+        // excluded before Linux is considered. A phone is not a
+        // platform Cernix has a build for, and claiming otherwise is
+        // worse than saying nothing.
+        if (/Android/i.test(ua)) return null
+        if (/iPhone|iPad|iPod/i.test(ua) || (p === 'MacIntel' && navigator.maxTouchPoints > 1)) return null
+        if (/Win/i.test(p) || /Windows/i.test(ua)) return 'windows'
+        if (/Mac/i.test(p) || /Mac OS X/i.test(ua)) return 'macos'
+        if (/Linux|X11|CrOS/i.test(p) || /Linux|X11|CrOS/i.test(ua)) return 'linux'
+        return null
+      }
+
+      function apply() {
+        var mine = detect()
+        if (mine) {
+          var row = document.querySelector('[data-platform-row="' + mine + '"]')
+          var tag = row && row.querySelector('[data-platform-you]')
+          if (tag) tag.classList.remove('hidden')
+        }
+        if (!info || !info.platforms) return
+        var version = document.querySelector('[data-binary-version]')
+        if (version && info.version) version.textContent = info.version
+        Object.keys(info.platforms).forEach(function (name) {
+          var entry = info.platforms[name]
+          var link = document.querySelector('[data-platform-download="' + name + '"]')
+          if (link && entry && entry.url) link.setAttribute('href', entry.url)
+        })
+      }
+
+      fetch('/binary.json', { cache: 'no-cache' })
+        .then(function (r) { return r.ok ? r.json() : null })
+        .then(function (data) { info = data })
+        .catch(function () { /* the static hrefs are already right */ })
+        .then(apply)
+    })()
+  </script>
+
+  <!-- Theme toggle. Writes the same cernix-theme key the pre-paint
+       script above reads, so the choice travels with the visitor. -->
+  <script>
+    (function () {
+      var toggle = document.getElementById('theme-toggle')
+      if (!toggle) return
+      var sync = function () {
+        var dark = document.documentElement.classList.contains('dark')
+        toggle.setAttribute('aria-label', dark ? 'Light mode' : 'Dark mode')
+      }
+      sync()
+      toggle.addEventListener('click', function () {
+        var dark = document.documentElement.classList.toggle('dark')
+        try { localStorage.setItem('cernix-theme', dark ? 'dark' : 'light') } catch (e) {}
+        sync()
+      })
+    })()
+  </script>
+</body>
+</html>
