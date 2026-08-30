@@ -41,7 +41,12 @@
         {{> icon-sun }}
         {{> icon-moon }}
       </button>
-      <a href="{{base}}#download" class="{{cta}}inline-flex items-center justify-center whitespace-nowrap h-8 px-4 rounded-pill bg-secondary text-secondary-foreground text-landing-nav font-medium hover:bg-secondary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus">
+      <!-- `data-cta-label="keep"`: this pill is a 32px chip with
+           `whitespace-nowrap`, sized for the word "Download". The
+           script that renames the page's other CTAs to "Download for
+           Windows" would push the header out at every width, so this
+           one takes the new href and keeps its own label. -->
+      <a data-cta-label="keep" href="{{base}}#download" class="{{cta}}inline-flex items-center justify-center whitespace-nowrap h-8 px-4 rounded-pill bg-secondary text-secondary-foreground text-landing-nav font-medium hover:bg-secondary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus">
         Download
       </a>
     </div>

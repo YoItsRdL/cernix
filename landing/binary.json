@@ -1,5 +1,10 @@
 {
   "version": "1.0.0",
   "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.0.0/Cernix-Setup-1.0.0.exe",
-  "note": "The download CTAs read `url` on page load and fall back to the releases listing without it. Regenerate with scripts/landing-update-binary.mjs after the next release."
+  "platforms": {
+    "windows": {
+      "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.0.0/Cernix-Setup-1.0.0.exe"
+    }
+  },
+  "note": "`platforms` holds one entry per published build. A platform with no entry has no binary yet, and the page offers source instructions rather than a download that does not exist. Top-level `url` is a compatibility anchor for pages cached before per-platform CTAs, and mirrors Windows. Regenerate with scripts/landing-update-binary.mjs after the next release."
 }
