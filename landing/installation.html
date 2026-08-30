@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Download Cernix. A Windows installer, and source instructions for Linux and macOS. Free, MIT licensed, no account." />
-  <title>Download: Cernix</title>
+  <title>Installation: Cernix</title>
 
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="Cernix" />
@@ -43,7 +43,7 @@
   </script>
 
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dist/style.css?v=f60c8c1e" />
+  <link rel="stylesheet" href="dist/style.css?v=112fe849" />
 </head>
 <body>
 
@@ -124,143 +124,147 @@
 
   <main id="main">
   <!--
-    ─── DOWNLOAD ─────────────────────────────────────────────────────
-    The page every CTA falls back to.
+    ─── INSTALLATION ─────────────────────────────────────────────────
+    The page every CTA falls back to, and the page a visitor lands on
+    when their own platform has no published binary.
 
-    It exists because the buttons on the landing page name one platform:
-    the visitor's. That is right for the common case and wrong for
-    everyone on a machine the detection did not recognise, everyone
-    without JavaScript, and anyone who wants the build for a machine
-    they are not sitting at. This page is the answer to all three, so it
-    states every platform at once and never detects anything.
-
-    The table is the honest part. Cernix is released for Windows and
-    built from source everywhere else, and this says so in those words
-    rather than offering a button that 404s. When a Linux or macOS
-    build is published, `binary.json` gains an entry and the row's
-    status is what changes.
-
-    Same container as the legal pages: max-w-7xl px-space-6, matching
-    the header and footer.
+    Laid out as Privacy and Terms are, because it is the same kind of
+    thing: a reference page reached from the chrome, read for one
+    section rather than start to finish. Same container, same
+    `py-24 lg:py-32`, same `mb-16` header, same 280px index in the
+    column the text does not use. A visitor moving between the three
+    should not feel the ground shift.
   -->
-  <article class="max-w-7xl mx-auto px-space-6 py-space-10 lg:py-space-16">
-    <div class="max-w-3xl">
+  <article class="py-24 lg:py-32">
+    <div class="max-w-7xl mx-auto px-space-6">
+      <!-- `minmax(0,1fr)` at EVERY width, not only at lg: a grid item's
+           default min-width is its min-content size, and this page
+           carries commands and a clone URL that have nowhere to break.
+           `min-w-0` and `break-words` on the column say the same thing
+           the other two ways. -->
+      <div class="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_280px] gap-12 lg:gap-20 items-start">
+        <div class="min-w-0 max-w-3xl break-words">
 
-      <h1 class="text-landing-title font-semibold tracking-tight text-text-emphatic text-balance">
-        Download Cernix
-      </h1>
-      <p class="mt-space-4 text-landing-body text-text-muted text-balance">
-        Free, MIT licensed, and open source. No account, no subscription,
-        no trial, no telemetry. Version <span translate="no" class="font-mono text-text-emphatic" data-binary-version>1.0.0</span>.
-      </p>
-
-      <!-- ─── The platforms ──────────────────────────────────────────
-           A list rather than a table: every row is a heading, a state
-           and an action, and at 320 a table of three columns would
-           either scroll sideways or drop a column. The document never
-           scrolls sideways, so the row is a stack that becomes a row at
-           `sm`, which is the breakpoint that returns secondary chrome
-           everywhere else on the site.
-
-           `min-w-0` on the text column: a URL or a path in the status
-           line sets a min-content floor otherwise, and that is the
-           fault behind most of this page family's overflow. -->
-      <ul class="mt-space-8 flex flex-col gap-space-4" role="list">
-
-        <!-- Windows. The one published build. `data-platform-row`
-             lets the script mark the visitor's own platform without
-             changing what any row says. -->
-        <li data-platform-row="windows" class="flex flex-col sm:flex-row sm:items-center gap-space-4 p-space-5 bg-surface-panel border border-border-subtle rounded-soft">
-          <div class="min-w-0 flex-1">
-            <h2 class="text-landing-body font-medium text-text-emphatic">
-              Windows
-              <span data-platform-you class="hidden ml-space-2 align-middle px-space-2 py-px rounded-pill bg-accent-primary/10 text-accent-primary text-landing-caption font-medium">Your system</span>
-            </h2>
-            <p class="mt-space-1 text-landing-caption text-text-muted">
-              Installer, 64-bit. Not code-signed: SmartScreen shows
-              <span class="text-text-emphatic">“Windows protected your PC”</span> on first run, and
-              <span class="text-text-emphatic">More info → Run anyway</span> starts it.
+          <header class="mb-16">
+            <p class="text-landing-nav text-text-disabled mb-space-4">
+              <span>§</span>
+              <span class="text-text-muted ml-1">Install</span>
             </p>
-          </div>
-          <a
-            data-platform-download="windows"
-            href="https://github.com/YoItsRdL/cernix/releases"
-            class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-10 px-space-5 rounded-pill bg-accent-primary text-primary-foreground text-landing-nav font-medium hover:bg-accent-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
-          >
-            Download
-          </a>
-        </li>
-
-        <!-- Linux. Runs, and is not released: `npm run release:linux`
-             produces an AppImage. Saying "build from source" is the
-             whole point of this row, so the action goes to the build
-             instructions rather than to a releases page with nothing
-             on it for this platform. -->
-        <li data-platform-row="linux" class="flex flex-col sm:flex-row sm:items-center gap-space-4 p-space-5 bg-surface-panel border border-border-subtle rounded-soft">
-          <div class="min-w-0 flex-1">
-            <h2 class="text-landing-body font-medium text-text-emphatic">
-              Linux
-              <span data-platform-you class="hidden ml-space-2 align-middle px-space-2 py-px rounded-pill bg-accent-primary/10 text-accent-primary text-landing-caption font-medium">Your system</span>
-            </h2>
-            <p class="mt-space-1 text-landing-caption text-text-muted">
-              No published binary yet. Cernix runs on Linux, and
-              <span translate="no" class="font-mono text-text-emphatic">npm run release:linux</span>
-              builds an AppImage from source.
+            <h1 class="text-hero font-semibold text-text-emphatic tracking-tight mb-space-4">
+              Installation
+            </h1>
+            <p class="text-landing-nav font-mono text-text-disabled tracking-widest uppercase">
+              Version <span data-binary-version>1.0.0</span> · MIT · no account
             </p>
-          </div>
-          <a
-            data-platform-download="linux"
-            href="https://github.com/YoItsRdL/cernix#build-from-source"
-            target="_blank" rel="noopener"
-            class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-10 px-space-5 rounded-pill bg-surface-workspace border border-border-strong text-text-emphatic text-landing-nav font-medium hover:border-border-strong hover:bg-overlay-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
-          >
-            Build from source
-          </a>
-        </li>
+          </header>
 
-        <!-- macOS. Builds, and has never been run on a Mac, which is a
-             different claim from Linux's and is made in different
-             words. Overstating this is the exact failure the copy rule
-             in .claude/rules/landing.md exists to prevent. -->
-        <li data-platform-row="macos" class="flex flex-col sm:flex-row sm:items-center gap-space-4 p-space-5 bg-surface-panel border border-border-subtle rounded-soft">
-          <div class="min-w-0 flex-1">
-            <h2 class="text-landing-body font-medium text-text-emphatic">
-              macOS
-              <span data-platform-you class="hidden ml-space-2 align-middle px-space-2 py-px rounded-pill bg-accent-primary/10 text-accent-primary text-landing-caption font-medium">Your system</span>
+          <!-- ─── The platforms ────────────────────────────────────
+               Each row carries its platform as an id, because the
+               landing page's CTA sends a visitor whose platform has no
+               published binary to `/installation#linux` rather than to
+               the top. They arrive at their own system's row, which is
+               the one that explains what to do. `scroll-mt-24` clears
+               the 56px sticky header and the air above the row.
+
+               A list rather than a table: every row is a name, a state
+               and an action, and at 320 a three-column table would
+               either scroll sideways or drop a column. The row is a
+               stack that becomes a row at `sm`, the breakpoint that
+               returns secondary chrome everywhere else on the site. -->
+          <ul role="list">
+
+            <!-- Windows. The one published build, so the only row whose
+                 action is a real download and the only one carrying the
+                 accent fill. -->
+            <li id="windows" data-platform-row="windows" class="scroll-mt-24 flex flex-col sm:flex-row sm:items-center gap-space-5">
+              <div class="min-w-0 flex-1">
+                <h2 class="flex flex-wrap items-center gap-space-2 text-landing-sub font-semibold text-text-emphatic tracking-tight">
+                  Windows
+                  <span data-platform-you class="hidden px-space-2 py-px rounded-pill bg-accent-primary/10 text-accent-primary text-landing-meta font-medium tracking-widest uppercase">Your system</span>
+                </h2>
+                <p class="mt-space-2 text-landing-body text-text-muted">
+                  Installer, 64-bit. Not code-signed, so Windows shows
+                  <span class="text-text-emphatic">“Windows protected your PC”</span> the first
+                  time: choose <span class="text-text-emphatic">More info → Run anyway</span>.
+                </p>
+              </div>
+              <a
+                data-platform-download="windows"
+                href="https://github.com/YoItsRdL/cernix/releases"
+                class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-accent-primary text-primary-foreground text-landing-nav font-medium hover:bg-accent-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+              >
+                Download
+              </a>
+            </li>
+
+            <!-- Linux. Runs, verified, and not released yet. The button
+                 that sent them here said Download; this row is where the
+                 situation is stated, which is the reason it points at
+                 the row rather than the top of the page. -->
+            <li id="linux" data-platform-row="linux" class="scroll-mt-24 mt-16 pt-16 border-t border-border-subtle flex flex-col sm:flex-row sm:items-center gap-space-5">
+              <div class="min-w-0 flex-1">
+                <h2 class="flex flex-wrap items-center gap-space-2 text-landing-sub font-semibold text-text-emphatic tracking-tight">
+                  Linux
+                  <span data-platform-you class="hidden px-space-2 py-px rounded-pill bg-accent-primary/10 text-accent-primary text-landing-meta font-medium tracking-widest uppercase">Your system</span>
+                </h2>
+                <p class="mt-space-2 text-landing-body text-text-muted">
+                  Cernix runs on Linux. There is no published build yet,
+                  so it is one command from source: it produces an
+                  AppImage.
+                </p>
+              </div>
+              <a
+                data-platform-download="linux"
+                href="#building-it-yourself"
+                class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-transparent border border-border-strong text-text-emphatic text-landing-nav font-medium hover:bg-overlay-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+              >
+                Build it
+              </a>
+            </li>
+
+            <!-- macOS. Builds, and has never been run on a Mac. A
+                 different claim from Linux's, so it is made in different
+                 words: overstating it is the exact failure the copy rule
+                 in .claude/rules/landing.md exists to prevent. -->
+            <li id="macos" data-platform-row="macos" class="scroll-mt-24 mt-16 pt-16 border-t border-border-subtle flex flex-col sm:flex-row sm:items-center gap-space-5">
+              <div class="min-w-0 flex-1">
+                <h2 class="flex flex-wrap items-center gap-space-2 text-landing-sub font-semibold text-text-emphatic tracking-tight">
+                  macOS
+                  <span data-platform-you class="hidden px-space-2 py-px rounded-pill bg-accent-primary/10 text-accent-primary text-landing-meta font-medium tracking-widest uppercase">Your system</span>
+                </h2>
+                <p class="mt-space-2 text-landing-body text-text-muted">
+                  Builds from the same source, and has not yet been run
+                  on a Mac. Treat it as untested.
+                </p>
+              </div>
+              <a
+                data-platform-download="macos"
+                href="#building-it-yourself"
+                class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-transparent border border-border-strong text-text-emphatic text-landing-nav font-medium hover:bg-overlay-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+              >
+                Build it
+              </a>
+            </li>
+          </ul>
+
+          <!-- ─── Source ───────────────────────────────────────────
+               Not a footnote: for two of the three platforms it is the
+               answer, and both rows above link straight down to it. -->
+          <section class="mt-16 pt-16 border-t border-border-subtle">
+            <h2 id="building-it-yourself" class="scroll-mt-24 text-landing-title font-semibold text-text-emphatic mb-space-4">
+              Building it yourself
             </h2>
-            <p class="mt-space-1 text-landing-caption text-text-muted">
-              No published binary, and the macOS build has not yet been
-              run on a Mac.
-              <span translate="no" class="font-mono text-text-emphatic">npm run release:mac</span>
-              produces it; treat it as untested.
+            <p class="text-landing-body text-text-muted mb-space-6">
+              Every platform builds from the same tree. You need Node
+              20.19 or newer and below 25; the repository’s README
+              carries the rest.
             </p>
-          </div>
-          <a
-            data-platform-download="macos"
-            href="https://github.com/YoItsRdL/cernix#build-from-source"
-            target="_blank" rel="noopener"
-            class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-10 px-space-5 rounded-pill bg-surface-workspace border border-border-strong text-text-emphatic text-landing-nav font-medium hover:border-border-strong hover:bg-overlay-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
-          >
-            Build from source
-          </a>
-        </li>
-      </ul>
-
-      <!-- ─── Source ─────────────────────────────────────────────── -->
-      <h2 class="mt-space-10 text-landing-sub font-semibold tracking-tight text-text-emphatic">
-        Building it yourself
-      </h2>
-      <p class="mt-space-3 text-landing-body text-text-muted">
-        Every platform builds from the same tree. Node 20.19 or newer and
-        below 25; the repository’s
-        <span translate="no" class="font-mono text-text-emphatic">README</span>
-        carries the rest.
-      </p>
-      <!-- `overflow-x-auto` on the block, not on the document: a command
-           is one unbreakable string and wrapping it would make it
-           uncopyable. The page still never scrolls sideways. -->
-      <div class="mt-space-4 overflow-x-auto rounded-soft border border-border-subtle bg-surface-workspace">
-        <pre class="p-space-5 text-landing-caption text-text-default"><code translate="no">git clone https://github.com/YoItsRdL/cernix.git
+            <!-- `overflow-x-auto` on the block, not on the document: a
+                 command is one unbreakable string, and wrapping it would
+                 make it uncopyable. The page still never scrolls
+                 sideways. -->
+            <div class="overflow-x-auto rounded-soft border border-border-subtle">
+              <pre class="p-space-6 text-landing-caption leading-relaxed text-text-default"><code translate="no">git clone https://github.com/YoItsRdL/cernix.git
 cd cernix
 npm ci
 npx electron-builder install-app-deps
@@ -268,15 +272,41 @@ npx electron-builder install-app-deps
 npm run release          # this platform
 npm run release:linux    # AppImage
 npm run release:mac      # dmg and zip</code></pre>
+            </div>
+            <p class="mt-space-6 text-landing-body text-text-muted">
+              Google Drive sync needs your own OAuth client id;
+              everything else works without one. Cernix is
+              <a href="https://github.com/YoItsRdL/cernix" target="_blank" rel="noopener" class="text-accent-primary hover:underline underline-offset-4">on GitHub</a>
+              under the MIT licence.
+            </p>
+          </section>
+
+        </div>
+
+        <!-- Section index, the same device the legal pages use. Four
+             entries rather than six, and the platform a visitor arrived
+             for is one click from the top on a long-scrolling phone
+             page. Hidden below lg for the reason it is there: stacked
+             above the text it is friction, not navigation. -->
+        <nav class="hidden lg:block lg:sticky lg:top-24" aria-label="On this page">
+          <p class="text-landing-meta font-bold uppercase tracking-[0.15em] text-text-disabled mb-space-4">On this page</p>
+          <ul class="flex flex-col gap-space-3 border-l border-border-subtle">
+            <li>
+              <a href="#windows" class="block -ml-px border-l border-transparent pl-space-4 text-landing-caption text-text-muted hover:text-text-emphatic hover:border-border-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus transition-colors">Windows</a>
+            </li>
+            <li>
+              <a href="#linux" class="block -ml-px border-l border-transparent pl-space-4 text-landing-caption text-text-muted hover:text-text-emphatic hover:border-border-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus transition-colors">Linux</a>
+            </li>
+            <li>
+              <a href="#macos" class="block -ml-px border-l border-transparent pl-space-4 text-landing-caption text-text-muted hover:text-text-emphatic hover:border-border-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus transition-colors">macOS</a>
+            </li>
+            <li>
+              <a href="#building-it-yourself" class="block -ml-px border-l border-transparent pl-space-4 text-landing-caption text-text-muted hover:text-text-emphatic hover:border-border-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus transition-colors">Building it yourself</a>
+            </li>
+          </ul>
+        </nav>
+
       </div>
-
-      <p class="mt-space-6 text-landing-caption text-text-muted">
-        Google Drive sync needs your own OAuth client id; everything else
-        works without one. Cernix is
-        <a href="https://github.com/YoItsRdL/cernix" target="_blank" rel="noopener" class="text-text-emphatic underline underline-offset-4 decoration-border-strong hover:decoration-text-emphatic transition-colors">on GitHub</a>
-        under the MIT licence.
-      </p>
-
     </div>
   </article>
   </main>
@@ -317,6 +347,10 @@ npm run release:mac      # dmg and zip</code></pre>
           <h3 class="text-landing-caption font-medium text-text-emphatic mb-space-4">Product</h3>
           <ul class="space-y-2.5">
             <li><a href="/#features" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">Features</a></li>
+            <!-- Every page reaches the install page from here. `installInk`
+                 emphasises it on the page it points at, the same way
+                 Privacy and Terms mark themselves below. -->
+            <li><a href="/installation.html" class="text-landing-caption text-text-emphatic hover:text-text-emphatic transition-colors">Installation</a></li>
             <li><a href="https://github.com/YoItsRdL/cernix/releases" target="_blank" rel="noopener" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">Releases</a></li>
           </ul>
         </div>
