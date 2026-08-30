@@ -15,6 +15,47 @@
   was found while checking the Linux package. Verified fixed on Linux;
   worth confirming against a Windows build before the next release.
 
+### macOS
+Cernix builds and runs on macOS. Written without a Mac to hand: the
+parsing, the filters and the platform dispatch are unit-tested, and the
+Linux and Windows paths are unchanged and still verified, but nothing
+here has been run on macOS. `MACOS-VERIFICATION.md` is the list of what
+to confirm, and should be deleted once it passes.
+
+- **Cards are found with `diskutil`.** `diskutil list` says what is
+  mounted and nothing about removability; `diskutil info` answers that
+  for one device at a time, and `plutil` converts both from plist. The
+  second call is cached per device, because whether a disk can be
+  ejected cannot change while it stays mounted, and a two-second poll
+  should not spawn a pair of processes per volume forever on a laptop.
+  Ejectable or removable media counts, an internal disk never does, and
+  the boot volume is refused by mount point rather than by trusting a
+  flag — a Mac booted from an external disk reports that disk as
+  genuinely ejectable.
+- **Nothing macOS-side goes through a shell.** A volume label is chosen
+  by whoever formatted the card, and this app exists to have untrusted
+  cards plugged into it, so `exec` would hand that label to `/bin/sh`.
+  Every call uses `execFile`, and the only value ever interpolated is a
+  kernel-assigned device identifier checked against a pattern first — a
+  name from the media never reaches a command line.
+- **The traffic lights are Apple's, and the app draws none of its own.**
+  `titleBarStyle: 'hiddenInset'` keeps them and places them inside the
+  app's 48px row; `WindowControls` returns null on darwin, which would
+  otherwise have put six caption buttons on one window. The row reserves
+  a band above the content so they do not land on the sidebar's mark:
+  one variable, `--titlebar-inset`, which is the only thing here that
+  has to be eyeballed on a real Mac.
+- **The renderer can tell which OS it is on.** `platform` is exposed on
+  the bridge as a value rather than a call, set in the preload, because
+  the caption row is a first-paint decision and an IPC round trip would
+  render one frame of the wrong chrome.
+- **`npm run release:mac` builds a dmg and a zip** for arm64 and x64,
+  and `npm run smoke` resolves `mac-arm64` or `mac` by architecture
+  rather than guessing. Builds are unsigned, consistent with the
+  project's existing decision — but Gatekeeper is markedly harsher about
+  that than SmartScreen, which is the first thing the checklist asks
+  about.
+
 ### Linux
 Cernix runs on Linux. The app was Windows-only in a handful of specific
 places rather than in its architecture, and this replaces each of them.

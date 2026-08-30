@@ -19,8 +19,30 @@ function applyTheme(theme: 'light' | 'dark'): void {
   root.style.colorScheme = theme
 }
 
-if (document.documentElement) applyTheme(initialTheme)
-else document.addEventListener('DOMContentLoaded', () => applyTheme(initialTheme), { once: true })
+/**
+ * Mark the platform on <html>, for the same reason and at the same time
+ * as the theme.
+ *
+ * macOS draws its traffic lights inside the app's own top row, so that
+ * row needs to reserve space for them and the app's caption buttons must
+ * not be drawn at all. Both are first-paint decisions: asking main over
+ * IPC would render one frame of the wrong chrome, and on the window's
+ * own title bar that is very visible.
+ *
+ * A class rather than a media query because there is nothing to query:
+ * the platform is not a property of the page.
+ */
+function applyPlatform(): void {
+  document.documentElement.classList.add(`platform-${process.platform}`)
+}
+
+function applyChrome(): void {
+  applyTheme(initialTheme)
+  applyPlatform()
+}
+
+if (document.documentElement) applyChrome()
+else document.addEventListener('DOMContentLoaded', applyChrome, { once: true })
 
 
 // The exposed API below IS the whitelist: the renderer only reaches channels
@@ -231,6 +253,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('preset-thumb:get', sourceHash, presetId, presetUpdatedAt) as Promise<Uint8Array | null>,
   presetThumbPut: (sourceHash: string, presetId: string, presetUpdatedAt: string, bytes: Uint8Array) =>
     ipcRenderer.invoke('preset-thumb:put', sourceHash, presetId, presetUpdatedAt, bytes) as Promise<void>,
+
+  /**
+   * Which OS this is running on.
+   *
+   * A value rather than an invoke, because the only caller decides what
+   * to draw during its first render and a promise would arrive a frame
+   * too late. Read from `process.platform` in the preload, which is the
+   * real thing rather than a user-agent guess.
+   */
+  platform: process.platform as NodeJS.Platform,
 
   // System Log
   onSysLog: (cb: (entry: LogEntry) => void) => {

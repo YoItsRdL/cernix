@@ -1,4 +1,4 @@
-import { exec } from 'node:child_process'
+import { exec, execFile } from 'node:child_process'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { EventEmitter } from 'node:events'
@@ -34,6 +34,9 @@ interface LsblkDevice {
 }
 
 const execAsync = promisify(exec)
+// `execFile` does not go through a shell. Everything macOS-side uses it:
+// see `scanMacVolumes` for why that is not a stylistic preference.
+const execFileAsync = promisify(execFile)
 
 // ── Types ──
 export interface VolumeInfo {
@@ -61,6 +64,8 @@ export class VolumeWatcher extends EventEmitter {
   private isPolling = false
   /** So a host without lsblk reports once, not every two seconds. */
   private warnedNoLsblk = false
+  /** macOS: whether a device can be ejected, which cannot change while it stays mounted. */
+  private macRemovableCache = new Map<string, boolean>()
 
   constructor(options?: { intervalMs?: number }) {
     super()
@@ -150,6 +155,7 @@ export class VolumeWatcher extends EventEmitter {
   private async scanRemovableVolumes(): Promise<VolumeInfo[]> {
     if (process.platform === 'win32') return this.scanWindowsVolumes()
     if (process.platform === 'linux') return this.scanLinuxVolumes()
+    if (process.platform === 'darwin') return this.scanMacVolumes()
     return []
   }
 
@@ -195,6 +201,88 @@ export class VolumeWatcher extends EventEmitter {
       }
       throw error
     }
+  }
+
+  /**
+   * Query macOS for removable drives using diskutil.
+   *
+   * Nothing here goes through a shell, and that is a security property
+   * rather than a style. A volume label is chosen by whoever formatted
+   * the card, this app exists to have untrusted cards plugged into it,
+   * and `exec` would hand that label to `/bin/sh`. A card named
+   * `; rm -rf ~ ;` is a one-line exploit against a photographer's home
+   * directory. `execFile` passes arguments to the process directly, so
+   * there is no shell to inject into — and the only value ever
+   * interpolated is a kernel-assigned device identifier, checked
+   * against a pattern before use, never a name from the media.
+   *
+   * Two calls rather than one: `diskutil list` says what is mounted and
+   * nothing about removability, and `diskutil info` says removability
+   * for one device at a time. The second is cached per device, because
+   * whether a physical disk can be ejected cannot change while it stays
+   * mounted, and polling every two seconds on a laptop should not spawn
+   * a pair of processes per volume forever.
+   */
+  private async scanMacVolumes(): Promise<VolumeInfo[]> {
+    const list = await this.diskutilPlist(['list', '-plist'])
+    const candidates = parseDiskutilList(list)
+
+    // Anything that has gone away stops being remembered, so a reader
+    // that returns on a different device identifier is asked again.
+    const live = new Set(candidates.map(c => c.deviceId))
+    for (const id of this.macRemovableCache.keys()) {
+      if (!live.has(id)) this.macRemovableCache.delete(id)
+    }
+
+    const found: VolumeInfo[] = []
+    for (const candidate of candidates) {
+      // The device identifier is the only thing that reaches a command
+      // line, and only after this. Kernel-assigned: "disk4", "disk4s1",
+      // "disk4s1s2". Anything else is not asked about.
+      if (!/^disk\d+(s\d+)*$/.test(candidate.deviceId)) continue
+      if (!isMacMountable(candidate.mountPoint)) continue
+
+      let removable = this.macRemovableCache.get(candidate.deviceId)
+      if (removable === undefined) {
+        try {
+          const info = await this.diskutilPlist(['info', '-plist', candidate.deviceId])
+          removable = isRemovableDisk(info, candidate.mountPoint)
+        } catch {
+          // A volume that vanished between the two calls, or one
+          // diskutil cannot describe. Not cached: it is not an answer.
+          continue
+        }
+        this.macRemovableCache.set(candidate.deviceId, removable)
+      }
+      if (!removable) continue
+
+      found.push({
+        path: candidate.mountPoint,
+        label: candidate.volumeName,
+        sizeBytes: 0,
+        freeBytes: 0,
+        fileSystem: 'Unknown',
+      })
+    }
+
+    await fillSizesFromStatfs(found)
+    return found
+  }
+
+  /**
+   * Run a diskutil query and hand back its plist as plain data.
+   *
+   * diskutil speaks plist and nothing else. `plutil` converts it, reads
+   * from stdin, and ships with macOS, so the alternative — a plist
+   * parser of our own, or a dependency — buys nothing. Neither process
+   * sees a shell.
+   */
+  private async diskutilPlist(args: string[]): Promise<unknown> {
+    const { stdout } = await execFileAsync('diskutil', args, {
+      timeout: DISKUTIL_TIMEOUT_MS,
+      maxBuffer: 4 * 1024 * 1024,
+    })
+    return plistToJson(stdout)
   }
 
   /**
@@ -256,23 +344,165 @@ export class VolumeWatcher extends EventEmitter {
     // at the guard: the watcher stops seeing cards, silently, until the
     // app restarts. The Windows path cannot do this because its exec
     // carries a timeout, and this is the same five seconds.
-    await Promise.all(found.map(async (volume) => {
-      try {
-        const stat = await withDeadline(fsp.statfs(volume.path), STATFS_TIMEOUT_MS)
-        volume.sizeBytes = Number(stat.bsize) * Number(stat.blocks)
-        volume.freeBytes = Number(stat.bsize) * Number(stat.bavail)
-      } catch {
-        // Left at zero. The UI reads these for a capacity bar, which is
-        // worth losing rather than dropping a card the user can see.
-      }
-    }))
+    await fillSizesFromStatfs(found)
 
     return found
   }
 }
 
+/**
+ * One mounted volume as `diskutil list -plist` describes it, before
+ * anything is known about whether it can be removed.
+ */
+export interface DiskutilCandidate {
+  /** Kernel-assigned, e.g. "disk4s1". Never a user-chosen string. */
+  deviceId: string
+  mountPoint: string
+  volumeName: string
+}
+
+/**
+ * Pull the mounted volumes out of `diskutil list -plist`.
+ *
+ * The tree has three shapes for the same idea and a real card hits at
+ * least two of them: a partitioned card is a disk with `Partitions`, an
+ * APFS drive is a disk with `APFSVolumes`, and a card formatted with no
+ * partition table at all is a disk that carries its own `MountPoint`.
+ * Missing the third would silently ignore exactly the FAT32 cards that
+ * come out of older cameras.
+ *
+ * Device identifiers are kept and volume names are not trusted for
+ * anything but display: see `scanMacVolumes`.
+ */
+export function parseDiskutilList(list: unknown): DiskutilCandidate[] {
+  const root = list as { AllDisksAndPartitions?: unknown[] }
+  const out: DiskutilCandidate[] = []
+
+  const take = (node: unknown): void => {
+    const n = node as {
+      DeviceIdentifier?: unknown
+      MountPoint?: unknown
+      VolumeName?: unknown
+      Partitions?: unknown[]
+      APFSVolumes?: unknown[]
+    }
+    const deviceId = typeof n?.DeviceIdentifier === 'string' ? n.DeviceIdentifier : ''
+    const mountPoint = typeof n?.MountPoint === 'string' ? n.MountPoint : ''
+    if (deviceId && mountPoint) {
+      out.push({
+        deviceId,
+        mountPoint,
+        volumeName: typeof n?.VolumeName === 'string' && n.VolumeName ? n.VolumeName : 'Untitled',
+      })
+    }
+    for (const child of n?.Partitions ?? []) take(child)
+    for (const child of n?.APFSVolumes ?? []) take(child)
+  }
+
+  for (const disk of root?.AllDisksAndPartitions ?? []) take(disk)
+  return out
+}
+
+/**
+ * Does `diskutil info -plist` describe media the user can pull out?
+ *
+ * `Ejectable` is the card reader and the USB stick. `RemovableMedia` is
+ * the media itself, and it has been seen as a string as well as a
+ * boolean across macOS versions, so both are read rather than trusting
+ * one shape. `Internal` is the veto: an internal drive that reports
+ * ejectable is still the machine, not a card.
+ *
+ * The system volume is excluded by mount point rather than by trusting
+ * these flags, for the same reason the Linux path refuses `/`: an
+ * external disk the Mac booted from is genuinely ejectable, and
+ * offering to sweep it is still wrong.
+ */
+export function isRemovableDisk(info: unknown, mountPoint: string): boolean {
+  const i = info as {
+    Ejectable?: unknown
+    RemovableMedia?: unknown
+    Internal?: unknown
+    BusProtocol?: unknown
+  }
+  const truthy = (v: unknown): boolean =>
+    v === true || v === 'Removable' || v === 'Yes' || v === 'true'
+
+  if (i?.Internal === true) return false
+  // A network share is not media, and diskutil describes one when a
+  // mounted SMB volume happens to answer at all.
+  if (typeof i?.BusProtocol === 'string' && i.BusProtocol === 'Network') return false
+  if (!truthy(i?.Ejectable) && !truthy(i?.RemovableMedia)) return false
+  return isMacMountable(mountPoint)
+}
+
+/**
+ * Is this mount point a card, rather than the Mac it is plugged into?
+ *
+ * macOS puts removable media under `/Volumes`, and puts the running
+ * system's own volumes there too — `/Volumes/Macintosh HD` is the boot
+ * disk. The flags above usually separate them; this is what makes it
+ * certain, and it is the same judgement the Linux path makes about `/`.
+ */
+function isMacMountable(mountPoint: string): boolean {
+  if (mountPoint === '/') return false
+  if (mountPoint.startsWith('/System/')) return false
+  if (mountPoint === '/Volumes/Macintosh HD') return false
+  return mountPoint.startsWith('/Volumes/')
+}
+
 /** How long a single statfs may take before its volume is reported without sizes. */
 const STATFS_TIMEOUT_MS = 5000
+
+/** How long a diskutil query may take before the poll gives up on it. */
+const DISKUTIL_TIMEOUT_MS = 5000
+
+/**
+ * Fill in capacity and free space from the mount point.
+ *
+ * Shared by Linux and macOS: both ask the kernel about the filesystem
+ * rather than the block device, because a device's capacity says
+ * nothing about how much of it is still free.
+ *
+ * On a deadline, because statfs on a stale mount — a card physically
+ * pulled while the kernel still has it mounted, which is the ordinary
+ * way this app's users remove one — blocks in uninterruptible I/O and
+ * never returns. `poll` clears `isPolling` in a `finally`, so a call
+ * that never settles leaves the flag set and every later poll returns
+ * at the guard: the watcher stops seeing cards, silently, until the app
+ * restarts.
+ */
+async function fillSizesFromStatfs(volumes: VolumeInfo[]): Promise<void> {
+  await Promise.all(volumes.map(async (volume) => {
+    try {
+      const stat = await withDeadline(fsp.statfs(volume.path), STATFS_TIMEOUT_MS)
+      volume.sizeBytes = Number(stat.bsize) * Number(stat.blocks)
+      volume.freeBytes = Number(stat.bsize) * Number(stat.bavail)
+    } catch {
+      // Left at zero. The UI reads these for a capacity bar, which is
+      // worth losing rather than dropping a card the user can see.
+    }
+  }))
+}
+
+/**
+ * Convert an XML plist to plain data, using the converter macOS ships.
+ *
+ * stdin and stdout, so no filename and no shell: the plist here
+ * describes removable media and must not become a command line.
+ */
+function plistToJson(xml: string): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const child = execFile('plutil', ['-convert', 'json', '-o', '-', '-'],
+      { timeout: DISKUTIL_TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024 },
+      (err, stdout) => {
+        if (err) return reject(err)
+        try { resolve(JSON.parse(stdout)) }
+        catch (parseErr) { reject(parseErr) }
+      })
+    child.stdin?.on('error', reject)   // plutil gone before the write lands
+    child.stdin?.end(xml)
+  })
+}
 
 /**
  * Reject if `promise` has not settled within `ms`.

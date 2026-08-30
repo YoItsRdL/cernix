@@ -27,12 +27,23 @@ import { cn } from '@/lib/utils'
 export function WindowControls() {
   const [maximized, setMaximized] = useState(false)
 
+  // macOS draws its own three, and `hiddenInset` keeps them: see
+  // createWindow. Drawing ours as well would put six caption buttons on
+  // one window. The row still reserves space for Apple's, which is
+  // `--titlebar-inset` in index.css.
+  //
+  // Before the early return, because hooks cannot be conditional; the
+  // subscription below is harmless on a window that renders nothing.
+  const isMac = window.electronAPI.platform === 'darwin'
+
   useEffect(() => {
     void window.electronAPI.windowIsMaximized().then(s => setMaximized(s.maximized))
     // Also pushed from main: the window can be maximised by a route
     // this component never sees. Win+Up, a drag to the top edge.
     return window.electronAPI.onWindowMaximized(setMaximized)
   }, [])
+
+  if (isMac) return null
 
   const rest = 'text-text-muted hover:text-text-emphatic hover:bg-overlay-hover'
 

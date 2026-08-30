@@ -90,6 +90,8 @@ export interface ElectronAPI {
   /** Close the window. */
   windowClose: () => Promise<{ ok: true }>
   /** Maximised state at mount, for the button that has to show one of two glyphs. */
+  /** The host OS, so the caption row can match it. Set at preload, not awaited. */
+  platform: NodeJS.Platform
   windowIsMaximized: () => Promise<{ maximized: boolean }>
   /** Maximised state after any change, including ones the app did not make. */
   onWindowMaximized: (cb: (maximized: boolean) => void) => () => void

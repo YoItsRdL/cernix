@@ -83,7 +83,7 @@ it.
 
 ## Install
 
-Grab the installer from the [releases page](https://github.com/YoItsRdL/cernix/releases). The published builds are Windows only for now; Linux runs from source, and `npm run release:linux` produces an AppImage.
+Grab the installer from the [releases page](https://github.com/YoItsRdL/cernix/releases). The published builds are Windows only for now. Linux and macOS run from source: `npm run release:linux` produces an AppImage, `npm run release:mac` a dmg and a zip. The macOS build has not yet been run on a Mac — see [`MACOS-VERIFICATION.md`](./MACOS-VERIFICATION.md).
 
 ### Unsigned builds
 
@@ -105,6 +105,7 @@ npm install
 npm run dev            # development
 npm run build          # production installer for this platform
 npm run release:linux  # Linux AppImage
+npm run release:mac    # macOS dmg + zip (arm64 and x64)
 npm run smoke          # launch the packaged app and check it stays up
 ```
 

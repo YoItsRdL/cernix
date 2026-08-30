@@ -253,7 +253,18 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen bg-surface-panel overflow-hidden text-text-default antialiased font-sans">
+    <div
+      className="flex h-screen bg-surface-panel overflow-hidden text-text-default antialiased font-sans"
+      /* On macOS the traffic lights sit inside this row; the padding is
+         what stops them landing on the sidebar's mark. Zero everywhere
+         else. See --titlebar-inset in index.css. */
+      style={{ paddingTop: 'var(--titlebar-inset)' }}
+    >
+      {/* The band the traffic lights sit in. Draggable, because on macOS
+          it is the only part of the title bar the app leaves bare, and a
+          window that cannot be moved by its title bar is broken. Zero
+          height off macOS, so it costs nothing there. */}
+      <div className="app-drag fixed top-0 left-0 right-0 z-[1001] h-[var(--titlebar-inset)] bg-surface-panel" />
       {/* The window's own controls. Rendered here rather than inside the
           header so no overlay can cover them: see WindowControls. */}
       <WindowControls />

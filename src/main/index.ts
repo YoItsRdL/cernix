@@ -199,17 +199,24 @@ class CernixApp {
       // over a dark app. components/WindowControls draws the three
       // buttons instead.
       //
-      // `titleBarStyle` is a Windows and macOS option: Linux ignores it
-      // and keeps its decorations, which would leave the window manager's
-      // buttons above the app's own row of three. `frame: false` is how
-      // Linux is asked the same question. Both leave the renderer drawing
-      // the caption, so WindowControls is right on either.
+      // Three platforms, three spellings of the same request.
       //
-      // On macOS `hidden` still draws the traffic lights, so a mac target
-      // wants `hiddenInset` and a WindowControls that renders nothing.
+      // Windows: `hidden` removes the caption and keeps the frame, so
+      // the resize border and snap survive.
+      //
+      // Linux ignores `titleBarStyle` entirely and would keep its
+      // decorations, leaving the window manager's buttons above the
+      // app's own three. `frame: false` is how it is asked.
+      //
+      // macOS keeps its traffic lights under `hidden` and there is no
+      // way to remove them that leaves a usable window, so the app does
+      // not try: `hiddenInset` keeps them and moves them into the app's
+      // 48px row, and the renderer draws no caption buttons of its own.
+      // WindowControls returns null there, and the row is padded so the
+      // lights do not land on top of it.
       ...(process.platform === 'linux'
         ? { frame: false }
-        : { titleBarStyle: 'hidden' as const }),
+        : { titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' as const : 'hidden' as const }),
       // Painted before the renderer draws anything, so launch does not
       // flash a colour the theme never uses.
       backgroundColor: WINDOW_BACKGROUND[theme],
