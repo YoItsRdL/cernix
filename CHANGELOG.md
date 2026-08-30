@@ -15,6 +15,49 @@
   was found while checking the Linux package. Verified fixed on Linux;
   worth confirming against a Windows build before the next release.
 
+### Linux
+Cernix runs on Linux. The app was Windows-only in a handful of specific
+places rather than in its architecture, and this replaces each of them.
+
+- **Removable volumes are found with `lsblk`.** The card watcher asked
+  Windows via PowerShell and got nothing anywhere else. The Linux path
+  takes RM for USB readers and HOTPLUG for built-in SD slots, and reads
+  capacity from `statfs` on the mount rather than the block device, which
+  knows nothing about free space. Mounts that are removable but are still
+  the running system — `/`, `/boot`, `/home` — are refused: offering to
+  sweep the disk you booted from is worse than missing a card.
+- **The window is frameless.** `titleBarStyle` is a Windows and macOS
+  option that Linux ignores, which left the window manager's buttons
+  sitting above the app's own three. Linux gets `frame: false`, which
+  asks the same question in a way it answers.
+- **The Drive token is only written when it will really be encrypted.**
+  `safeStorage` takes its key from the OS keystore, and Chromium picks
+  the keystore from `XDG_CURRENT_DESKTOP`. It recognises the large
+  desktops by name; anything else — Hyprland, sway, i3 — fell through to
+  a backend that "encrypts" with a key hardcoded in Chromium's source,
+  identical on every machine. Cernix now hints `gnome-libsecret` on
+  unrecognised desktops (KDE is left to KWallet, and an explicit
+  `--password-store` always wins), and then checks what was actually
+  selected. If it would not be real encryption the token is not written:
+  the session stays connected, the next launch asks again, and the app
+  says so rather than appearing to sign you out at random. The privacy
+  policy says the token is sealed with the OS keystore, so a quiet
+  downgrade is not available.
+- **A hung `statfs` can no longer stop the watcher.** Capacity is read
+  from the mount point, and statfs on a stale mount — a card pulled while
+  the kernel still has it mounted, which is how cards get removed —
+  blocks in uninterruptible I/O and never returns. The poll clears its
+  re-entry flag in a `finally`, so one call that never settled would have
+  left the flag set and every later poll returning at the guard: no card
+  detected again until restart. The wait is now bounded at five seconds,
+  the same bound the Windows path already had on its exec.
+- **`npm run release:linux` builds an AppImage**, and `npm run smoke`
+  finds and launches it. Windows packaging is unchanged; the icon and
+  target moved under a `win` key so each platform gets its own.
+
+Not in this release: a Linux job in CI, per-platform downloads on the
+landing page, and the site copy, which still says Windows.
+
 ---
 
 ## [1.0.0] - 2026-08-28

@@ -22,11 +22,18 @@ let userData: string
 // asserted, and tagged so the test can prove the bytes on disk are not
 // the plaintext JSON.
 const CIPHER_TAG = Buffer.from('ENC:')
+
+// Steerable, so the Linux case where Chromium reports encryption as
+// available while selecting a hardcoded key can be reproduced. Reset in
+// beforeEach; the default is a working keychain.
+const keychain = { available: true, backend: undefined as string | undefined }
+
 vi.mock('electron', () => ({
   app: { getPath: () => userData },
   shell: { openExternal: vi.fn() },
   safeStorage: {
-    isEncryptionAvailable: () => true,
+    isEncryptionAvailable: () => keychain.available,
+    getSelectedStorageBackend: () => keychain.backend,
     encryptString: (s: string) => Buffer.concat([CIPHER_TAG, Buffer.from(s, 'utf8').reverse()]),
     decryptString: (b: Buffer) => {
       if (!b.subarray(0, 4).equals(CIPHER_TAG)) throw new Error('not our ciphertext')
@@ -55,7 +62,11 @@ type Innards = {
 const inner = (m: unknown) => m as unknown as Innards
 const tokenFile = () => path.join(userData, 'auth-tokens.enc')
 
-beforeEach(() => { userData = fs.mkdtempSync(path.join(os.tmpdir(), 'cernix-auth-')) })
+beforeEach(() => {
+  userData = fs.mkdtempSync(path.join(os.tmpdir(), 'cernix-auth-'))
+  keychain.available = true
+  keychain.backend = undefined
+})
 afterEach(() => { fs.rmSync(userData, { recursive: true, force: true }) })
 
 describe('GoogleAuthManager token storage', () => {
@@ -149,5 +160,85 @@ describe('GoogleAuthManager status and expiry', () => {
 
     m.tokens = null
     expect(m.isTokenExpired(), 'no token at all').toBe(true)
+  })
+})
+
+/**
+ * What happens when the OS cannot really encrypt.
+ *
+ * This is Linux-specific in cause and not in consequence. Chromium
+ * picks its keystore from the desktop environment, and on one it does
+ * not recognise it selects a `basic_text` backend whose key is a
+ * constant in Chromium's own source — the same on every machine. A
+ * refresh token sealed with that is a refresh token in plaintext.
+ *
+ * The policy is that the token is not written at all rather than
+ * written weakly, so the sibling test above — "never writes a token in
+ * a form anything can read" — stays true on every platform.
+ */
+describe('GoogleAuthManager without a usable keychain', () => {
+  const platform = process.platform
+  const asLinux = () => Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
+  afterEach(() => Object.defineProperty(process, 'platform', { value: platform, configurable: true }))
+
+  it('writes nothing when Chromium fell back to its hardcoded key', () => {
+    asLinux()
+    keychain.backend = 'basic_text'
+    const m = new GoogleAuthManager()
+    inner(m).tokens = { ...TOKENS }
+    inner(m).saveTokensToDisk()
+    expect(fs.existsSync(tokenFile())).toBe(false)
+  })
+
+  it('writes nothing when the OS reports no encryption at all', () => {
+    keychain.available = false
+    const m = new GoogleAuthManager()
+    inner(m).tokens = { ...TOKENS }
+    inner(m).saveTokensToDisk()
+    expect(fs.existsSync(tokenFile())).toBe(false)
+  })
+
+  it('tells the user, rather than only the console it does not have', () => {
+    asLinux()
+    keychain.backend = 'basic_text'
+    const m = new GoogleAuthManager()
+    const errors: { message: string }[] = []
+    m.on('auth:error', e => errors.push(e))
+    inner(m).tokens = { ...TOKENS }
+    inner(m).saveTokensToDisk()
+    expect(errors).toHaveLength(1)
+    expect(errors[0].message).toMatch(/reconnect next launch/i)
+  })
+
+  it('says it once, not on every token refresh', () => {
+    asLinux()
+    keychain.backend = 'basic_text'
+    const m = new GoogleAuthManager()
+    const errors: unknown[] = []
+    m.on('auth:error', e => errors.push(e))
+    inner(m).tokens = { ...TOKENS }
+    inner(m).saveTokensToDisk()
+    inner(m).saveTokensToDisk()
+    inner(m).saveTokensToDisk()
+    expect(errors).toHaveLength(1)
+  })
+
+  it('still writes on a Linux host with a real keyring', () => {
+    asLinux()
+    keychain.backend = 'gnome_libsecret'
+    const m = new GoogleAuthManager()
+    inner(m).tokens = { ...TOKENS }
+    inner(m).saveTokensToDisk()
+    expect(fs.existsSync(tokenFile())).toBe(true)
+    expect(fs.readFileSync(tokenFile()).includes(Buffer.from(TOKENS.refresh_token))).toBe(false)
+  })
+
+  it('does not consult the Linux backend on Windows, where DPAPI is always there', () => {
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    keychain.backend = 'basic_text'   // would be refused if it were read
+    const m = new GoogleAuthManager()
+    inner(m).tokens = { ...TOKENS }
+    inner(m).saveTokensToDisk()
+    expect(fs.existsSync(tokenFile())).toBe(true)
   })
 })
