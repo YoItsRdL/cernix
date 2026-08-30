@@ -402,12 +402,75 @@ export class GoogleAuthManager extends EventEmitter {
 
   // ── Token Storage (Encrypted) ──
 
+  /** So the "cannot save your login" notice is shown once, not on every refresh. */
+  private warnedNoPersistence = false
+
   private getTokenFilePath(): string {
     return path.join(app.getPath('userData'), TOKEN_FILE)
   }
 
+  /**
+   * Will `safeStorage` actually encrypt, or only appear to?
+   *
+   * On Windows and macOS the answer is `isEncryptionAvailable()` and
+   * nothing more: DPAPI and the Keychain are always there.
+   *
+   * Linux is the reason this function exists. When no keyring answers,
+   * Chromium does not report encryption as unavailable — it selects a
+   * `basic_text` backend that "encrypts" with a key hardcoded in its
+   * source, identical on every machine on earth, and then reports
+   * itself available. A refresh token written that way is readable by
+   * anything that can read the file, which is the thing the encryption
+   * was for.
+   *
+   * The privacy policy states the token is sealed with the OS keystore.
+   * So when it would not be, it is not written: the session keeps its
+   * tokens in memory and the next launch asks for consent again. That
+   * is a worse experience than a silent downgrade and a true one.
+   */
+  private canEncryptTokens(): { ok: boolean; reason?: string } {
+    if (!safeStorage.isEncryptionAvailable()) {
+      return { ok: false, reason: 'the OS reports no encryption backend' }
+    }
+    if (process.platform === 'linux') {
+      // `getSelectedStorageBackend` is Linux-only, and optional even
+      // there on older Electron, so it is both inside the platform check
+      // and called with `?.`.
+      const backend = safeStorage.getSelectedStorageBackend?.()
+      if (backend === 'basic_text') {
+        return {
+          ok: false,
+          reason: 'no system keyring is running, so Chromium fell back to a '
+            + 'hardcoded key. Start gnome-keyring or KWallet, or pass '
+            + '--password-store=<backend>, to have the login persist',
+        }
+      }
+    }
+    return { ok: true }
+  }
+
   private saveTokensToDisk(): void {
     if (!this.tokens) return
+
+    const encryptable = this.canEncryptTokens()
+    if (!encryptable.ok) {
+      console.warn(`[GoogleAuth] Not saving tokens: ${encryptable.reason}.`)
+      // Said to the user, not only to a console a packaged app does not
+      // have. Otherwise the whole symptom is "it signs me out every
+      // launch" with nothing anywhere explaining why, which is the bug
+      // report this would generate.
+      //
+      // Once per session: this runs again on every token refresh, and
+      // the condition cannot change while the app is running.
+      if (!this.warnedNoPersistence) {
+        this.warnedNoPersistence = true
+        this.emit('auth:error', {
+          message: `Signed in, but the login cannot be saved: ${encryptable.reason}. `
+            + 'You will need to reconnect next launch.',
+        })
+      }
+      return
+    }
 
     try {
       const json = JSON.stringify(this.tokens)
@@ -425,6 +488,10 @@ export class GoogleAuthManager extends EventEmitter {
     try {
       if (!fs.existsSync(filePath)) return null
 
+      // A file written under one backend cannot be read under another —
+      // a keyring that stopped running, a `--password-store` that
+      // changed. `decryptString` throws on that, and the catch below
+      // turns it into a fresh sign-in, which is the right outcome.
       const encrypted = fs.readFileSync(filePath)
       const json = safeStorage.decryptString(encrypted)
       return JSON.parse(json) as AuthTokens

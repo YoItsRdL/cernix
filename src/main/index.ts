@@ -162,7 +162,16 @@ class CernixApp {
     // A packaged build takes its icon from the executable. In dev there
     // is no executable, so without this the window and taskbar show the
     // default Electron icon.
-    const devIcon = path.join(__dirname, '../build-resources/icon.ico')
+    //
+    // Linux cannot read an .ico: the window manager wants a raster it can
+    // scale, and hands back the Electron default rather than an error if
+    // it gets anything else. Both files come out of `npm run icons`.
+    const devIcon = path.join(
+      __dirname,
+      process.platform === 'win32'
+        ? '../build-resources/icon.ico'
+        : '../build-resources/icon.png',
+    )
 
     this.window = new BrowserWindow({
       width: 1400,
@@ -190,10 +199,17 @@ class CernixApp {
       // over a dark app. components/WindowControls draws the three
       // buttons instead.
       //
-      // Unconditional, because the build is Windows-only. On macOS
-      // `hidden` still draws the traffic lights, so a mac target wants
-      // `hiddenInset` and a WindowControls that renders nothing.
-      titleBarStyle: 'hidden',
+      // `titleBarStyle` is a Windows and macOS option: Linux ignores it
+      // and keeps its decorations, which would leave the window manager's
+      // buttons above the app's own row of three. `frame: false` is how
+      // Linux is asked the same question. Both leave the renderer drawing
+      // the caption, so WindowControls is right on either.
+      //
+      // On macOS `hidden` still draws the traffic lights, so a mac target
+      // wants `hiddenInset` and a WindowControls that renders nothing.
+      ...(process.platform === 'linux'
+        ? { frame: false }
+        : { titleBarStyle: 'hidden' as const }),
       // Painted before the renderer draws anything, so launch does not
       // flash a colour the theme never uses.
       backgroundColor: WINDOW_BACKGROUND[theme],
@@ -482,6 +498,39 @@ class CernixApp {
   private destroy(): void {
     this.volumeWatcher?.stop()
     this.syncDb?.close()
+  }
+}
+
+/**
+ * Tell Chromium which Linux keyring to use, when it would not work it out.
+ *
+ * `safeStorage` encrypts the Drive tokens with a key from the OS keystore.
+ * Chromium picks the backend from XDG_CURRENT_DESKTOP, and recognises the
+ * big desktops by name: anything else — Hyprland, sway, i3, a bare
+ * compositor — falls through to `basic_text`, which is not encryption. It
+ * is a hardcoded key, in the source, the same on every machine.
+ *
+ * The Secret Service API is what libsecret speaks and gnome-keyring is
+ * only its most common implementation, so this hint is worth making on
+ * any unrecognised desktop rather than a GNOME-shaped one. If nothing
+ * answers on the bus Chromium falls back exactly as it does today, so the
+ * hint can only improve the outcome.
+ *
+ * KDE is left alone: it is recognised, and it has KWallet, which this
+ * would override with something worse.
+ *
+ * An explicit `--password-store` on the command line always wins. That is
+ * the documented Chromium switch, and someone passing it has decided.
+ *
+ * Whatever backend is chosen, `google-auth` checks the result before it
+ * writes a token to disk. This improves the odds; it is not the guarantee.
+ */
+if (process.platform === 'linux') {
+  const chosenByUser = process.argv.some(a => a.startsWith('--password-store'))
+  const desktop = (process.env['XDG_CURRENT_DESKTOP'] ?? '').toUpperCase()
+  const recognised = /KDE|GNOME|UNITY|CINNAMON|MATE/.test(desktop)
+  if (!chosenByUser && !recognised) {
+    app.commandLine.appendSwitch('password-store', 'gnome-libsecret')
   }
 }
 

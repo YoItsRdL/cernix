@@ -23,6 +23,7 @@
     "landing:build": "tailwindcss -i landing/src/style.css -o landing/dist/style.css --minify && npm run landing:html",
     "landing:dev": "tailwindcss -i landing/src/style.css -o landing/dist/style.css --watch",
     "release": "tsc && vite build && electron-builder --win nsis --publish never",
+    "release:linux": "tsc && vite build && electron-builder --linux AppImage --publish never",
     "release:patch": "npm version patch --no-git-tag-version && npm run release",
     "release:minor": "npm version minor --no-git-tag-version && npm run release",
     "release:major": "npm version major --no-git-tag-version && npm run release",
@@ -100,8 +101,23 @@
       "package.json"
     ],
     "asar": true,
-    "icon": "build-resources/icon.ico",
-    "target": "nsis",
+    "asarUnpack": [
+      "**/node_modules/exiftool-vendored.*/**/*"
+    ],
+    "win": {
+      "icon": "build-resources/icon.ico",
+      "target": "nsis"
+    },
+    "linux": {
+      "icon": "build-resources/icon.png",
+      "target": "AppImage",
+      "artifactName": "Cernix-${version}-${arch}.${ext}",
+      "category": "Graphics",
+      "synopsis": "Photography ingest, RAW editing, and Google Drive distribution",
+      "desktop": {
+        "StartupWMClass": "cernix"
+      }
+    },
     "nsis": {
       "artifactName": "Cernix-Setup-${version}.${ext}",
       "perMachine": false,

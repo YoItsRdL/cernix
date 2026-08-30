@@ -8,7 +8,15 @@
  * a GUI-subsystem Windows app writes nothing to a console, so the
  * failure is silent. This is the check that notices.
  *
- * Usage:  node scripts/smoke-package.mjs [--dir release/win-unpacked] [--seconds 12]
+ * The Linux build has more to get wrong here, not less: better-sqlite3
+ * is rebuilt against the Electron ABI per platform, and a mismatch does
+ * not surface until the app opens its database at startup.
+ *
+ * Usage:  node scripts/smoke-package.mjs [--dir release/linux-unpacked] [--seconds 12]
+ *
+ * `--dir` defaults to the unpacked directory electron-builder writes for
+ * the host platform, so the same `npm run smoke` follows the same
+ * `npm run release` on either.
  */
 import { spawn } from 'node:child_process'
 import { existsSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs'
@@ -21,7 +29,13 @@ const argOf = (name, fallback) => {
   return i !== -1 && args[i + 1] ? args[i + 1] : fallback
 }
 
-const appDir = path.resolve(argOf('--dir', 'release/win-unpacked'))
+const UNPACKED_DIR = {
+  win32: 'release/win-unpacked',
+  linux: 'release/linux-unpacked',
+  darwin: 'release/mac',
+}[process.platform] ?? 'release/win-unpacked'
+
+const appDir = path.resolve(argOf('--dir', UNPACKED_DIR))
 const seconds = Number(argOf('--seconds', '12'))
 
 function fail(msg) {
@@ -31,7 +45,13 @@ function fail(msg) {
 
 if (!existsSync(appDir)) fail(`no packaged app at ${appDir}: run the build first`)
 
-const exeName = process.platform === 'win32' ? 'Cernix.exe' : 'Cernix'
+// electron-builder names the Linux binary after the product, lowercased.
+// macOS keeps the capital inside the .app bundle.
+const exeName = {
+  win32: 'Cernix.exe',
+  linux: 'cernix',
+  darwin: 'Cernix.app/Contents/MacOS/Cernix',
+}[process.platform] ?? 'Cernix'
 const exe = path.join(appDir, exeName)
 if (!existsSync(exe)) fail(`no ${exeName} in ${appDir}`)
 

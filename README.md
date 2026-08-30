@@ -83,7 +83,7 @@ it.
 
 ## Install
 
-Grab the installer from the [releases page](https://github.com/YoItsRdL/cernix/releases). Windows only for now.
+Grab the installer from the [releases page](https://github.com/YoItsRdL/cernix/releases). The published builds are Windows only for now; Linux runs from source, and `npm run release:linux` produces an AppImage.
 
 ### Unsigned builds
 
@@ -93,16 +93,29 @@ Every release publishes a sha256 alongside the installer. If you'd rather not tr
 
 ## Build from source
 
-> **Prerequisites:** Node.js 18+, npm 9+
+> **Prerequisites:** Node.js 20.19+ (and below 25 — the range in
+> `engines`, which is enforced), npm 9+. Node 26 fails to install
+> Electron at all, writing no binary and exiting 0.
 
 ```bash
 git clone https://github.com/YoItsRdL/cernix.git
 cd cernix
 npm install
 
-npm run dev      # development
-npm run build    # production installer
+npm run dev            # development
+npm run build          # production installer for this platform
+npm run release:linux  # Linux AppImage
+npm run smoke          # launch the packaged app and check it stays up
 ```
+
+On Linux, `npm install` builds `better-sqlite3` from source if no prebuild
+matches, which needs a C++ toolchain and Python. `npx electron-builder
+install-app-deps` then rebuilds it against the Electron ABI; without that
+step the packaged app starts and fails to open its database.
+
+Drive sign-in persists only where a system keyring is running: without
+one, Chromium has no key to seal the token with, and Cernix will not
+write a token it cannot encrypt. See the note in `google-auth.ts`.
 
 Google Drive sync needs your own OAuth client ID: see [`CONTRIBUTING.md`](./CONTRIBUTING.md). Everything else works without one.
 

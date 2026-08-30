@@ -75,6 +75,35 @@ function rendererCss() {
 }
 
 function buildHarnesses(names) {
+
+/** Where npm put esbuild, whatever form it took. */
+const ESBUILD_BIN = path.join(ROOT, 'node_modules', 'esbuild', 'bin', 'esbuild')
+
+/**
+ * Is this a compiled executable rather than a script?
+ *
+ * Reads the magic number: ELF on Linux, Mach-O in its four flavours on
+ * macOS, MZ on Windows. Anything else — a shebang, a bare `require` — is
+ * text for an interpreter.
+ */
+function isNativeExecutable(file) {
+  let fd
+  try {
+    fd = fs.openSync(file, 'r')
+    const head = Buffer.alloc(4)
+    fs.readSync(fd, head, 0, 4, 0)
+    const magic = head.readUInt32BE(0)
+    return head.subarray(0, 4).toString('binary') === '\x7fELF'   // Linux
+      || magic === 0xfeedface || magic === 0xfeedfacf              // Mach-O 32/64
+      || magic === 0xcefaedfe || magic === 0xcffaedfe              // Mach-O byte-swapped
+      || head.subarray(0, 2).toString('binary') === 'MZ'           // Windows PE
+  } catch {
+    return false
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd)
+  }
+}
+
   fs.mkdirSync(OUT, { recursive: true })
   const css = rendererCss()
   for (const name of names) {
@@ -83,13 +112,31 @@ function buildHarnesses(names) {
       console.error(`Suite asks for harness "${name}" but ${path.relative(ROOT, entry)} does not exist.`)
       process.exit(2)
     }
-    execFileSync(process.execPath, [
-      path.join(ROOT, 'node_modules', 'esbuild', 'bin', 'esbuild'),
+    const esbuildArgs = [
       entry, '--bundle', '--format=iife', '--jsx=automatic',
       `--alias:@=${path.join(ROOT, 'src', 'renderer')}`,
       '--define:process.env.NODE_ENV="development"',
       `--outfile=${path.join(OUT, `${name}.js`)}`,
-    ], { cwd: ROOT, stdio: 'pipe', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } })
+    ]
+    // `node_modules/esbuild/bin/esbuild` is not the same kind of file on
+    // every platform. On Windows it is a JavaScript shim that loads the
+    // real binary from the platform package, so it has to be run by an
+    // interpreter. On Linux and macOS the install replaces it with the
+    // native executable itself, and handing that to Node gets it parsed
+    // as JavaScript: `SyntaxError: Invalid or unexpected token`, which
+    // is Node reading an ELF header.
+    //
+    // Sniffing the file beats a platform check, because the thing that
+    // actually matters is what this file is, and npm has changed how it
+    // lays these out before.
+    if (isNativeExecutable(ESBUILD_BIN)) {
+      execFileSync(ESBUILD_BIN, esbuildArgs, { cwd: ROOT, stdio: 'pipe' })
+    } else {
+      // `process.execPath` is Electron here, which runs as Node only
+      // when told to.
+      execFileSync(process.execPath, [ESBUILD_BIN, ...esbuildArgs],
+        { cwd: ROOT, stdio: 'pipe', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } })
+    }
 
     fs.writeFileSync(path.join(OUT, `${name}.html`),
       '<!doctype html><meta charset="utf-8"><style>' + css + '</style>' +
