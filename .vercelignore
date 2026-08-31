@@ -1,0 +1,21 @@
+# Only landing/ is served. Paths are anchored with a leading slash so they
+# match the repo root only: a bare `dist` would also match landing/dist and
+# strip the compiled stylesheet out of the deploy.
+/node_modules
+/dist
+/dist-electron
+/release
+/build-resources
+/src
+/tests
+/scripts
+/docs
+/tickets
+/decisions
+/.github
+/.husky
+/.claude
+
+# Tailwind input and HTML partials. Build-time only — landing-html.mjs
+# generates the committed .html from these, and nothing loads them at runtime.
+/landing/src
