@@ -13,6 +13,7 @@ import { EditorView, type EditorFile } from './editor/EditorView'
 import { TerminalPanel } from './components/TerminalPanel'
 import { useIngest } from './hooks/useIngest'
 import { WindowControls } from './components/WindowControls'
+import { drawsOwnCaptionButtons } from '@/lib/window-chrome'
 import { AppToaster } from './components/ui/app-toaster'
 import { toast } from 'sonner'
 import { type VolumeInfo, type AuthStatus, type TabId } from '@/types'
@@ -333,15 +334,21 @@ export default function App() {
                    <FileImage size={12} />
                    Open File…
                  </Button>
-                 <div
-                   // `app-no-drag` on the spacer itself, not just on the
-                   // group: the negative margin lets this child overflow
-                   // the header's padding, but a parent's box does not
-                   // grow to include an overflowing child, so the group
-                   // alone stopped 16px short of the corner. Measured.
-                   className="app-no-drag w-caption h-full shrink-0 -mr-4"
-                   aria-hidden
-                 />
+                 {/* Only where the app draws the three buttons. On
+                     macOS the corner is empty — Apple's live top left,
+                     above this row — and reserving it here pushed Open
+                     File 138px in from the edge with nothing beside it. */}
+                 {drawsOwnCaptionButtons() && (
+                   <div
+                     // `app-no-drag` on the spacer itself, not just on the
+                     // group: the negative margin lets this child overflow
+                     // the header's padding, but a parent's box does not
+                     // grow to include an overflowing child, so the group
+                     // alone stopped 16px short of the corner. Measured.
+                     className="app-no-drag w-caption h-full shrink-0 -mr-4"
+                     aria-hidden
+                   />
+                 )}
                </div>
 
             </header>

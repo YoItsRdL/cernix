@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Minus, Square, Copy, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { drawsOwnCaptionButtons } from '@/lib/window-chrome'
 
 /**
  * Minimise, maximise and close, drawn by the app.
@@ -29,12 +30,12 @@ export function WindowControls() {
 
   // macOS draws its own three, and `hiddenInset` keeps them: see
   // createWindow. Drawing ours as well would put six caption buttons on
-  // one window. The row still reserves space for Apple's, which is
-  // `--titlebar-inset` in index.css.
+  // one window. The space Apple's need is `--titlebar-inset` in
+  // index.css, at the top LEFT, not the corner this component occupies.
   //
-  // Before the early return, because hooks cannot be conditional; the
-  // subscription below is harmless on a window that renders nothing.
-  const isMac = window.electronAPI.platform === 'darwin'
+  // Read before the early return, because hooks cannot be conditional;
+  // the subscription below is harmless on a window that renders nothing.
+  const drawsOwn = drawsOwnCaptionButtons()
 
   useEffect(() => {
     void window.electronAPI.windowIsMaximized().then(s => setMaximized(s.maximized))
@@ -43,7 +44,7 @@ export function WindowControls() {
     return window.electronAPI.onWindowMaximized(setMaximized)
   }, [])
 
-  if (isMac) return null
+  if (!drawsOwn) return null
 
   const rest = 'text-text-muted hover:text-text-emphatic hover:bg-overlay-hover'
 
