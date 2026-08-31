@@ -15,7 +15,8 @@
  *
  * Syntax, deliberately tiny:
  *   {{> name }}   include landing/src/partials/name.html
- *   {{ key }}     substitute from the page's front matter
+ *   {{ key }}     substitute from the page's front matter, plus the
+ *                 build-injected `assetv` and `version`
  *
  * Front matter is a JSON object in an HTML comment at the top of a page
  * template. Includes are expanded before substitution, so a partial can
@@ -69,6 +70,17 @@ function expand(src, name, depth = 0) {
   })
 }
 
+/**
+ * Keys the unused-variable warning ignores.
+ *
+ * `out` is the builder's own instruction and never appears in a page.
+ * The rest are injected into every page whether it wants them or not,
+ * so a page not using one is the normal case rather than a mistake —
+ * only the install page reads `version`, and warning about the other
+ * three would teach everyone to ignore the warnings.
+ */
+const EXEMPT_FROM_UNUSED = new Set(['out', 'assetv', 'version'])
+
 /** Substitute {{ key }}. An unknown key is a build error, never a blank. */
 function substitute(src, data, name) {
   const seen = new Set()
@@ -78,7 +90,7 @@ function substitute(src, data, name) {
     return data[key]
   })
   for (const key of Object.keys(data)) {
-    if (key !== 'out' && key !== 'assetv' && !seen.has(key)) {
+    if (!EXEMPT_FROM_UNUSED.has(key) && !seen.has(key)) {
       process.stderr.write(`  warning: ${name} defines "${key}" but never uses it\n`)
     }
   }
@@ -111,12 +123,33 @@ const assetv = crypto.createHash('sha256')
   .update(fs.readFileSync(cssPath)).digest('hex').slice(0, 8)
 console.log(`  stylesheet ${assetv}`)
 
+/**
+ * The app's version, stamped in as `{{ version }}`.
+ *
+ * The install page shows a version before `binary.json` is fetched, and
+ * it is the only version a visitor with no JavaScript ever sees. It was
+ * typed in by hand, so it said 1.0.0 while the app was on 1.1.1 — a
+ * number nobody remembers to change is a number that is wrong.
+ *
+ * package.json is the right source: it is what `release.yml` checks the
+ * tag against and what every artifact is named from, so the page cannot
+ * disagree with the release without the release itself being wrong.
+ *
+ * It is still only the fallback. `binary.json` is what was actually
+ * published and wins at runtime — the working tree can be a version
+ * ahead of anything downloadable, which is exactly the state this repo
+ * is in between a version bump and its release.
+ */
+const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version
+console.log(`  version    ${version}`)
+
 let built = 0
 for (const file of fs.readdirSync(PAGES).sort()) {
   if (!file.endsWith('.html')) continue
   const src = read(path.join(PAGES, file))
   const { data, body } = frontMatter(src, file)
   data.assetv = assetv
+  data.version = version
   const target = path.join(OUT, data.out || file)
 
   // Match whatever the file being replaced already used, so a page that
