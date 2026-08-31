@@ -53,7 +53,7 @@ jobs:
             script: release
             # `smoke` launches the packaged app and needs somewhere to
             # put a window. Windows and macOS runners have one.
-            smoke: npm run smoke
+            smoke: npm run smoke -- --seconds 25
             artifacts: release/Cernix-Setup-*.exe
           - name: Linux
             os: ubuntu-latest
@@ -64,12 +64,12 @@ jobs:
             # machinery asserting things about a platform nobody ships
             # to. This is the opposite: the Linux binary, on Linux,
             # asked only whether it starts.
-            smoke: xvfb-run -a npm run smoke
+            smoke: xvfb-run -a npm run smoke -- --seconds 25
             artifacts: release/Cernix-*.AppImage
           - name: macOS
             os: macos-latest
             script: 'release:mac'
-            smoke: npm run smoke
+            smoke: npm run smoke -- --seconds 25
             artifacts: |
               release/Cernix-*.dmg
               release/Cernix-*.zip
@@ -118,6 +118,22 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         run: npm run ${{ matrix.script }}
 
+      - name: Let Chromium's sandbox helper run
+        # Linux only, and only in CI. `chrome-sandbox` must be owned by
+        # root with mode 4755 or Electron aborts rather than run
+        # unsandboxed — which is the right default and not something to
+        # switch off with --no-sandbox just to get a green tick. A fresh
+        # checkout cannot have that ownership, so the runner grants it.
+        #
+        # It does not reproduce on every Linux: a distribution that
+        # permits unprivileged user namespaces lets Electron use the
+        # namespace sandbox and never reach the SUID helper, which is
+        # why the same build smoke-tests clean on Arch and aborted here.
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo chown root:root release/linux-unpacked/chrome-sandbox
+          sudo chmod 4755 release/linux-unpacked/chrome-sandbox
+
       - name: Smoke-test the packaged app
         # Launches the binary and requires it to stay up, write userData
         # and log no startup error. A package that cannot start must not
@@ -137,6 +153,12 @@ jobs:
   publish:
     name: Publish the release
     needs: build
+    # `needs` alone means "only if every matrix job succeeded", which
+    # silently contradicted `fail-fast: false` and the partial-release
+    # behaviour described above: one platform failing skipped the
+    # publish entirely and a good Windows build went nowhere. This is
+    # what actually allows a partial release. Cancellation still stops.
+    if: ${{ !cancelled() }}
     # Any runner will do: this one only moves files and writes JSON.
     runs-on: ubuntu-latest
     steps:

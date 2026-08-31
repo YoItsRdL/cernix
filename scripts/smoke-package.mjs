@@ -86,7 +86,14 @@ child.on('exit', (code, signal) => { exitedEarly = { code, signal } })
 child.on('error', (err) => fail(`could not start: ${err.message}`))
 
 let stderr = ''
+let stdout = ''
 child.stderr?.on('data', (d) => { stderr += d.toString() })
+child.stdout?.on('data', (d) => { stdout += d.toString() })
+
+/** What the app said, for a failure that is not a crash. */
+const said = () =>
+  (stdout.trim() ? `\n\n  stdout:\n${stdout.trim().split('\n').slice(-25).join('\n')}` : '') +
+  (stderr.trim() ? `\n\n  stderr:\n${stderr.trim().split('\n').slice(-25).join('\n')}` : '')
 
 await new Promise((r) => setTimeout(r, seconds * 1000))
 
@@ -105,7 +112,11 @@ if (exitedEarly) {
 // half-initialised state: Electron writes its own files into userData,
 // and Cernix creates its SQLite databases during initialize().
 const entries = readdirSync(userData)
-if (entries.length === 0) fail('process is alive but wrote nothing to userData')
+if (entries.length === 0) {
+  fail('process is alive but wrote nothing to userData.\n'
+    + '  Either it is still starting, or it is writing somewhere else:'
+    + ` --user-data-dir was ${userData}.${said()}`)
+}
 
 const dbs = entries.filter((f) => f.endsWith('.db'))
 
