@@ -1,6 +1,6 @@
 {
   "name": "cernix",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "engines": {
     "node": ">=20.19.0 <25"
   },
@@ -113,8 +113,20 @@
     "mac": {
       "icon": "build-resources/icon.png",
       "target": [
-        { "target": "dmg", "arch": ["arm64", "x64"] },
-        { "target": "zip", "arch": ["arm64", "x64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ],
       "category": "public.app-category.photography",
       "artifactName": "Cernix-${version}-${arch}.${ext}",

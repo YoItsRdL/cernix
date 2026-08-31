@@ -1,6 +1,6 @@
 # Cernix Workstation Changelog
 
-## [Unreleased]
+## [1.1.0] - 2026-08-31
 
 ### Packaging
 - **ExifTool now ships where the OS can run it.** `asarUnpack` was never
