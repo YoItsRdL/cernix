@@ -16,11 +16,12 @@
   worth confirming against a Windows build before the next release.
 
 ### macOS
-Cernix builds and runs on macOS. Written without a Mac to hand: the
-parsing, the filters and the platform dispatch are unit-tested, and the
-Linux and Windows paths are unchanged and still verified, but nothing
-here has been run on macOS. `MACOS-VERIFICATION.md` is the list of what
-to confirm, and should be deleted once it passes.
+Cernix builds and runs on macOS, on Apple Silicon and Intel. Written
+without a Mac to hand and verified on one afterwards: the build, the
+launch, both SQLite stores, the window chrome, card detection through
+`diskutil`, Gatekeeper on an unsigned bundle, ExifTool, and Drive
+sign-in surviving a restart. The checklist that carried the unverified
+work, `MACOS-VERIFICATION.md`, has been deleted now that it passed.
 
 - **Cards are found with `diskutil`.** `diskutil list` says what is
   mounted and nothing about removability; `diskutil info` answers that

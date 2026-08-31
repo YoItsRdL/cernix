@@ -83,7 +83,7 @@ it.
 
 ## Install
 
-Grab the installer from the [releases page](https://github.com/YoItsRdL/cernix/releases). The published builds are Windows only for now. Linux and macOS run from source: `npm run release:linux` produces an AppImage, `npm run release:mac` a dmg and a zip. The macOS build has not yet been run on a Mac — see [`MACOS-VERIFICATION.md`](./MACOS-VERIFICATION.md).
+Grab the installer from the [releases page](https://github.com/YoItsRdL/cernix/releases). The published builds are Windows only for now. Linux and macOS run from source, and both have been verified on real hardware: `npm run release:linux` produces an AppImage, `npm run release:mac` a dmg and a zip for Apple Silicon and Intel.
 
 ### Unsigned builds
 

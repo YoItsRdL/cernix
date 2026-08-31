@@ -129,10 +129,13 @@
               </a>
             </li>
 
-            <!-- macOS. Builds, and has never been run on a Mac. A
-                 different claim from Linux's, so it is made in different
-                 words: overstating it is the exact failure the copy rule
-                 in .claude/rules/landing.md exists to prevent. -->
+            <!-- macOS. Verified on a Mac now — build, launch, window
+                 chrome, card detection, Gatekeeper and the ingest
+                 pipeline — so the row no longer warns that it is
+                 untested. It still says "no published build", because
+                 that is separately true: `binary.json` has no macOS
+                 entry, and the row must not promise a file that does
+                 not exist. -->
             <li id="macos" data-platform-row="macos" class="scroll-mt-24 mt-16 pt-16 border-t border-border-subtle flex flex-col sm:flex-row sm:items-center gap-space-5">
               <div class="min-w-0 flex-1">
                 <h2 class="flex flex-wrap items-center gap-space-2 text-landing-sub font-semibold text-text-emphatic tracking-tight">
@@ -140,8 +143,9 @@
                   <span data-platform-you class="hidden px-space-2 py-px rounded-pill bg-accent-primary/10 text-accent-primary text-landing-meta font-medium tracking-widest uppercase">Your system</span>
                 </h2>
                 <p class="mt-space-2 text-landing-body text-text-muted">
-                  Builds from the same source, and has not yet been run
-                  on a Mac. Treat it as untested.
+                  Cernix runs on macOS, on Apple Silicon and Intel.
+                  There is no published build yet, so it is one command
+                  from source: it produces a dmg and a zip.
                 </p>
               </div>
               <a
