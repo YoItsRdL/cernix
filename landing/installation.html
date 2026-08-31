@@ -197,10 +197,11 @@
               </a>
             </li>
 
-            <!-- Linux. Runs, verified, and not released yet. The button
-                 that sent them here said Download; this row is where the
-                 situation is stated, which is the reason it points at
-                 the row rather than the top of the page. -->
+            <!-- Linux. Published since 1.1.0. The three rows are peers
+                 now — every one is a real download — so they carry the
+                 same treatment rather than one accent and two outlines.
+                 The static href is the releases listing; the script
+                 swaps in the exact file from binary.json. -->
             <li id="linux" data-platform-row="linux" class="scroll-mt-24 mt-16 pt-16 border-t border-border-subtle flex flex-col sm:flex-row sm:items-center gap-space-5">
               <div class="min-w-0 flex-1">
                 <h2 class="flex flex-wrap items-center gap-space-2 text-landing-sub font-semibold text-text-emphatic tracking-tight">
@@ -208,27 +209,23 @@
                   <span data-platform-you class="hidden px-space-2 py-px rounded-pill bg-accent-primary/10 text-accent-primary text-landing-meta font-medium tracking-widest uppercase">Your system</span>
                 </h2>
                 <p class="mt-space-2 text-landing-body text-text-muted">
-                  Cernix runs on Linux. There is no published build yet,
-                  so it is one command from source: it produces an
-                  AppImage.
+                  AppImage, 64-bit. Nothing to install: make it
+                  executable and run it.
                 </p>
               </div>
               <a
                 data-platform-download="linux"
-                href="#building-it-yourself"
-                class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-transparent border border-border-strong text-text-emphatic text-landing-nav font-medium hover:bg-overlay-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+                href="https://github.com/YoItsRdL/cernix/releases"
+                class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-accent-primary text-primary-foreground text-landing-nav font-medium hover:bg-accent-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
               >
-                Build it
+                Download
               </a>
             </li>
 
-            <!-- macOS. Verified on a Mac now — build, launch, window
-                 chrome, card detection, Gatekeeper and the ingest
-                 pipeline — so the row no longer warns that it is
-                 untested. It still says "no published build", because
-                 that is separately true: `binary.json` has no macOS
-                 entry, and the row must not promise a file that does
-                 not exist. -->
+            <!-- macOS. Published since 1.1.1, both architectures.
+                 binary.json names the arm64 dmg; someone on Intel takes
+                 theirs from the releases listing, which is what the
+                 static href already points at. -->
             <li id="macos" data-platform-row="macos" class="scroll-mt-24 mt-16 pt-16 border-t border-border-subtle flex flex-col sm:flex-row sm:items-center gap-space-5">
               <div class="min-w-0 flex-1">
                 <h2 class="flex flex-wrap items-center gap-space-2 text-landing-sub font-semibold text-text-emphatic tracking-tight">
@@ -236,17 +233,17 @@
                   <span data-platform-you class="hidden px-space-2 py-px rounded-pill bg-accent-primary/10 text-accent-primary text-landing-meta font-medium tracking-widest uppercase">Your system</span>
                 </h2>
                 <p class="mt-space-2 text-landing-body text-text-muted">
-                  Cernix runs on macOS, on Apple Silicon and Intel.
-                  There is no published build yet, so it is one command
-                  from source: it produces a dmg and a zip.
+                  Disk image, Apple Silicon and Intel. Not signed, so
+                  Gatekeeper needs <span class="text-text-emphatic">right-click → Open</span>
+                  the first time.
                 </p>
               </div>
               <a
                 data-platform-download="macos"
-                href="#building-it-yourself"
-                class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-transparent border border-border-strong text-text-emphatic text-landing-nav font-medium hover:bg-overlay-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+                href="https://github.com/YoItsRdL/cernix/releases"
+                class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-accent-primary text-primary-foreground text-landing-nav font-medium hover:bg-accent-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
               >
-                Build it
+                Download
               </a>
             </li>
           </ul>
