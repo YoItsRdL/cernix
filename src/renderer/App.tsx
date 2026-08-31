@@ -13,6 +13,7 @@ import { EditorView, type EditorFile } from './editor/EditorView'
 import { TerminalPanel } from './components/TerminalPanel'
 import { useIngest } from './hooks/useIngest'
 import { WindowControls } from './components/WindowControls'
+import { drawsOwnCaptionButtons } from '@/lib/window-chrome'
 import { AppToaster } from './components/ui/app-toaster'
 import { toast } from 'sonner'
 import { type VolumeInfo, type AuthStatus, type TabId } from '@/types'
@@ -253,7 +254,18 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen bg-surface-panel overflow-hidden text-text-default antialiased font-sans">
+    <div
+      className="flex h-screen bg-surface-panel overflow-hidden text-text-default antialiased font-sans"
+      /* On macOS the traffic lights sit inside this row; the padding is
+         what stops them landing on the sidebar's mark. Zero everywhere
+         else. See --titlebar-inset in index.css. */
+      style={{ paddingTop: 'var(--titlebar-inset)' }}
+    >
+      {/* The band the traffic lights sit in. Draggable, because on macOS
+          it is the only part of the title bar the app leaves bare, and a
+          window that cannot be moved by its title bar is broken. Zero
+          height off macOS, so it costs nothing there. */}
+      <div className="app-drag fixed top-0 left-0 right-0 z-[1001] h-[var(--titlebar-inset)] bg-surface-panel" />
       {/* The window's own controls. Rendered here rather than inside the
           header so no overlay can cover them: see WindowControls. */}
       <WindowControls />
@@ -322,15 +334,21 @@ export default function App() {
                    <FileImage size={12} />
                    Open File…
                  </Button>
-                 <div
-                   // `app-no-drag` on the spacer itself, not just on the
-                   // group: the negative margin lets this child overflow
-                   // the header's padding, but a parent's box does not
-                   // grow to include an overflowing child, so the group
-                   // alone stopped 16px short of the corner. Measured.
-                   className="app-no-drag w-caption h-full shrink-0 -mr-4"
-                   aria-hidden
-                 />
+                 {/* Only where the app draws the three buttons. On
+                     macOS the corner is empty — Apple's live top left,
+                     above this row — and reserving it here pushed Open
+                     File 138px in from the edge with nothing beside it. */}
+                 {drawsOwnCaptionButtons() && (
+                   <div
+                     // `app-no-drag` on the spacer itself, not just on the
+                     // group: the negative margin lets this child overflow
+                     // the header's padding, but a parent's box does not
+                     // grow to include an overflowing child, so the group
+                     // alone stopped 16px short of the corner. Measured.
+                     className="app-no-drag w-caption h-full shrink-0 -mr-4"
+                     aria-hidden
+                   />
+                 )}
                </div>
 
             </header>

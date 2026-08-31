@@ -29,13 +29,20 @@ const argOf = (name, fallback) => {
   return i !== -1 && args[i + 1] ? args[i + 1] : fallback
 }
 
-const UNPACKED_DIR = {
-  win32: 'release/win-unpacked',
-  linux: 'release/linux-unpacked',
-  darwin: 'release/mac',
-}[process.platform] ?? 'release/win-unpacked'
+// electron-builder writes the mac bundle into a per-architecture
+// directory — `mac-arm64` on Apple Silicon, `mac` on Intel — and builds
+// both when asked for both. Probing beats guessing: on an arm64 Mac that
+// also produced an x64 build, the native one is the one worth smoking.
+function defaultAppDir() {
+  if (process.platform === 'win32') return 'release/win-unpacked'
+  if (process.platform === 'linux') return 'release/linux-unpacked'
+  const macDirs = process.arch === 'arm64'
+    ? ['release/mac-arm64', 'release/mac']
+    : ['release/mac', 'release/mac-arm64']
+  return macDirs.find(d => existsSync(path.resolve(d))) ?? macDirs[0]
+}
 
-const appDir = path.resolve(argOf('--dir', UNPACKED_DIR))
+const appDir = path.resolve(argOf('--dir', defaultAppDir()))
 const seconds = Number(argOf('--seconds', '12'))
 
 function fail(msg) {

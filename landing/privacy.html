@@ -43,7 +43,7 @@
   </script>
 
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dist/style.css?v=7adc933d" />
+  <link rel="stylesheet" href="dist/style.css?v=112fe849" />
 </head>
 <body>
 
@@ -114,7 +114,12 @@
             <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/>
           </svg>
         </button>
-        <a href="/#download" class="inline-flex items-center justify-center whitespace-nowrap h-8 px-4 rounded-pill bg-secondary text-secondary-foreground text-landing-nav font-medium hover:bg-secondary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus">
+        <!-- `data-cta-label="keep"`: this pill is a 32px chip with
+             `whitespace-nowrap`, sized for the word "Download". The
+             script that renames the page's other CTAs to "Download for
+             Windows" would push the header out at every width, so this
+             one takes the new href and keeps its own label. -->
+        <a data-cta-label="keep" href="/#download" class="inline-flex items-center justify-center whitespace-nowrap h-8 px-4 rounded-pill bg-secondary text-secondary-foreground text-landing-nav font-medium hover:bg-secondary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus">
           Download
         </a>
       </div>
@@ -463,6 +468,10 @@
           <h3 class="text-landing-caption font-medium text-text-emphatic mb-space-4">Product</h3>
           <ul class="space-y-2.5">
             <li><a href="/#features" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">Features</a></li>
+            <!-- Every page reaches the install page from here. `installInk`
+                 emphasises it on the page it points at, the same way
+                 Privacy and Terms mark themselves below. -->
+            <li><a href="/installation.html" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">Installation</a></li>
             <li><a href="https://github.com/YoItsRdL/cernix/releases" target="_blank" rel="noopener" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">Releases</a></li>
           </ul>
         </div>

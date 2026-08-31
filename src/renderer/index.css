@@ -98,6 +98,30 @@
     -webkit-app-region: drag;
   }
 
+  /* Room for the macOS traffic lights.
+   *
+   * `hiddenInset` keeps Apple's three buttons and places them inside
+   * the app's own 48px top row, near the top-left — which is where the
+   * sidebar's mark tile already sits. Without this they land on top of
+   * it. Windows and Linux draw their caption buttons at the right, in
+   * the app's own WindowControls, and need nothing reserved.
+   *
+   * Zero everywhere but macOS, where the preload sets it from
+   * MAC_TITLEBAR_BAND: main places the lights, so main is what knows how
+   * much room they need, and the band is `y + height + y` — as much air
+   * below them as above. Nothing here is eyeballed and nothing repeats
+   * the arithmetic.
+   *
+   * It is the vertical band above the content, not a width: the rail
+   * below is narrower than the lights, so shifting sideways would not
+   * clear them.
+   *
+   * The platform class is put on <html> by the preload, before first
+   * paint, and so is this value. */
+  :root {
+    --titlebar-inset: 0px;
+  }
+
   .app-no-drag {
     -webkit-app-region: no-drag;
   }

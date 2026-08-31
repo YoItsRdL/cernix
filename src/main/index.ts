@@ -16,7 +16,7 @@ import { RatingStore } from './services/rating-store'
 import { EditCache } from './services/edit-cache'
 import { PresetStore } from './services/preset-store'
 import { LogEntry } from '../shared/ipc-types'
-import { THEME_META_KEY, WINDOW_BACKGROUND, type ThemeName } from './constants'
+import { THEME_META_KEY, WINDOW_BACKGROUND, MAC_TRAFFIC_LIGHTS, MAC_TITLEBAR_BAND, type ThemeName } from './constants'
 import { getThumbnail, UnthumbnailableError } from './services/thumbnail-cache'
 import { registerDriveHandlers } from './ipc/drive-ipc'
 import { registerSystemHandlers } from './ipc/system-ipc'
@@ -184,7 +184,18 @@ class CernixApp {
         // The theme has to reach the preload before the page runs, so
         // the class is on <html> before first paint. An IPC round trip
         // after load would show a frame of the wrong theme.
-        additionalArguments: [`--cernix-theme=${theme}`],
+        additionalArguments: [
+          `--cernix-theme=${theme}`,
+          // The band, computed once here. The renderer applies it as
+          // `--titlebar-inset` before first paint rather than carrying
+          // its own copy of the arithmetic.
+          //
+          // Zero off macOS, and sent anyway: Windows and Linux draw
+          // their caption buttons at the right of the app's own top row
+          // and reserve nothing above it. Sending the number
+          // unconditionally would put a dead 40px strip on both.
+          `--cernix-titlebar-band=${process.platform === 'darwin' ? MAC_TITLEBAR_BAND : 0}`,
+        ],
       },
       // Just the name. The frame is hidden, so this surfaces only on the
       // taskbar button and the alt-tab card, both of which truncate. The
@@ -199,17 +210,30 @@ class CernixApp {
       // over a dark app. components/WindowControls draws the three
       // buttons instead.
       //
-      // `titleBarStyle` is a Windows and macOS option: Linux ignores it
-      // and keeps its decorations, which would leave the window manager's
-      // buttons above the app's own row of three. `frame: false` is how
-      // Linux is asked the same question. Both leave the renderer drawing
-      // the caption, so WindowControls is right on either.
+      // Three platforms, three spellings of the same request.
       //
-      // On macOS `hidden` still draws the traffic lights, so a mac target
-      // wants `hiddenInset` and a WindowControls that renders nothing.
+      // Windows: `hidden` removes the caption and keeps the frame, so
+      // the resize border and snap survive.
+      //
+      // Linux ignores `titleBarStyle` entirely and would keep its
+      // decorations, leaving the window manager's buttons above the
+      // app's own three. `frame: false` is how it is asked.
+      //
+      // macOS keeps its traffic lights under `hidden` and there is no
+      // way to remove them that leaves a usable window, so the app does
+      // not try: `hiddenInset` keeps them and moves them into the app's
+      // 48px row, and the renderer draws no caption buttons of its own.
+      // WindowControls returns null there, and the row is padded so the
+      // lights do not land on top of it.
       ...(process.platform === 'linux'
         ? { frame: false }
-        : { titleBarStyle: 'hidden' as const }),
+        : { titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' as const : 'hidden' as const }),
+      // The lights are placed rather than left where `hiddenInset` puts
+      // them, so the band reserved for them can be derived instead of
+      // guessed: see MAC_TRAFFIC_LIGHTS. Ignored off macOS.
+      ...(process.platform === 'darwin'
+        ? { trafficLightPosition: { x: MAC_TRAFFIC_LIGHTS.x, y: MAC_TRAFFIC_LIGHTS.y } }
+        : {}),
       // Painted before the renderer draws anything, so launch does not
       // flash a colour the theme never uses.
       backgroundColor: WINDOW_BACKGROUND[theme],

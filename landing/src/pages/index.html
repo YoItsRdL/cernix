@@ -1,4 +1,4 @@
-<!-- {"out":"index.html","base":"","cta":"cta-download ","privacyInk":"text-text-muted","termsInk":"text-text-muted"} -->
+<!-- {"out":"index.html","base":"","cta":"cta-download ","privacyInk":"text-text-muted","termsInk":"text-text-muted","installInk":"text-text-muted"} -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -196,8 +196,8 @@
              Carries `cta-download`, so the script that rewrites the
              closing CTA from binary.json rewrites this one too. -->
         <div class="mt-8 flex flex-wrap items-center justify-center gap-space-2 opacity-0 reveal-stagger-2">
-          <a href="https://github.com/YoItsRdL/cernix/releases" class="cta-download inline-flex items-center justify-center h-12 px-8 rounded-pill bg-accent-primary text-primary-foreground text-landing-body font-medium hover:bg-accent-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus">
-            Download for Windows
+          <a href="/installation" class="cta-download inline-flex items-center justify-center h-12 px-8 rounded-pill bg-accent-primary text-primary-foreground text-landing-body font-medium hover:bg-accent-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus">
+            Download Cernix
           </a>
         <!-- `min-h-12`, not `h-12`: it matches the download button's
              height so the pair reads as one row, but this element is
@@ -2932,8 +2932,8 @@
         Get your evenings back.
       </h2>
       <div class="flex flex-wrap items-center justify-center gap-space-2">
-        <a href="https://github.com/YoItsRdL/cernix/releases" target="_blank" rel="noopener" class="cta-download inline-flex items-center justify-center h-12 px-8 rounded-pill bg-accent-primary text-primary-foreground text-landing-body font-medium hover:bg-accent-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus">
-          Download for Windows
+        <a href="/installation" class="cta-download inline-flex items-center justify-center h-12 px-8 rounded-pill bg-accent-primary text-primary-foreground text-landing-body font-medium hover:bg-accent-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus">
+          Download Cernix
         </a>
         <a
           href="https://github.com/YoItsRdL/cernix" target="_blank" rel="noopener"
@@ -3120,15 +3120,75 @@
   <!-- ─── Scripts ────────────────────────────────────────────────── -->
   <script>
     (function () {
-      var FALLBACK = 'https://github.com/YoItsRdL/cernix/releases'
       var ctas = document.querySelectorAll('.cta-download')
+
+      // ── Which platform is the visitor on ──────────────────────────
+      //
+      // Returns null rather than guessing. A null answer sends every
+      // CTA to /installation, which names all three platforms and detects
+      // nothing, so an unrecognised machine gets a page that is right
+      // instead of a button that is wrong.
+      //
+      // Android reports "Linux" in `navigator.platform` and in the user
+      // agent, and iPadOS reports "MacIntel" with a touch screen. Both
+      // are excluded first: Cernix is a desktop application, and
+      // offering a phone an AppImage is a claim about a build that
+      // could never run.
+      function detect() {
+        var d = navigator.userAgentData
+        var p = (d && d.platform) || navigator.platform || ''
+        var ua = navigator.userAgent || ''
+        if (/Android/i.test(ua)) return null
+        if (/iPhone|iPad|iPod/i.test(ua) || (p === 'MacIntel' && navigator.maxTouchPoints > 1)) return null
+        if (/Win/i.test(p) || /Windows/i.test(ua)) return 'windows'
+        if (/Mac/i.test(p) || /Mac OS X/i.test(ua)) return 'macos'
+        if (/Linux|X11|CrOS/i.test(p) || /Linux|X11|CrOS/i.test(ua)) return 'linux'
+        return null
+      }
+
+      var LABEL = { windows: 'Windows', macos: 'macOS', linux: 'Linux' }
+
+      // ── What the button should say and do ─────────────────────────
+      //
+      // The label names the visitor's platform and nothing else:
+      // "Download for Linux", never "Build Cernix for Linux". The
+      // second is developer vocabulary on a page whose readers are
+      // photographers, and it asks someone to understand the project's
+      // release status before they can decide to try it.
+      //
+      // Where it goes is what carries the truth instead:
+      //
+      //   a published build   → straight at the file
+      //   no build for X      → /installation#<platform>, the row for their
+      //                         own system, which says in plain words
+      //                         that there is no binary yet and what to
+      //                         do about it
+      //   platform unknown    → /installation, which names all three
+      //
+      // That keeps the button honest about the one thing a button can
+      // be honest about, which is where it takes you. It does not
+      // promise a file; it promises to get you Cernix for your machine,
+      // and the page it opens is the truthful version of that.
+      //
+      // Nothing here runs before binary.json arrives, and the markup
+      // already points at /installation, so a failed fetch or no JavaScript
+      // at all leaves a CTA that still works.
+      function apply(info) {
+        var mine = detect()
+        var entry = info && info.platforms && mine ? info.platforms[mine] : null
+
+        ctas.forEach(function (cta) {
+          cta.setAttribute('href', entry && entry.url ? entry.url : '/installation' + (mine ? '#' + mine : ''))
+          if (!entry || !entry.url) cta.removeAttribute('target')
+          if (mine && cta.dataset.ctaLabel !== 'keep') {
+            cta.textContent = 'Download for ' + LABEL[mine]
+          }
+        })
+      }
 
       fetch('binary.json', { cache: 'no-cache' })
         .then(function (r) { return r.ok ? r.json() : null })
-        .then(function (info) {
-          if (!info || !info.url) return
-          ctas.forEach(function (cta) { cta.setAttribute('href', info.url) })
-        })
+        .then(apply)
         .catch(function () { /* swallow, fallback href stays */ })
 
       // ── The coffee invitation ──────────────────────────────────

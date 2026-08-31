@@ -24,9 +24,11 @@
     "landing:dev": "tailwindcss -i landing/src/style.css -o landing/dist/style.css --watch",
     "release": "tsc && vite build && electron-builder --win nsis --publish never",
     "release:linux": "tsc && vite build && electron-builder --linux AppImage --publish never",
+    "release:mac": "tsc && vite build && electron-builder --mac --publish never",
     "release:patch": "npm version patch --no-git-tag-version && npm run release",
     "release:minor": "npm version minor --no-git-tag-version && npm run release",
     "release:major": "npm version major --no-git-tag-version && npm run release",
+    "landing:serve": "node scripts/landing-serve.mjs",
     "landing:deploy": "node scripts/landing-deploy.mjs",
     "landing:update-binary": "node scripts/landing-update-binary.mjs",
     "prepare": "husky",
@@ -107,6 +109,17 @@
     "win": {
       "icon": "build-resources/icon.ico",
       "target": "nsis"
+    },
+    "mac": {
+      "icon": "build-resources/icon.png",
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] },
+        { "target": "zip", "arch": ["arm64", "x64"] }
+      ],
+      "category": "public.app-category.photography",
+      "artifactName": "Cernix-${version}-${arch}.${ext}",
+      "darkModeSupport": true,
+      "identity": null
     },
     "linux": {
       "icon": "build-resources/icon.png",

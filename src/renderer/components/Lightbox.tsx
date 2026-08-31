@@ -1,3 +1,4 @@
+import { drawsOwnCaptionButtons } from '@/lib/window-chrome'
 import React, { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, ChevronLeft, ChevronRight, Download, Star, Trash2, Sparkles, Flag } from 'lucide-react'
@@ -236,7 +237,9 @@ export function Lightbox({
                 carve-out in its own subtree, and the overlay is a
                 sibling of this strip. Same reserve the workbench header
                 keeps. */}
-            <div className="app-no-drag w-caption h-full shrink-0" aria-hidden />
+            {drawsOwnCaptionButtons() && (
+              <div className="app-no-drag w-caption h-full shrink-0" aria-hidden />
+            )}
           </div>
 
           <div className="flex-1 min-h-0 flex flex-col gap-space-4 p-8 pt-space-4">
