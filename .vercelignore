@@ -19,3 +19,12 @@
 # Tailwind input and HTML partials. Build-time only — landing-html.mjs
 # generates the committed .html from these, and nothing loads them at runtime.
 /landing/src
+
+# Inside the deploy root but not part of the site. `outputDirectory` is
+# `landing/`, so anything sitting there is served: README.md was public
+# at cernix.app/README.md, 128 lines of build instructions and repo
+# layout on a page meant for photographers, and og.html is the source
+# the social card is rendered from rather than a page anyone should
+# land on.
+/landing/README.md
+/landing/og.html
