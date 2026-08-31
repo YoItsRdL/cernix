@@ -33,7 +33,18 @@ function applyTheme(theme: 'light' | 'dark'): void {
  * the platform is not a property of the page.
  */
 function applyPlatform(): void {
-  document.documentElement.classList.add(`platform-${process.platform}`)
+  const root = document.documentElement
+  root.classList.add(`platform-${process.platform}`)
+
+  // The room macOS's traffic lights need above the app's own rows.
+  // Main computes it from where it placed them, so the two cannot
+  // disagree; the renderer never repeats the arithmetic.
+  //
+  // Applied here rather than hardcoded in CSS for the same reason the
+  // theme is: it has to be true before the first frame, and the top row
+  // is the most visible place to get one frame wrong.
+  const band = process.argv.find(a => a.startsWith('--cernix-titlebar-band='))
+  if (band) root.style.setProperty('--titlebar-inset', `${band.split('=')[1]}px`)
 }
 
 function applyChrome(): void {

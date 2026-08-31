@@ -31,6 +31,33 @@ export const WINDOW_BACKGROUND: Record<ThemeName, string> = {
   dark: '#120f0c',
 }
 
+/**
+ * Where macOS puts its three traffic lights, and how much room the app
+ * reserves above its own rows so they are not sitting on the workbench
+ * header.
+ *
+ * Positioned by us rather than left to `hiddenInset`'s default, because
+ * the band has to match: the lights are placed `y` from the top, so a
+ * band of `y + height + y` leaves exactly as much air below them as
+ * above. Eyeballing the band against a default position is how it ended
+ * up flush against the content underneath.
+ *
+ * `height` is Apple's, not ours: the buttons are 12px and the app does
+ * not get a say. `x` is horizontal only and does not enter the band.
+ *
+ * The renderer is told the result rather than repeating the arithmetic:
+ * see `MAC_TITLEBAR_BAND` and the preload. Two copies of a number that
+ * must agree is the drift this codebase keeps paying for.
+ */
+export const MAC_TRAFFIC_LIGHTS = { x: 20, y: 14, height: 12 } as const
+
+/**
+ * The reserved band, in px. Equal air above and below the lights.
+ * Read by the renderer as `--titlebar-inset`.
+ */
+export const MAC_TITLEBAR_BAND =
+  MAC_TRAFFIC_LIGHTS.y * 2 + MAC_TRAFFIC_LIGHTS.height
+
 /** Google Drive root folder name */
 export const CERNIX_ROOT_FOLDER = 'Cernix'
 

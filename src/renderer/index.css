@@ -106,21 +106,20 @@
    * it. Windows and Linux draw their caption buttons at the right, in
    * the app's own WindowControls, and need nothing reserved.
    *
-   * One number, deliberately: it is the only thing here that has to be
-   * eyeballed on a real Mac, and everything that depends on it reads
-   * this variable rather than repeating a guess. Apple's lights are
-   * about 70px wide and centred in the row; this is the vertical band
-   * above the content, not the width, because the rail below is
-   * narrower than the lights and shifting sideways would not clear
-   * them.
+   * Zero everywhere but macOS, where the preload sets it from
+   * MAC_TITLEBAR_BAND: main places the lights, so main is what knows how
+   * much room they need, and the band is `y + height + y` — as much air
+   * below them as above. Nothing here is eyeballed and nothing repeats
+   * the arithmetic.
    *
-   * The class is put on <html> by the preload, before first paint. */
+   * It is the vertical band above the content, not a width: the rail
+   * below is narrower than the lights, so shifting sideways would not
+   * clear them.
+   *
+   * The platform class is put on <html> by the preload, before first
+   * paint, and so is this value. */
   :root {
     --titlebar-inset: 0px;
-  }
-
-  :root.platform-darwin {
-    --titlebar-inset: 28px;
   }
 
   .app-no-drag {
