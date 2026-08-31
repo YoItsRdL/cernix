@@ -1,6 +1,6 @@
 {
   "name": "cernix",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "engines": {
     "node": ">=20.19.0 <25"
   },
@@ -24,7 +24,8 @@
     "landing:dev": "tailwindcss -i landing/src/style.css -o landing/dist/style.css --watch",
     "release": "tsc && vite build && electron-builder --win nsis --publish never",
     "release:linux": "tsc && vite build && electron-builder --linux AppImage --publish never",
-    "release:mac": "tsc && vite build && electron-builder --mac --publish never",
+    "release:mac": "tsc && vite build && npm run -s release:mac:arch -- --arch=arm64 && npm run -s release:mac:arch -- --arch=x64 && electron-builder install-app-deps",
+    "release:mac:arch": "node scripts/release-mac-arch.mjs",
     "release:patch": "npm version patch --no-git-tag-version && npm run release",
     "release:minor": "npm version minor --no-git-tag-version && npm run release",
     "release:major": "npm version major --no-git-tag-version && npm run release",

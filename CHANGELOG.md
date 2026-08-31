@@ -1,5 +1,29 @@
 # Cernix Workstation Changelog
 
+## [1.1.1] - 2026-08-31
+
+### macOS
+- **The macOS build ships native modules for the architecture it was
+  built for.** `electron-builder --mac` builds arm64 and x64 in one
+  pass out of one `node_modules`, and `node_modules` holds one build of
+  a native module at a time: `install-app-deps` compiled
+  `better-sqlite3` for the host, so the other bundle carried a `.node`
+  it could not load and the app died opening its database with
+  `dlopen … incompatible architecture`.
+
+  It cannot show up building on one Mac for that same Mac, which is why
+  it survived verification on real hardware and appeared only when CI
+  built both architectures at once. 1.1.0's release smoke test caught
+  it and withheld the artifact, so no macOS build was ever published
+  with the defect — the same shape as the ExifTool bug in 1.1.0, and
+  caught by the same check.
+
+  `npm run release:mac` now runs one pass per architecture with native
+  modules prepared immediately before each, then restores the host's
+  modules. That last step is not tidiness: leaving x64 modules behind on
+  an Apple Silicon machine breaks `npm run dev` with the mirror image of
+  this bug.
+
 ## [1.1.0] - 2026-08-31
 
 ### Packaging
