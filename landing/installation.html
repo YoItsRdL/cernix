@@ -191,7 +191,7 @@
               <a
                 data-platform-download="windows"
                 href="https://github.com/YoItsRdL/cernix/releases"
-                class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-accent-primary text-primary-foreground text-landing-nav font-medium hover:bg-accent-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+                class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-transparent border border-border-strong text-text-emphatic text-landing-nav font-medium hover:bg-overlay-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
               >
                 Download
               </a>
@@ -216,7 +216,7 @@
               <a
                 data-platform-download="linux"
                 href="https://github.com/YoItsRdL/cernix/releases"
-                class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-accent-primary text-primary-foreground text-landing-nav font-medium hover:bg-accent-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+                class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-transparent border border-border-strong text-text-emphatic text-landing-nav font-medium hover:bg-overlay-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
               >
                 Download
               </a>
@@ -241,7 +241,7 @@
               <a
                 data-platform-download="macos"
                 href="https://github.com/YoItsRdL/cernix/releases"
-                class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-accent-primary text-primary-foreground text-landing-nav font-medium hover:bg-accent-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+                class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-transparent border border-border-strong text-text-emphatic text-landing-nav font-medium hover:bg-overlay-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
               >
                 Download
               </a>
@@ -392,11 +392,13 @@ npm run release:mac      # dmg and zip</code></pre>
   </footer>
 
   <!-- ─── Per-platform state ──────────────────────────────────────
-       Two jobs, both progressive: mark the visitor's own row, and
-       point the Windows action at the real installer once binary.json
-       has been read. Every row is already correct and actionable
-       without this script running at all, which is what makes this
-       page the no-JavaScript fallback for the landing page's CTAs. -->
+       Three jobs, all progressive: mark the visitor's own row, give
+       that row's button the accent so the emphasis means "yours"
+       rather than "Windows", and point every action at the exact file
+       binary.json names. Without the script every row is still a
+       correct, actionable download to the releases listing — which is
+       what makes this page the no-JavaScript fallback for the landing
+       page's CTAs. -->
   <script>
     (function () {
       var info = null
@@ -417,12 +419,31 @@ npm run release:mac      # dmg and zip</code></pre>
         return null
       }
 
+      // The accent fill belongs to the visitor's own platform and to
+      // nothing else. Every row is a real download and they are peers
+      // in every other respect, so the one thing detection is good for
+      // is saying which of the three is yours — twice: the chip names
+      // it, and the button carries the weight.
+      //
+      // Swapped rather than declared in CSS because it is two class
+      // lists in one place, and a rule in the shared stylesheet would
+      // put half the answer in a file nobody reads next to this one.
+      var ACCENT = ['bg-accent-primary', 'text-primary-foreground', 'hover:bg-accent-primary/90']
+      var NEUTRAL = ['bg-transparent', 'border', 'border-border-strong', 'text-text-emphatic', 'hover:bg-overlay-hover']
+
+      function emphasise(link) {
+        if (!link) return
+        NEUTRAL.forEach(function (c) { link.classList.remove(c) })
+        ACCENT.forEach(function (c) { link.classList.add(c) })
+      }
+
       function apply() {
         var mine = detect()
         if (mine) {
           var row = document.querySelector('[data-platform-row="' + mine + '"]')
           var tag = row && row.querySelector('[data-platform-you]')
           if (tag) tag.classList.remove('hidden')
+          emphasise(document.querySelector('[data-platform-download="' + mine + '"]'))
         }
         if (!info || !info.platforms) return
         var version = document.querySelector('[data-binary-version]')
