@@ -1,16 +1,28 @@
 name: Release
 
-# Builds the Windows installer and attaches it to a GitHub Release.
+# Builds Cernix for every platform it supports and attaches all of them
+# to one GitHub Release.
 #
-# This runs in CI rather than locally for two reasons. Releases should be
-# reproducible from a clean checkout rather than from whatever state a dev
-# machine is in, and the runner has SeCreateSymbolicLinkPrivilege, which
-# a standard Windows user does not, and without it electron-builder cannot
-# extract its winCodeSign package and the nsis target never completes
-# (CNX-1753).
+# This runs in CI rather than locally for the reason it always did:
+# releases should be reproducible from a clean checkout rather than from
+# whatever state a dev machine is in. Two things make it per-platform
+# rather than a single job.
 #
-# Builds are unsigned by decision (CNX-1752). The sha256 is published so
-# downloads can be verified instead.
+# An installer can only be built on the OS it targets. A macOS dmg
+# cannot be produced on Linux or Windows at all, and the Windows runner
+# additionally has SeCreateSymbolicLinkPrivilege, which a standard
+# Windows user does not, and without it electron-builder cannot extract
+# its winCodeSign package and the nsis target never completes.
+#
+# `binary.json` has to describe every published build at once, and
+# `landing-update-binary.mjs` reports only the artifacts it can actually
+# see in `release/`. A single-OS job can therefore only ever produce a
+# single-platform `binary.json`, which is how the landing page came to
+# say "no published build" for two platforms that work. Hence the
+# publish job: it gathers all three before running that script once.
+#
+# Builds are unsigned on every platform, by decision. The sha256 of each
+# is published in binary.json so downloads can be verified instead.
 
 on:
   push:
@@ -26,8 +38,41 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    runs-on: windows-latest
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One platform failing must not delete the others' artifacts: the
+      # publish job can still report what did build, and a partial
+      # release beats no release when only one target is broken.
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            script: release
+            # `smoke` launches the packaged app and needs somewhere to
+            # put a window. Windows and macOS runners have one.
+            smoke: npm run smoke
+            artifacts: release/Cernix-Setup-*.exe
+          - name: Linux
+            os: ubuntu-latest
+            script: 'release:linux'
+            # xvfb, deliberately, and only here. The CI this replaced
+            # booted Electron under xvfb to check the geometry and
+            # palette of a Windows-only app, which is a great deal of
+            # machinery asserting things about a platform nobody ships
+            # to. This is the opposite: the Linux binary, on Linux,
+            # asked only whether it starts.
+            smoke: xvfb-run -a npm run smoke
+            artifacts: release/Cernix-*.AppImage
+          - name: macOS
+            os: macos-latest
+            script: 'release:mac'
+            smoke: npm run smoke
+            artifacts: |
+              release/Cernix-*.dmg
+              release/Cernix-*.zip
 
     steps:
       - uses: actions/checkout@v4
@@ -38,18 +83,10 @@ jobs:
         with:
           # Must satisfy the engines range. Node 26 breaks the Electron
           # install outright: extract-zip emits one entry, the promise
-          # never settles, and install.js exits 0 having written no binary.
+          # never settles, and install.js exits 0 having written no
+          # binary, so it surfaces later as something unrelated.
           node-version: '22'
           cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Rebuild native modules for Electron
-        # better-sqlite3 ships a Node-ABI prebuild; the app needs the
-        # Electron ABI. Without this the packaged app fails to open its
-        # database at startup.
-        run: npx electron-builder install-app-deps
 
       - name: Check the tag matches package.json
         shell: bash
@@ -59,9 +96,18 @@ jobs:
           echo "tag=$TAG  package.json=$VERSION"
           if [ "$TAG" != "$VERSION" ]; then
             echo "::error::Tag $TAG does not match package.json version $VERSION."
-            echo "The installer is named from package.json, so these must agree."
+            echo "Artifacts are named from package.json, so these must agree."
             exit 1
           fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild native modules for Electron
+        # better-sqlite3 ships a Node-ABI prebuild; the app needs the
+        # Electron ABI. Without this the packaged app starts and fails
+        # to open its database.
+        run: npx electron-builder install-app-deps
 
       - name: Build and package
         env:
@@ -70,16 +116,55 @@ jobs:
           # Drive disabled, so a fork without secrets is not blocked.
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-        run: npm run release
+        run: npm run ${{ matrix.script }}
 
       - name: Smoke-test the packaged app
-        # Launches the binary and requires it to stay up, write userData,
+        # Launches the binary and requires it to stay up, write userData
         # and log no startup error. A package that cannot start must not
-        # reach a release page.
-        run: npm run smoke
+        # reach a release page. This is where an ABI mismatch surfaces:
+        # the app opens its databases here or not at all.
+        shell: bash
+        run: ${{ matrix.smoke }}
+
+      - name: Hand the artifacts to the publish job
+        uses: actions/upload-artifact@v4
+        with:
+          name: cernix-${{ matrix.name }}
+          path: ${{ matrix.artifacts }}
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish the release
+    needs: build
+    # Any runner will do: this one only moves files and writes JSON.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Collect every platform's build
+        uses: actions/download-artifact@v4
+        with:
+          # Flattened into one `release/`, which is where
+          # landing-update-binary.mjs looks. The per-platform artifact
+          # names exist only to keep the uploads apart in transit.
+          path: release
+          merge-multiple: true
+
+      - name: Show what arrived
+        run: ls -la release/
 
       - name: Update binary.json
-        shell: bash
+        # Reports one entry per artifact actually present, and says so
+        # for any platform that is missing. With fail-fast off, a target
+        # that failed to build simply does not appear, and the landing
+        # page keeps offering source for it rather than a dead link.
         run: |
           TAG="${{ github.event.inputs.tag || github.ref_name }}"
           node scripts/landing-update-binary.mjs --release-tag "$TAG"
@@ -91,17 +176,32 @@ jobs:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           files: |
             release/Cernix-Setup-*.exe
+            release/Cernix-*.AppImage
+            release/Cernix-*.dmg
+            release/Cernix-*.zip
             landing/binary.json
-          fail_on_unmatched_files: true
+          # Not `fail_on_unmatched_files`: with fail-fast off a platform
+          # may legitimately be absent, and refusing to publish the ones
+          # that did build would make one broken target hold up all of
+          # them. The build job already failed loudly for that platform.
+          fail_on_unmatched_files: false
           body: |
-            Windows installer for Cernix.
+            Cernix for Windows, Linux and macOS.
 
-            **This build is not code-signed.** Windows SmartScreen will show
-            "Windows protected your PC": choose *More info → Run anyway*, or
-            verify the download against the sha256 in `binary.json` below.
+            | Platform | File |
+            |---|---|
+            | Windows | `Cernix-Setup-*.exe` — installer |
+            | Linux | `Cernix-*.AppImage` — mark executable and run |
+            | macOS | `Cernix-*.dmg` — Apple Silicon and Intel |
+
+            **No build is code-signed.** Windows SmartScreen shows
+            "Windows protected your PC": choose *More info → Run anyway*.
+            macOS Gatekeeper needs *right-click → Open* the first time,
+            or `xattr -dr com.apple.quarantine` on the app.
+
+            Verify any download against the sha256 in `binary.json`.
 
       - name: Summary
-        shell: bash
         run: |
           echo "### Cernix release" >> $GITHUB_STEP_SUMMARY
           echo '```json' >> $GITHUB_STEP_SUMMARY
@@ -109,5 +209,5 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "\`landing/binary.json\` is attached to this release but **not committed**." >> $GITHUB_STEP_SUMMARY
-          echo "Commit it to \`main\` to finish the release: Netlify watches that branch, serves" >> $GITHUB_STEP_SUMMARY
-          echo "\`landing/\`, and sends \`binary.json\` no-cache, so the download button repoints in ~30s." >> $GITHUB_STEP_SUMMARY
+          echo "Commit it to \`main\` to finish the release: the landing deploy serves it" >> $GITHUB_STEP_SUMMARY
+          echo "no-cache, so the download buttons repoint once it lands." >> $GITHUB_STEP_SUMMARY
