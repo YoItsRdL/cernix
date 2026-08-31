@@ -16,12 +16,22 @@
   worth confirming against a Windows build before the next release.
 
 ### macOS
-Cernix builds and runs on macOS, on Apple Silicon and Intel. Written
-without a Mac to hand and verified on one afterwards: the build, the
-launch, both SQLite stores, the window chrome, card detection through
-`diskutil`, Gatekeeper on an unsigned bundle, ExifTool, and Drive
-sign-in surviving a restart. The checklist that carried the unverified
-work, `MACOS-VERIFICATION.md`, has been deleted now that it passed.
+Cernix builds and runs on macOS, on Apple Silicon and Intel. Verified
+on a Mac: the build, the launch, both SQLite stores, the window chrome,
+card detection through `diskutil`, Gatekeeper on an unsigned bundle,
+ExifTool, and Drive sign-in surviving a restart. The checklist that
+carried the unverified work, `MACOS-VERIFICATION.md`, was deleted once
+it passed.
+
+**There is no macOS build in this release.** `npm run release:mac`
+builds arm64 and x64 from a single `install-app-deps`, which compiles
+`better-sqlite3` once for the host architecture, so the arm64 bundle
+ships an x64 native module and dies opening its database. The release
+smoke test caught it and the artifact was not published — which is the
+same shape as the ExifTool defect below: a packaged app that starts and
+then fails on its own dependency. Building for one architecture at a
+time is the fix, and it ships separately. Until then macOS builds from
+source, which is what the install page says.
 
 - **Cards are found with `diskutil`.** `diskutil list` says what is
   mounted and nothing about removability; `diskutil info` answers that

@@ -1,10 +1,14 @@
 {
-  "version": "1.0.0",
-  "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.0.0/Cernix-Setup-1.0.0.exe",
+  "version": "1.1.0",
+  "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.1.0/Cernix-Setup-1.1.0.exe",
   "platforms": {
     "windows": {
-      "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.0.0/Cernix-Setup-1.0.0.exe"
+      "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.1.0/Cernix-Setup-1.1.0.exe",
+      "sha256": "f19823c6515171ae3063d19a1aa6d9321ebcbf195811afe3711cc6202fed93cf"
+    },
+    "linux": {
+      "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.1.0/Cernix-1.1.0-x86_64.AppImage",
+      "sha256": "a1bf5d81b464f6f2901307261fbc7b736de144d5e313fb59c5bac7c87481898b"
     }
-  },
-  "note": "`platforms` holds one entry per published build. A platform with no entry has no binary yet, and the page offers source instructions rather than a download that does not exist. Top-level `url` is a compatibility anchor for pages cached before per-platform CTAs, and mirrors Windows. Regenerate with scripts/landing-update-binary.mjs after the next release."
+  }
 }
