@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /**
- * Serves `landing/` the way Netlify does, so the page can be checked
+ * Serves `landing/` the way Vercel does, so the page can be checked
  * locally before it is deployed.
  *
  * Why this exists rather than `python3 -m http.server`: two things the
  * built page depends on are behaviours of the host, not of the files.
  *
  * 1. **Pretty URLs.** The download CTAs link to `/download`, with no
- *    extension, because Netlify resolves that to `download.html`. A
+ *    extension, because `cleanUrls` in vercel.json resolves that to
+ *    `installation.html`. A
  *    plain static server returns 404 and the page looks broken when it
  *    is not.
  * 2. **`fetch` needs an origin.** Opening `landing/index.html` over
@@ -15,7 +16,7 @@
  *    `fetch('binary.json')` is refused and every button silently keeps
  *    its fallback href. The one thing worth testing does not run.
  *
- * Cache headers mirror netlify.toml, so a stale `binary.json` cannot
+ * Cache headers mirror vercel.json, so a stale `binary.json` cannot
  * fool a local check either.
  *
  * This serves what is already built. Run `npm run landing:build` first,
@@ -51,7 +52,7 @@ const TYPES = {
   '.xml': 'application/xml',
 }
 
-/** netlify.toml: hashed assets are immutable, everything else revalidates. */
+/** vercel.json: hashed assets are immutable, everything else revalidates. */
 function cacheControl(urlPath) {
   return urlPath.startsWith('/dist/')
     ? 'public, max-age=31536000, immutable'
@@ -59,7 +60,7 @@ function cacheControl(urlPath) {
 }
 
 /**
- * Resolve a request path to a file, the way Netlify's pretty URLs do:
+ * Resolve a request path to a file, the way Vercel's cleanUrls does:
  * `/download` before `/download.html`, and a directory before its
  * `index.html`.
  *
@@ -87,7 +88,7 @@ const server = http.createServer((req, res) => {
   const file = resolveFile(req.url === '/' ? '/index.html' : req.url)
 
   if (!file) {
-    // Netlify serves 404.html when a site has one. This one does not,
+    // Vercel serves 404.html when a site has one. This one does not,
     // so say so plainly rather than inventing a page the deploy has no
     // equivalent of.
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
@@ -110,7 +111,7 @@ if (!fs.existsSync(path.join(ROOT, 'index.html'))) {
 
 server.listen(PORT, () => {
   console.log(`\n  landing/ on http://localhost:${PORT}`)
-  console.log('  pretty URLs and netlify.toml cache headers, as deployed')
+  console.log('  cleanUrls and vercel.json cache headers, as deployed')
   console.log('\n  /            the landing page')
   console.log('  /download    every platform, and the CTAs\' fallback')
   console.log('  /privacy     /terms')

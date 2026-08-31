@@ -106,7 +106,7 @@ if (Object.keys(platforms).length === 0) {
 
 // ─── Write binary.json ──────────────────────────────────────────────
 // `url` stays at the top level as a compatibility anchor: a page cached
-// before per-platform CTAs existed reads it, and Netlify serves HTML
+// before per-platform CTAs existed reads it, and Vercel serves HTML
 // with a short cache while `binary.json` is no-cache, so the two can be
 // a few minutes apart. It mirrors Windows, the one build that has
 // always existed.

@@ -1,6 +1,6 @@
 # Cernix: Landing Page
 
-The public landing page for Cernix. Static HTML + Tailwind, deployed to Netlify (see `netlify.toml` at the repo root). Built standalone of the Electron renderer; **shares all design tokens** with the app via `src/shared/tokens.css`.
+The public landing page for Cernix. Static HTML + Tailwind, deployed to Vercel (see `vercel.json` at the repo root). Built standalone of the Electron renderer; **shares all design tokens** with the app via `src/shared/tokens.css`.
 
 ## Layout
 
@@ -85,7 +85,7 @@ Full release runbook:
    ```
    This reads the version from `package.json`, sha256s `release/Cernix-Setup-<version>.exe`, and rewrites `landing/binary.json`. Inspect with `git diff landing/binary.json` before committing.
 
-5. **Commit + push** `landing/binary.json`. Netlify's GitHub integration rebuilds the page (via `npm run landing:build`) and the new CTA target goes live within ~30s.
+5. **Commit** `landing/binary.json`, then **`npm run landing:deploy`**. There is no git integration on the Vercel project, so a push does not publish: that command builds the page and deploys it. The CTAs read `binary.json` at load and it is served `must-revalidate`, so the new target is live as soon as the deploy is.
 
 ## SmartScreen
 
