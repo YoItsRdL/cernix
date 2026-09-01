@@ -75,6 +75,26 @@
     font-family: var(--font-sans);
     font-size: var(--text-body);
   }
+
+    /* The display roles take the proportional face; body, captions and
+     * everything else stay monospace.
+     *
+     * Bound to the type roles rather than to `h1, h2` so a heading
+     * deliberately set at body size does not jump fonts, and a
+     * non-heading used as a display line does.
+     *
+     * `text-landing-sub` is deliberately not here. It is 15-19px and is
+     * worn by five paragraphs as well as six headings, so binding it
+     * would restyle lead copy to fix headlines. At that size the
+     * monospace rhythm is still fine; it is at 40-72px that it breaks.
+     *
+     * `--font-display` sits in tokens.css beside `--font-sans`, with
+     * the reason it is separate. */
+    .text-hero,
+    .text-landing-display,
+    .text-landing-title {
+      font-family: var(--font-display);
+    }
 }
 
 /* Tailwind v3's preflight carried `button, [role="button"] { cursor:
