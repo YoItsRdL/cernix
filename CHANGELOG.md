@@ -1,5 +1,38 @@
 # Cernix Workstation Changelog
 
+## [1.1.2] - 2026-09-05
+
+### Fixed
+- **ExifTool actually runs in a packaged build.** 1.1.0 unpacked it from
+  the asar and 1.1.1 shipped that, but the app still could not use it,
+  for two further reasons that only exist in a packaged artifact.
+
+  npm hoists `exiftool-vendored.pl` to the top level in a development
+  tree and nests it under `exiftool-vendored/node_modules/` when
+  packaged. Node resolves by walking *up* from the calling file, never
+  down into a sibling package's `node_modules`, so the bare require
+  succeeded in dev and failed in the artifact. It is anchored inside
+  `exiftool-vendored` now, the way that package resolves its own
+  platform binary.
+
+  The path that comes back is then computed from a `__dirname` inside
+  the asar, so it points through `app.asar` even though `asarUnpack` put
+  the binary on real disk. `fs` traverses that transparently; `spawn`
+  does not, because the OS sees `app.asar` as a single file and fails
+  with `ENOTDIR`. The path is rewritten to the unpacked location before
+  spawning.
+
+  The practical effect: EXIF dates that name the ingest folders, and the
+  EXIF and ICC profile copied onto an export, both worked in `npm run
+  dev` and silently degraded in every release until now.
+
+- **A failed Drive folder search says what went wrong.** It threw
+  `Folder search failed (403)` and discarded the response body, so an
+  `ACCESS_TOKEN_SCOPE_INSUFFICIENT` was indistinguishable from a
+  permissions or rate-limit 403. The body is in the message, so the next
+  Drive failure is diagnosable from the log rather than from a source
+  change.
+
 ## [1.1.1] - 2026-08-31
 
 ### macOS
