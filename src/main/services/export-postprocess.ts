@@ -11,13 +11,32 @@ import { messageOf } from '../../shared/errors'
  * platform-specific packages that export the binary path as their default
  * export. We use that directly so we don't have to rely on the library's
  * persistent-process wrapper just to discover the path.
+ *
+ * npm nests these platform packages under `exiftool-vendored`'s own
+ * `node_modules` rather than hoisting them to the top level, so a bare
+ * `require('exiftool-vendored.pl')` from this file cannot find them: Node
+ * walks up from *this* file's directory, never down into a sibling
+ * package's node_modules. Anchoring the require to a path inside
+ * `exiftool-vendored` itself (the same way its own internal code resolves
+ * the platform package) fixes that, in dev and in the packaged asar alike.
  */
 const cjsRequire = createRequire(import.meta.url)
 let cachedExiftoolPath: string | null | undefined
 function getExiftoolPath(): string {
   if (cachedExiftoolPath !== undefined && cachedExiftoolPath !== null) return cachedExiftoolPath
   const pkg = process.platform === 'win32' ? 'exiftool-vendored.exe' : 'exiftool-vendored.pl'
-  cachedExiftoolPath = cjsRequire(pkg) as string
+  const anchoredRequire = createRequire(cjsRequire.resolve('exiftool-vendored'))
+  const resolved = anchoredRequire(pkg) as string
+  // The path above is computed from `__dirname` inside the (possibly
+  // asar-packed) module, so it can point *through* app.asar even though
+  // this binary was asarUnpack'd onto real disk. `fs` calls survive that
+  // transparently; `spawn` doesn't, since it hands the path straight to
+  // the OS, which sees app.asar as one file, not a directory, and fails
+  // with ENOTDIR. Redirect to the real unpacked location before spawning.
+  cachedExiftoolPath = resolved.replace(
+    `${path.sep}app.asar${path.sep}`,
+    `${path.sep}app.asar.unpacked${path.sep}`,
+  )
   return cachedExiftoolPath
 }
 

@@ -517,7 +517,7 @@ export class DriveClient {
     const searchResponse = await fetch(searchUrl.toString(), {
       headers: { Authorization: `Bearer ${token}` }
     })
-    if (!searchResponse.ok) throw new Error(`Folder search failed (${searchResponse.status})`)
+    if (!searchResponse.ok) throw new Error(`Folder search failed (${searchResponse.status}): ${await searchResponse.text()}`)
     const searchData = await searchResponse.json() as DriveApiList
     if (searchData.files?.length) return searchData.files[0].id
 
