@@ -16,7 +16,8 @@ import { RatingStore } from './services/rating-store'
 import { EditCache } from './services/edit-cache'
 import { PresetStore } from './services/preset-store'
 import { LogEntry } from '../shared/ipc-types'
-import { THEME_META_KEY, WINDOW_BACKGROUND, MAC_TRAFFIC_LIGHTS, MAC_TITLEBAR_BAND, type ThemeName } from './constants'
+import { THEME_META_KEY, ZOOM_META_KEY, WINDOW_BACKGROUND, MAC_TRAFFIC_LIGHTS, MAC_TITLEBAR_BAND, type ThemeName } from './constants'
+import { DEFAULT_ZOOM, parseZoom, stepZoom, zoomIntent } from './services/zoom'
 import { getThumbnail, UnthumbnailableError } from './services/thumbnail-cache'
 import { registerDriveHandlers } from './ipc/drive-ipc'
 import { registerSystemHandlers } from './ipc/system-ipc'
@@ -155,9 +156,27 @@ class CernixApp {
     return this.syncDb?.getMeta(THEME_META_KEY) === 'dark' ? 'dark' : 'light'
   }
 
+  /**
+   * The stored interface zoom, defaulting to 1.
+   *
+   * Same store and same reasoning as the theme: it describes this
+   * screen. A laptop panel at 150% and an external monitor at 100% want
+   * different answers, and neither belongs in the user's library.
+   */
+  public getZoom(): number {
+    return parseZoom(this.syncDb?.getMeta(ZOOM_META_KEY))
+  }
+
+  /** Apply a zoom factor and remember it for the next launch. */
+  private setZoom(factor: number): void {
+    this.window?.webContents.setZoomFactor(factor)
+    this.syncDb?.setMeta(ZOOM_META_KEY, String(factor))
+  }
+
   public createWindow(): void {
     const DIST = path.join(__dirname, '../dist')
     const theme = this.getTheme()
+    const zoom = this.getZoom()
 
     // A packaged build takes its icon from the executable. In dev there
     // is no executable, so without this the window and taskbar show the
@@ -181,6 +200,13 @@ class CernixApp {
         preload: path.join(__dirname, 'preload.js'),
         nodeIntegration: false,
         contextIsolation: true,
+        // Set here rather than with `setZoomFactor` after load, which
+        // can only run once the frame exists and therefore cannot reach
+        // the initial layout — the same reason the theme travels as a
+        // launch argument instead of over IPC. Measured: a window opened
+        // with this at 0.8 reports 1750x1089 CSS pixels where the
+        // default reports 1400x871.
+        zoomFactor: zoom,
         // The theme has to reach the preload before the page runs, so
         // the class is on <html> before first paint. An IPC round trip
         // after load would show a frame of the wrong theme.
@@ -263,6 +289,39 @@ class CernixApp {
         }
       })
     }
+
+    // The same removal took the zoom accelerators, and unlike devtools
+    // and reload those have to work in a packaged build, so this one is
+    // not gated on the dev branch above.
+    //
+    // How many CSS pixels the interface gets is decided by the desktop's
+    // scale setting: a 2160x1440 panel at 150% reports 1440x960, a third
+    // of the room gone before anything renders, and the app reads as
+    // zoomed in with no way to ask for more. Measured on such a screen,
+    // 0.8 turns a 1400x871 window into 1750x1089.
+    //
+    // Chromium's own zoom is per origin and survives a reload, so this
+    // does not need reapplying after Vite's HMR; what it does need is to
+    // be written down, because the origin's zoom does not survive a
+    // restart and dev and production are different origins.
+    this.window.webContents.on('before-input-event', (event, input) => {
+      if (input.type !== 'keyDown') return
+      const intent = zoomIntent(input.key, {
+        control: input.control,
+        meta: input.meta,
+        alt: input.alt,
+        isMac: process.platform === 'darwin',
+      })
+      if (!intent) return
+      event.preventDefault()
+      // Read back from Chromium rather than tracking a copy here: it is
+      // the one that knows, and its value drifts off the ladder by a
+      // float hair, which `stepZoom` snaps back.
+      const current = this.window?.webContents.getZoomFactor() ?? DEFAULT_ZOOM
+      this.setZoom(
+        intent === 'reset' ? DEFAULT_ZOOM : stepZoom(current, intent === 'in' ? 1 : -1),
+      )
+    })
 
     // The window hosts one document and never navigates away from it.
     // Without these, anything that sets `location` in the renderer gets
