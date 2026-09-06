@@ -524,7 +524,7 @@ export default function App() {
                         <EmptyState key="empty" hasVolumes={volumes.length > 0} isScanning={false} onScan={handleManualScan} onImportFolder={handleImportFolder} />
                       )
                    ) : activeTab === 'organize' ? (
-                      <Distiller key="distiller" onOpenEditor={setEditorFile} />
+                      <Distiller key="distiller" onOpenEditor={setEditorFile} editorOpen={!!editorFile} />
                    ) : activeTab === 'settings' ? (
                       <div className="flex-1 flex items-center justify-center text-text-disabled text-body font-mono italic">Configuration Terminal Active...</div>
                    ) : (

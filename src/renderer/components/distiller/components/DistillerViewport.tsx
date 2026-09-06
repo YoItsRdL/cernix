@@ -38,6 +38,10 @@ interface DistillerViewportProps {
   /** Ids armed by "Move to…" and waiting for a destination, or null. */
   pendingMove: string[] | null
   renaming: string | null
+  /** The viewer is open over this grid. */
+  lightboxOpen: boolean
+  /** The editor is open over this grid. */
+  editorOpen: boolean
   renameValue: string
   actions: {
     setFocusedId: (id: string | null) => void
@@ -119,7 +123,7 @@ function setDragImage(e: React.DragEvent, count: number, name: string) {
 export function DistillerViewport({
   items, loading, listId, viewMode, selected, focusedId, ratings, columnOverride,
   autoMaxColumns: stateAutoMaxColumns, defaultColumns: stateDefaultColumns,
-  draggingIds, pendingMove, renaming, renameValue, actions
+  draggingIds, pendingMove, renaming, renameValue, lightboxOpen, editorOpen, actions
 }: DistillerViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [dims, setDims] = useState({ width: 0, height: 0 })
@@ -218,7 +222,14 @@ export function DistillerViewport({
         actions.navigateToFolder(item as DriveFolder)
       }
     },
-    enabled: pendingMove === null && renaming === null,
+    // A full-screen surface over this grid owns the keyboard while it
+    // is up. Without the last two, Enter reached both the viewer's crop
+    // commit and this grid at once — the crop committed and the grid
+    // activated whatever tile still held the focus behind it, which
+    // opened a folder out from under the editor. Local Archive has
+    // guarded its viewer this way since it was written
+    // (`enabled: !lightboxPath`); this surface guarded neither.
+    enabled: pendingMove === null && renaming === null && !lightboxOpen && !editorOpen,
   })
 
   // The grid already draws a ring for focusedId, so the keyboard reports

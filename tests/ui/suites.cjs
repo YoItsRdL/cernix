@@ -66,6 +66,48 @@ module.exports = [
   },
 
   {
+    name: 'the grid yields the keyboard to what is over it',
+    harness: 'distiller',
+    async run({ run, is }) {
+      // Reported as "when we are cropping and press Enter it should
+      // crop; currently it takes us to the Workstation".
+      //
+      // Both the crop overlay and this grid listen for Enter on
+      // `window`, and the editor is a sibling of Distiller in App
+      // rather than a child, so the grid could not see it and never
+      // stood down. Enter committed the crop *and* activated whatever
+      // tile still held the focus behind the editor, which opened a
+      // folder out from under it. Local Archive has guarded its viewer
+      // since it was written (`enabled: !lightboxPath`); this surface
+      // guarded neither the viewer nor the editor.
+      //
+      // The focus is established once, with nothing over the grid, and
+      // the same Enter is then pressed in both states. Only the flag
+      // differs, so a pass cannot come from the focus being absent.
+      const inRoot = () => run('!!__ui.tile("DSC_0001")')
+
+      await is('the fixture is in the root folder', inRoot, true)
+      await run('__ui.key("ArrowRight")')
+
+      // Waited on, not assumed: `run` resolves when the call returns,
+      // which is before React has committed the new prop and before the
+      // grid's listener has been swapped. Pressing Enter into that gap
+      // hits the old listener and reads as the fix not working.
+      await run('__setEditorOpen(true)')
+      await is('the editor is over the grid', () => run('__editorOpen()'), true)
+      await run('__ui.key("Enter")')
+      // A negative: give it real time to be wrong. Without the fix the
+      // first tile is a folder and this navigates into it.
+      await is('Enter does nothing while the editor is over the grid', inRoot, true, 1500)
+
+      await run('__setEditorOpen(false)')
+      await is('the editor closes', () => run('__editorOpen()'), false)
+      await run('__ui.key("Enter")')
+      await is('and works again once the editor closes', inRoot, false)
+    },
+  },
+
+  {
     name: 'the tile checkbox',
     harness: 'distiller',
     async run({ run, is }) {
