@@ -12,6 +12,11 @@ import { MediaFrame } from '@/components/ui/frame-ground'
  * A 4000×3000 SVG stands in for the photograph: it has an intrinsic
  * size, it decodes instantly, and it needs no file on disk.
  */
+/** Three distinguishable frames, so a step is observable. */
+const FRAMES = [0, 1, 2].map(i =>
+  'data:image/svg+xml;utf8,' + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="4000" height="3000"><title>frame-${i}</title></svg>`))
+
 const FRAME =
   'data:image/svg+xml;utf8,' +
   encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="4000" height="3000"></svg>')
@@ -20,6 +25,39 @@ function Harness() {
   const w = window as unknown as Record<string, unknown>
   const [src, setSrc] = React.useState(FRAME)
   const [low, setLow] = React.useState<string | undefined>(undefined)
+
+  /**
+   * A real list behind the arrows.
+   *
+   * They used to be `() => {}`, which proved they were on screen and
+   * could never prove they did anything — so "the arrow advances the
+   * frame" had no coverage at all in either direction.
+   *
+   * Wraps, like both real callers do.
+   */
+  const indexRef = React.useRef(0)
+  const step = (by: number) => {
+    const next = (indexRef.current + by + FRAMES.length) % FRAMES.length
+    indexRef.current = next
+    // The frame on screen has to move too. Stepping only a counter
+    // proved the callback fired and nothing about what the user sees,
+    // which is the half the report was about.
+    setSrc(FRAMES[next])
+  }
+  w.__index = () => indexRef.current
+  w.__frames = FRAMES.length
+
+  /**
+   * Which frame is actually rendered, read off the `img` the viewer
+   * shows rather than off the harness's own state.
+   *
+   * -1 for the frame the other suites open on, which is not one of
+   * these three.
+   */
+  w.__shownFrame = () => {
+    const src = document.querySelector('img')?.getAttribute('src') ?? ''
+    return FRAMES.indexOf(src)
+  }
 
   // Stepping to another frame, as the arrows do. Keyed on the src in
   // the viewer and here, so the new frame starts undecoded instead of
@@ -96,8 +134,8 @@ function Harness() {
     <Lightbox
       isOpen
       onClose={() => {}}
-      onNext={() => {}}
-      onPrev={() => {}}
+      onNext={() => step(1)}
+      onPrev={() => step(-1)}
       fileName="DSC_4419.CR3"
       isSelected
       onToggleSelect={() => { selects.current += 1 }}

@@ -337,6 +337,59 @@ module.exports = [
   },
 
   {
+    name: 'the viewer steps between frames',
+    harness: 'lightbox',
+    async run({ run, is }) {
+      // Reported as "the arrows should change the asset depending on
+      // left or right". Every layer read as correct — the buttons call
+      // the handlers, ArrowRight maps to next, ArrowLeft to prev, and
+      // both callers pass the props — so reading was the wrong
+      // instrument and this is the right one.
+      //
+      // The harness used to pass `() => {}` for both, which proved the
+      // arrows were on screen and could never prove they moved
+      // anything. That is why a break here would have been silent.
+      // The gesture fires once, awaited on its own; only the reading
+      // is polled. Doing it in one thunk made the suite unfalsifiable:
+      // `poll` retries the thunk every 50ms, so each retry pressed the
+      // arrow again, and a wrapping list of three walks through every
+      // value an assertion could ask for inside 150ms. All seven
+      // assertions passed with ArrowLeft wired to `goNext`.
+      // Both halves, together: which frame the list moved to, and which
+      // frame is on screen. The first alone passes for a viewer that
+      // steps its index and keeps showing the previous photograph,
+      // which is what the report would look like from outside.
+      // -1 is the frame the other suites open on, before any step.
+      const at = () => run('JSON.stringify([__index(), __shownFrame()])')
+      const clickArrow = (label) =>
+        run(`document.querySelector('[aria-label="${label}"]').click()`)
+      const pressKey = (key) =>
+        run(`window.dispatchEvent(new KeyboardEvent('keydown', { key: '${key}' }))`)
+
+      await is('starts before any of the three frames', at, '[0,-1]')
+
+      await clickArrow('Next')
+      await is('the right arrow goes forward', at, '[1,1]')
+      await clickArrow('Previous')
+      await is('the left arrow goes back', at, '[0,0]')
+
+      // The keys are the same gesture and a separate code path: they
+      // reach `goNext`/`goPrev` through the window listener rather than
+      // through onClick, so one can work while the other does not.
+      await pressKey('ArrowRight')
+      await is('ArrowRight goes forward', at, '[1,1]')
+      await pressKey('ArrowLeft')
+      await is('ArrowLeft goes back', at, '[0,0]')
+
+      // Both real callers wrap, so the ends of the list are not walls.
+      await pressKey('ArrowLeft')
+      await is('going back from the first wraps to the last', at, '[2,2]')
+      await pressKey('ArrowRight')
+      await is('and forward from the last wraps to the first', at, '[0,0]')
+    },
+  },
+
+  {
     name: 'the viewer contains the photograph',
     harness: 'lightbox',
     async run({ run, is, wait }) {
