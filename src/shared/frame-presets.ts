@@ -30,6 +30,18 @@ export const FRAME_PRESETS: FramePreset[] = [
     cutout: { x: 16, y: 16, w: 1406, h: 1752 },
   },
   {
+    // The same card as Classic, but the photograph sits in a landscape
+    // window with a wide band above and below rather than filling it.
+    // Measured, not assumed: the cutout is a hard-edged rectangle, alpha
+    // 0 throughout and opaque on every side of it, so the bounds below
+    // are the transparent bounding box exactly with no inset.
+    id: 'classic-landscape',
+    label: 'Classic · Landscape',
+    file: 'classic-landscape-1440x1786.png',
+    outer: { w: 1440, h: 1786 },
+    cutout: { x: 16, y: 367, w: 1408, h: 1050 },
+  },
+  {
     id: 'story-landscape',
     label: 'Story · Landscape',
     file: 'story-landscape-1080x1920.png',

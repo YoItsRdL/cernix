@@ -5,12 +5,14 @@
  * read the metadata table without trying to import PNGs.
  */
 import classicUrl from './assets/frames/classic-1440.png?url'
+import classicLandscapeUrl from './assets/frames/classic-landscape-1440x1786.png?url'
 import storyLandscapeUrl from './assets/frames/story-landscape-1080x1920.png?url'
 import storyPortraitUrl from './assets/frames/story-portrait-1080x1920.png?url'
 import landscapeUrl from './assets/frames/landscape-1300x971.png?url'
 
 const URLS: Record<string, string> = {
   'classic-1440': classicUrl,
+  'classic-landscape': classicLandscapeUrl,
   'story-landscape': storyLandscapeUrl,
   'story-portrait': storyPortraitUrl,
   'landscape-1300x971': landscapeUrl,
