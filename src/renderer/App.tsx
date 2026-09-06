@@ -16,6 +16,7 @@ import { WindowControls } from './components/WindowControls'
 import { drawsOwnCaptionButtons } from '@/lib/window-chrome'
 import { AppToaster } from './components/ui/app-toaster'
 import { toast } from 'sonner'
+import { messageOf } from '../shared/errors'
 import { type VolumeInfo, type AuthStatus, type TabId } from '@/types'
 import { Button } from '@/components/ui/button'
 import { SPRING_STANDARD } from '@/lib/motion'
@@ -234,12 +235,28 @@ export default function App() {
     await window.electronAPI.authRebuildLedger()
   }
  
+  /**
+   * Make the Drive folder link-shareable, then show the link.
+   *
+   * The catch is the point. This had `try`/`finally` and no `catch`, so
+   * a refusal from Drive became an unhandled rejection: `setShowShare`
+   * never ran, `setSharing(false)` did, and the button went
+   * "Sharing…" then back to "Share" with nothing else happening. The
+   * user is told now, the same way a volume error is told at the top of
+   * this file.
+   *
+   * `drive.file` is a deliberately narrow scope and granting `anyone`
+   * access is exactly the sort of call it can refuse, which is why the
+   * message carries Google's own words rather than a bare 403.
+   */
   const handleShare = useCallback(async () => {
     if (!driveFolderId) return
     setSharing(true)
     try {
       await window.electronAPI.driveSetPublic(driveFolderId)
       setShowShare(true)
+    } catch (err) {
+      toast.error(messageOf(err) || 'Share failed: Drive refused the request.')
     } finally {
       setSharing(false)
     }
