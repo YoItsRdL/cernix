@@ -1,5 +1,5 @@
 import type { EditParams } from '@/types'
-import { DEFAULT_PARAMS } from '@/../shared/edit-params'
+import { DEFAULT_PARAMS, IDENTITY_IMAGE_TRANSFORM } from '@/../shared/edit-params'
 
 export type ParamKey = keyof EditParams
 
@@ -75,7 +75,9 @@ export class ParamsStore {
 
   set<K extends ParamKey>(key: K, value: EditParams[K]): void {
     if (this.current[key] === value) return
+    const hadFrame = this.current.frame !== null
     this.current = { ...this.current, [key]: value }
+    if (key === 'frame' && value === null && hadFrame) this.dropFramePositioning()
     this.notify()
     this.scheduleWrite()
     this.recordHistory(labelForKey(key))
@@ -92,7 +94,9 @@ export class ParamsStore {
   reset(key?: ParamKey): void {
     if (key) {
       if (this.current[key] === DEFAULT_PARAMS[key]) return
+      const hadFrame = this.current.frame !== null
       this.current = { ...this.current, [key]: DEFAULT_PARAMS[key] }
+      if (key === 'frame' && hadFrame) this.dropFramePositioning()
       this.notify()
       this.scheduleWrite()
       this.recordHistory(`Reset ${labelForKey(key)}`)
@@ -102,6 +106,29 @@ export class ParamsStore {
       this.scheduleWrite()
       this.recordHistory('Reset all')
     }
+  }
+
+  /**
+   * Taking the frame off takes its positioning with it.
+   *
+   * `imageTransform` is how the photograph is scaled and panned inside a
+   * frame's cutout, and it means nothing without one: with no frame the
+   * geometry lives in `crop`, which is why `commitTransform` bakes the
+   * transform into the crop and returns it to identity. Clearing the
+   * frame on its own left the photograph scaled by a rule that no longer
+   * existed, so it stayed zoomed in and read as the frame still being
+   * applied.
+   *
+   * Deliberately not a blanket invariant checked on every write. Entering
+   * free transform with no frame seeds a non-identity transform on
+   * purpose, and a rule that fired on any write would erase that seed the
+   * moment it landed. Only losing the frame clears it.
+   *
+   * The history snapshot is taken after this runs, so undo restores the
+   * frame and its positioning together rather than half of each.
+   */
+  private dropFramePositioning(): void {
+    this.current = { ...this.current, imageTransform: IDENTITY_IMAGE_TRANSFORM }
   }
 
   // ── History ──
