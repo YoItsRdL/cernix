@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { ParamsStore } from './params-store'
-import { DEFAULT_PARAMS } from '../../../shared/edit-params'
+import { DEFAULT_PARAMS, IDENTITY_IMAGE_TRANSFORM } from '../../../shared/edit-params'
 import type { EditParams } from '@/types'
 
 /**
@@ -141,5 +141,69 @@ describe('ParamsStore history', () => {
     off()
     s.set('exposure', 0.9)
     expect(seen).toEqual([0.3, 0.6])
+  })
+})
+
+/**
+ * Taking a frame off.
+ *
+ * `imageTransform` positions the photograph inside a frame's cutout.
+ * Without a frame there is no cutout, and the geometry belongs in
+ * `crop`, which is why committing a free transform bakes it there and
+ * returns the transform to identity. Reported as: apply a frame, choose
+ * None, and the photograph stays zoomed in as though the frame were
+ * still on.
+ */
+describe('clearing the frame', () => {
+  const FRAMED = { scale: 1.6, panX: 0.2, panY: -0.1 }
+
+  it('takes the positioning off with it', () => {
+    const s = store()
+    s.set('frame', 'classic-1440')
+    s.set('imageTransform', FRAMED)
+    s.set('frame', null)
+    expect(s.get().imageTransform).toEqual(IDENTITY_IMAGE_TRANSFORM)
+  })
+
+  it('does the same when the frame is reset rather than set to null', () => {
+    const s = store()
+    s.set('frame', 'classic-1440')
+    s.set('imageTransform', FRAMED)
+    s.reset('frame')
+    expect(s.get().imageTransform).toEqual(IDENTITY_IMAGE_TRANSFORM)
+  })
+
+  it('leaves the positioning alone while a frame is still on', () => {
+    const s = store()
+    s.set('frame', 'classic-1440')
+    s.set('imageTransform', FRAMED)
+    s.set('frame', 'story-portrait')
+    expect(s.get().imageTransform).toEqual(FRAMED)
+  })
+
+  // Entering free transform with no frame seeds a non-identity transform
+  // on purpose. A blanket "no frame means identity" rule would erase that
+  // seed the instant it landed, so only losing a frame may clear it.
+  it('does not touch a transform set while no frame was ever on', () => {
+    const s = store()
+    s.set('imageTransform', FRAMED)
+    expect(s.get().imageTransform).toEqual(FRAMED)
+    s.set('exposure', 0.4)
+    expect(s.get().imageTransform).toEqual(FRAMED)
+  })
+
+  // Undo has to bring back the frame and the positioning together, or it
+  // returns a frame with the photograph sitting wrongly inside it.
+  it('is one step, so undo restores the frame and its positioning', () => {
+    const s = store()
+    s.set('frame', 'classic-1440')
+    vi.advanceTimersByTime(600)
+    s.set('imageTransform', FRAMED)
+    vi.advanceTimersByTime(600)
+    s.set('frame', null)
+    expect(s.get().imageTransform).toEqual(IDENTITY_IMAGE_TRANSFORM)
+    s.jumpTo(s.getHistory().currentIndex - 1)
+    expect(s.get().frame).toBe('classic-1440')
+    expect(s.get().imageTransform).toEqual(FRAMED)
   })
 })

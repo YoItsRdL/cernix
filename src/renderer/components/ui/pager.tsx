@@ -64,7 +64,7 @@ export function Pager({ pagination, noun = 'item', className }: PagerProps) {
               aria-label="Items per page"
               title="Items per page"
               className={cn(
-                'h-7 px-2 gap-1.5 text-metadata tabular-nums',
+                'h-7 px-space-2 gap-space-1.5 text-metadata tabular-nums',
                 'text-text-muted hover:text-text-default',
                 TOOLBAR_CONTROL
               )}

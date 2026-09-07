@@ -16,6 +16,12 @@ export type ThemeName = 'light' | 'dark'
 export const THEME_META_KEY = 'ui_theme'
 
 /**
+ * Interface zoom, same store, same reasoning: it describes this screen,
+ * not this library, so it must not travel with the account.
+ */
+export const ZOOM_META_KEY = 'ui_zoom'
+
+/**
  * Window chrome colour per theme.
  *
  * BrowserWindow needs a literal at construction, so these cannot read

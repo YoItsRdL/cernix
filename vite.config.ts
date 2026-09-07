@@ -68,6 +68,24 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, './src/renderer'),
       },
     },
+    build: {
+      // Frame overlays must be emitted as files, never inlined.
+      //
+      // Vite inlines an asset under 4096 bytes as a data: URI, and
+      // `loadFrameBitmap` reads a frame with `fetch()`. The packaged CSP
+      // lists `data:` in img-src but not in connect-src, and fetch is
+      // governed by connect-src — measured under the real policy: the
+      // `<img>` loads and the fetch throws "Failed to fetch". A frame
+      // would therefore show correctly in the picker and then fail to
+      // render onto the export, which is the worst version of this: the
+      // control looks like it worked.
+      //
+      // It went unnoticed because the first four frames are all over
+      // 4096 bytes. Size is not a property anyone checks when adding a
+      // picture, so pinning the behaviour is better than a note.
+      assetsInlineLimit: (filePath: string) =>
+        filePath.includes('/assets/frames/') ? false : undefined,
+    },
     // Vitest evaluates main-process modules directly, with none of the
     // electron plugin's config, so anything reading a build-time
     // constant throws ReferenceError on import. That is why the auth

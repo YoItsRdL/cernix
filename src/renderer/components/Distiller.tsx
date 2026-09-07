@@ -26,11 +26,19 @@ import { Input } from '@/components/ui/input'
 
 interface DistillerProps {
   onOpenEditor?: (file: { id: string; name: string; modifiedTime: string; thumbnailLink?: string }) => void
+  /**
+   * The editor is open over this surface.
+   *
+   * It is a sibling in App rather than a child here, so this grid
+   * cannot see it and kept its keyboard while the editor had focus.
+   * The owner of both has to say.
+   */
+  editorOpen?: boolean
 }
 
 /** Workstation: the Drive-backed library. Composition root; the parts
  *  are in distiller/. */
-export function Distiller({ onOpenEditor }: DistillerProps) {
+export function Distiller({ onOpenEditor, editorOpen = false }: DistillerProps) {
   const { state, actions, setters, refs } = useDistiller(onOpenEditor)
 
   // Close context menu on external click
@@ -51,6 +59,7 @@ export function Distiller({ onOpenEditor }: DistillerProps) {
     <div className="flex h-full bg-surface-workspace text-text-emphatic select-none overflow-hidden font-sans">
       <DistillerSidebar
         folders={state.folders}
+        breadcrumbs={state.breadcrumbs}
         loading={state.loading}
         currentFolderId={state.currentFolderId}
         rootFolderId={state.rootFolderId}
@@ -67,7 +76,7 @@ export function Distiller({ onOpenEditor }: DistillerProps) {
           defaultColumns={state.defaultColumns}
           draggingIds={state.draggingIds}
           pendingMove={state.pendingMove}
-          starsFilter={state.starsFilter}
+          ratingFilter={state.ratingFilter}
           loading={state.loading}
           showInspector={state.showInspector}
           actions={{
@@ -121,6 +130,8 @@ export function Distiller({ onOpenEditor }: DistillerProps) {
             pendingMove={state.pendingMove}
             renaming={state.renaming}
             renameValue={state.renameValue}
+            lightboxOpen={state.lightboxId !== null}
+            editorOpen={editorOpen}
             actions={viewportActions}
           />
         </div>

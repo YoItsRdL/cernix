@@ -16,6 +16,8 @@ import { WindowControls } from './components/WindowControls'
 import { drawsOwnCaptionButtons } from '@/lib/window-chrome'
 import { AppToaster } from './components/ui/app-toaster'
 import { toast } from 'sonner'
+import { messageOf } from '../shared/errors'
+import { logActivity } from './lib/activity-log'
 import { type VolumeInfo, type AuthStatus, type TabId } from '@/types'
 import { Button } from '@/components/ui/button'
 import { SPRING_STANDARD } from '@/lib/motion'
@@ -167,7 +169,9 @@ export default function App() {
   }
 
   const handleManualScan = async () => {
-    if (volumes.length > 0) await startScan(volumes[0].path)
+    if (volumes.length === 0) return
+    logActivity('sweep', 'info', `SCAN ${volumes[0].path}`)
+    await startScan(volumes[0].path)
   }
 
   const [importPath, setImportPath] = useState<string | null>(null)
@@ -179,6 +183,7 @@ export default function App() {
 
   /** "Terminate Protocol": abort the sweep in main, then clear the UI. */
   const handleTerminate = useCallback(async () => {
+    logActivity('sweep', 'warn', 'CANCEL sweep, at the user\'s request')
     await cancelSweep()
     setImportPath(null)
   }, [cancelSweep])
@@ -186,6 +191,7 @@ export default function App() {
   const handleImportFolder = async () => {
     const folderPath = await window.electronAPI.openFolderDialog()
     if (!folderPath) return
+    logActivity('sweep', 'info', `IMPORT FOLDER ${folderPath}`)
     setImportPath(folderPath)
     startScan(folderPath)
   }
@@ -234,12 +240,33 @@ export default function App() {
     await window.electronAPI.authRebuildLedger()
   }
  
+  /**
+   * Make the Drive folder link-shareable, then show the link.
+   *
+   * The catch is the point. This had `try`/`finally` and no `catch`, so
+   * a refusal from Drive became an unhandled rejection: `setShowShare`
+   * never ran, `setSharing(false)` did, and the button went
+   * "Sharing…" then back to "Share" with nothing else happening. The
+   * user is told now, the same way a volume error is told at the top of
+   * this file.
+   *
+   * `drive.file` is a deliberately narrow scope and granting `anyone`
+   * access is exactly the sort of call it can refuse, which is why the
+   * message carries Google's own words rather than a bare 403.
+   */
   const handleShare = useCallback(async () => {
     if (!driveFolderId) return
     setSharing(true)
+    // Worth a line of its own: this is the one action in the app that
+    // makes something reachable by anyone with the link.
+    logActivity('drive', 'info', 'SHARE requesting link access for the imported folder')
     try {
       await window.electronAPI.driveSetPublic(driveFolderId)
+      logActivity('drive', 'success', 'SHARE the folder is now link-shareable')
       setShowShare(true)
+    } catch (err) {
+      logActivity('drive', 'error', `SHARE refused: ${messageOf(err)}`)
+      toast.error(messageOf(err) || 'Share failed: Drive refused the request.')
     } finally {
       setSharing(false)
     }
@@ -507,7 +534,7 @@ export default function App() {
                         <EmptyState key="empty" hasVolumes={volumes.length > 0} isScanning={false} onScan={handleManualScan} onImportFolder={handleImportFolder} />
                       )
                    ) : activeTab === 'organize' ? (
-                      <Distiller key="distiller" onOpenEditor={setEditorFile} />
+                      <Distiller key="distiller" onOpenEditor={setEditorFile} editorOpen={!!editorFile} />
                    ) : activeTab === 'settings' ? (
                       <div className="flex-1 flex items-center justify-center text-text-disabled text-body font-mono italic">Configuration Terminal Active...</div>
                    ) : (

@@ -89,7 +89,11 @@ export function installMockApi(): RecordedCall[] {
     driveStageForEditing: async () => ({ done: 0, failed: 0, total: 0, dir: '' }),
     onDownloadProgress: () => () => {},
     onTrashProgress: () => () => {},
-    ratingGetAll: async () => [],
+    // Seeded by the harness before this runs, so a suite can start from
+    // a library that has already been culled. Empty for every other
+    // harness, which is what it has always returned.
+    ratingGetAll: async () =>
+      (window as unknown as { __seedRatings?: unknown[] }).__seedRatings ?? [],
     ratingSetStars: async () => {},
     ratingSetFlag: async () => {},
     ratingSetUserPick: async () => {},

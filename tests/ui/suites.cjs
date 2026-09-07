@@ -66,6 +66,48 @@ module.exports = [
   },
 
   {
+    name: 'the grid yields the keyboard to what is over it',
+    harness: 'distiller',
+    async run({ run, is }) {
+      // Reported as "when we are cropping and press Enter it should
+      // crop; currently it takes us to the Workstation".
+      //
+      // Both the crop overlay and this grid listen for Enter on
+      // `window`, and the editor is a sibling of Distiller in App
+      // rather than a child, so the grid could not see it and never
+      // stood down. Enter committed the crop *and* activated whatever
+      // tile still held the focus behind the editor, which opened a
+      // folder out from under it. Local Archive has guarded its viewer
+      // since it was written (`enabled: !lightboxPath`); this surface
+      // guarded neither the viewer nor the editor.
+      //
+      // The focus is established once, with nothing over the grid, and
+      // the same Enter is then pressed in both states. Only the flag
+      // differs, so a pass cannot come from the focus being absent.
+      const inRoot = () => run('!!__ui.tile("DSC_0001")')
+
+      await is('the fixture is in the root folder', inRoot, true)
+      await run('__ui.key("ArrowRight")')
+
+      // Waited on, not assumed: `run` resolves when the call returns,
+      // which is before React has committed the new prop and before the
+      // grid's listener has been swapped. Pressing Enter into that gap
+      // hits the old listener and reads as the fix not working.
+      await run('__setEditorOpen(true)')
+      await is('the editor is over the grid', () => run('__editorOpen()'), true)
+      await run('__ui.key("Enter")')
+      // A negative: give it real time to be wrong. Without the fix the
+      // first tile is a folder and this navigates into it.
+      await is('Enter does nothing while the editor is over the grid', inRoot, true, 1500)
+
+      await run('__setEditorOpen(false)')
+      await is('the editor closes', () => run('__editorOpen()'), false)
+      await run('__ui.key("Enter")')
+      await is('and works again once the editor closes', inRoot, false)
+    },
+  },
+
+  {
     name: 'the tile checkbox',
     harness: 'distiller',
     async run({ run, is }) {
@@ -333,6 +375,478 @@ module.exports = [
       await wait(200)
       await is('PageDown turns the page without a mouse',
         () => run('__ui.pagerCount()'), '11–13 of 13')
+    },
+  },
+
+  {
+    name: 'the sidebar shows where you are',
+    harness: 'sidebar',
+    async run({ run, is }) {
+      // Reported from `Cernix / 2026 / September / 06`: a day folder with
+      // nothing inside it, where the whole panel read "No folders" and
+      // said nothing about the three levels above.
+      const rows = () => run('JSON.stringify(__rows().map(r => r.name))')
+
+      await is('the trail is drawn even with nothing inside this folder',
+        rows, '["Cernix","2026","September","06"]')
+      await is('and "No folders" is gone',
+        () => run(`document.body.innerText.includes('No folders')`), false)
+
+      await is('the folder we are in is the one marked',
+        () => run('JSON.stringify(__rows().filter(r => r.current).map(r => r.name))'),
+        '["06"]')
+      await is('and the depth is carried to a screen reader, not just drawn',
+        () => run('JSON.stringify(__rows().map(r => r.level))'), '[1,2,3,4]')
+
+      // Indent is the only thing that says "inside". If two levels share
+      // one it stops being a tree and becomes a list.
+      await is('each level is indented further than the one above',
+        () => run(`(() => {
+          const ind = __rows().map(r => r.indent)
+          return ind.every((v, i) => i === 0 || v > ind[i - 1])
+        })()`), true)
+
+      // Children hang below the current folder, not beside it.
+      await run(`__setChildren(['Keepers','Rejects'])`)
+      await is('children hang one level below where we are',
+        () => run('JSON.stringify(__rows().map(r => [r.name, r.level]))'),
+        '[["Cernix",1],["2026",2],["September",3],["06",4],["Keepers",5],["Rejects",5]]')
+
+      // An ancestor is a step back up the trail; a child is a step down.
+      // They navigate differently and only the trail knows how far back.
+      await run(`__row('September').click()`)
+      await is('an ancestor goes back to its place in the trail',
+        () => run('JSON.stringify(__navigations())'), '["crumb:2"]')
+      await run(`__row('Keepers').click()`)
+      await is('and a child goes into that folder',
+        () => run('JSON.stringify(__navigations())'), '["crumb:2","folder:Keepers"]')
+
+      // Pressing the folder you are already in would navigate to where
+      // you already are.
+      await run(`__row('06').click()`)
+      await is('the folder we are in is not a link',
+        () => run('JSON.stringify(__navigations())'), '["crumb:2","folder:Keepers"]')
+
+      // Depth is the user's own Drive structure, so it has no ceiling,
+      // and the panel is 208px. Measured before the clamp the label lost
+      // 12px a level and was 5px wide at eleven deep: an indent with
+      // nothing in it. The indent stops at MAX_INDENT_DEPTH so a name
+      // stays readable however deep the tree goes.
+      await run('__setDeepTrail(12)')
+      await is('the label stops shrinking once the indent caps',
+        () => run(`(() => {
+          const w = Array.from({ length: 12 }, (_, d) => __labelWidth(d))
+          return Math.min(...w) >= w[6] && w[11] === w[6]
+        })()`), true)
+      await is('and no name is squeezed to nothing',
+        () => run('Math.min(...Array.from({length:12}, (_, d) => __labelWidth(d))) > 40'), true)
+
+      // The clamp is a drawing decision. Reporting a folder as six deep
+      // when it is eleven deep would lie about the tree to the reader
+      // who can least afford it.
+      // Twelve ancestors and the two children still hanging below them,
+      // which is the point: the level keeps counting past the cap.
+      await is('but the true depth still reaches a screen reader',
+        () => run('JSON.stringify(__rows().map(r => r.level))'),
+        '[1,2,3,4,5,6,7,8,9,10,11,12,13,13]')
+
+      await run('__setTrail(4)')
+
+      // `role="tree"` promises arrow navigation: a reader told the widget
+      // is a tree presses Down and expects to move. The first version
+      // announced the role and left every row its own tab stop, so
+      // crossing a four-deep trail took four presses and Down did
+      // nothing. One stop in, arrows within.
+      await is('the tree is a single stop in the tab order',
+        () => run('__tabStops()'), 1)
+      await is('and the stop is the folder we are in, not the top of the trail',
+        () => run('__tabStopName()'), '06')
+
+      await run(`__row('06').focus()`)
+      await is('focus starts where we are', () => run('__focused()'), '06')
+      await run(`__treeKey('ArrowUp')`)
+      await is('ArrowUp climbs the trail', () => run('__focused()'), 'September')
+      await run(`__treeKey('ArrowDown')`)
+      await is('ArrowDown goes back down', () => run('__focused()'), '06')
+      await run(`__treeKey('Home')`)
+      await is('Home reaches the root', () => run('__focused()'), 'Cernix')
+      await run(`__treeKey('End')`)
+      await is('End reaches the last row', () => run('__focused()'), 'Rejects')
+
+      // The ends are walls, not wraps: a tree is a place, and running off
+      // the top of one silently lands you somewhere you did not ask for.
+      await run(`__treeKey('Home')`)
+      await run(`__treeKey('ArrowUp')`)
+      await is('and the top does not wrap', () => run('__focused()'), 'Cernix')
+
+      // At the root there is one row and it is where we are, not an
+      // ancestor of something.
+      await run('__setTrail(1)')
+      await is('at the root, the root is where we are',
+        () => run('JSON.stringify(__rows().map(r => [r.name, r.current]))'),
+        '[["Cernix",true],["Keepers",false],["Rejects",false]]')
+    },
+  },
+
+  {
+    name: 'filtering the library by rating',
+    harness: 'distiller-rating',
+    async run({ run, is }) {
+      // Twelve files: 5,4,3,2,1 stars on file-1..5, an unrated pick on
+      // file-6, five stars and a pick on file-7, and file-8..12 with no
+      // rating record at all.
+      // The pager's total, not the tiles on screen: the grid pages, so a
+      // tile count cannot tell filtering from paging. This is also the
+      // number the header is required to get right.
+      //
+      // The one folder is always in it. A folder carries no rating, so
+      // filtering by one must not make folders disappear and strand the
+      // user with no way down the tree - which is why the totals below
+      // are the file count plus one rather than the file count.
+      const total = () => run('__total()')
+      const label = () => run('__filterLabel()')
+      // `__ui.open` for the item as well as the trigger: it sends the
+      // whole pointerdown/pointerup/click sequence, and Radix binds its
+      // close to that rather than to a bare click. A plain click changed
+      // the value and left the menu standing open over the grid, which is
+      // not what a person does and hid the fact that it never closed.
+      const pick = async (text) => {
+        await run('__ui.open(__filterTrigger())')
+        await run(`__ui.open(__ui.menuItem(${JSON.stringify(text)}))`)
+        // Escape rather than relying on the selection to dismiss it.
+        // Radix closes on its own pointer sequence and synthetic events do
+        // not reproduce it faithfully, so the menu stays open here in a
+        // way it does not for a person. Dismissing explicitly keeps the
+        // next assertion looking at the grid rather than through a menu;
+        // that selecting also closes it is Radix's behaviour and is not
+        // verified here.
+        await run(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
+      }
+
+      await is('everything is counted to begin with', total, 13)
+      await is('and the header says so', label, 'All')
+
+      // Asserted before anything else reads it. The label lives on a
+      // `textContent`, which a `display: none` element still has, so
+      // every assertion about the header being legible was passing on a
+      // control that was not on screen: the five-star strip this replaced
+      // was hidden below a breakpoint, and the replacement had inherited
+      // the same class.
+      await is('and the control is actually on screen', () => run(`(() => {
+        const el = __filterTrigger()
+        return !!el && !!el.offsetParent && el.getBoundingClientRect().width > 0
+      })()`), true)
+
+      // A threshold, not an equality. The control this replaced compared
+      // stars for equality, so asking for three hid the four- and
+      // five-star frames.
+      await pick('≥ 3')
+      await is('three and up keeps the better ratings too', total, 5)
+      await is('the header carries the filter without being opened', label, '≥ 3')
+
+      // The regression that matters most: five files here have no rating
+      // record, and the old predicate admitted them before it consulted
+      // the filter at all.
+      await pick('≥ 5')
+      await is('an unrated photograph does not pass a threshold', total, 3)
+
+      await pick('≥ 1')
+      await is('one and up excludes a zero-star frame', total, 7)
+
+      await is('the folder survives a filter it cannot satisfy',
+        () => run('!!__ui.tile("Keepers")'), true)
+
+      await pick('Picks')
+      await is('picks are their own decision, stars or not', total, 3)
+      await is('and the header says Picks', label, 'Picks')
+
+      await pick('All')
+      await is('and everything comes back', total, 13)
+
+      // Everything the mouse can do, the keyboard can do. The control it
+      // replaced was five icon buttons, reachable but never labelled as a
+      // group; this is one control that says what it is set to.
+      // `focusVisible: true` because the ring is `focus-visible:ring-1`,
+      // and Chromium only sets that pseudo-class for focus it believes
+      // came from the keyboard. A plain `.focus()` leaves the element
+      // focused with no ring, so measuring one would report a control
+      // with no visible focus when it has one.
+      // Focused inside the poll, which is normally the mistake that makes
+      // a probe unfalsifiable - but focusing is idempotent, and Radix
+      // restores focus asynchronously as the menu unmounts, so a single
+      // shot races that restore and lands wherever it hands back to. If
+      // the control could not take focus at all this would still fail.
+      await is('the trigger takes focus', () => run(
+        '__filterTrigger().focus({ focusVisible: true }), document.activeElement === __filterTrigger()'
+      ), true)
+      await is('and is in the tab order',
+        () => run('__filterTrigger().tabIndex >= 0'), true)
+      // The ring is declared, not measured rendering. It is
+      // `focus-visible:`, and Chromium sets that pseudo-class only for
+      // focus it believes came from a real key press: `focus({
+      // focusVisible: true })` does not persuade it, and a suite cannot
+      // reach `CSS.forcePseudoState`, which needs the debugger from the
+      // runner side. So this asserts the control carries a focus-visible
+      // ring rather than that the ring paints.
+      await is('and declares a focus-visible ring', () => run(`(() => {
+        const c = __filterTrigger().className
+        return /focus-visible:(ring|outline)/.test(c)
+      })()`), true)
+
+      await run(`__filterTrigger().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`)
+      await is('Enter opens the menu', () => run(`!!__ui.menuItem('Picks')`), true)
+      await run(`__ui.open(__ui.menuItem('Picks'))`)
+      await is('and an option can be chosen without a mouse', label, 'Picks')
+    },
+  },
+
+  {
+    name: 'the filter, paging and the selection agree',
+    harness: 'distiller-rating',
+    async run({ run, is }) {
+      const total = () => run('__total()')
+      // Deliberately does not dismiss the menu, unlike the sibling suite:
+      // Escape is bound to "clear the selection", so dismissing that way
+      // emptied the very thing under test and the narrowing assertion
+      // below passed with the narrowing removed. The menu standing open
+      // does not affect a pager readout or a header count.
+      const pick = async (text) => {
+        await run('__ui.open(__filterTrigger())')
+        await run(`__ui.open(__ui.menuItem(${JSON.stringify(text)}))`)
+      }
+
+      // Paging. Narrowing thirteen items to three while standing on the
+      // second page must not strand the user on a page that no longer
+      // exists, showing an empty grid and a pager that disagrees with it.
+      await run('__ui.open(__ui.pageSizeTrigger())')
+      await run(`__ui.click(__ui.menuItem('10 per page'))`)
+      await is('ten to a page', () => run('__ui.pagerCount()'), '1–10 of 13')
+      await run(`__ui.click(__ui.button('2'))`)
+      await is('and the second page is a place', () => run('__ui.pagerCount()'), '11–13 of 13')
+
+      await pick('≥ 5')
+      await is('the page clamps rather than stranding the user',
+        () => run('__ui.pagerCount()'), '1–3 of 3')
+      await is('and there is something on it', () => run('__fileTiles()'), 2)
+
+      // The selection. Navigating to another folder already clears it,
+      // because the header said "1 selected" about something nobody could
+      // see and Trash and Download would have acted on it. A filter hides
+      // items the same way, so it gets the same answer: the selection is
+      // narrowed to what survived rather than reaching past the screen.
+      await pick('All')
+      await run('__ui.key("a", { ctrlKey: true })')
+      await is('everything is selected', () => run('__ui.selectedCount() > 0'), true)
+      const before = await run('__selectedTotal()')
+
+      await pick('≥ 5')
+      await is('the selection is narrowed to what the filter left',
+        () => run('__selectedTotal() < ' + before), true)
+      await is('and nothing selected is off screen',
+        () => run('__selectedTotal() <= __total()'), true)
+    },
+  },
+
+  {
+    name: 'auto-crop follows the straighten, not the opening',
+    harness: 'geometry',
+    async run({ run, is }) {
+      const crop = () => run('JSON.stringify(__crop())')
+      const MANUAL = '{"x":0.2,"y":0.2,"w":0.5,"h":0.5}'
+      const FULL = '{"x":0,"y":0,"w":1,"h":1}'
+
+      // Every assertion here is a negative - the crop did *not* change -
+      // and `poll` returns on its first match, so a negative is true the
+      // instant before the bug happens and passes for the wrong reason.
+      // Verified: without this settle, removing the guard these cover
+      // leaves the suite green. So the event is allowed to be processed
+      // first, and only then is the absence asserted.
+      const settle = () => new Promise(r => setTimeout(r, 400))
+      const open = async (c, deg) => { await run(`__openWith(${c}, ${deg})`); await settle() }
+
+      // The panel is created fresh for every photograph and its
+      // auto-crop state is local and starts on, so the effect used to
+      // fire on mount and replace whatever crop the photograph carried.
+      // A crop composed by hand did not survive being looked at.
+      await open(MANUAL, 0)
+      await is('opening leaves a saved crop alone', crop, MANUAL)
+      await is('and asks for nothing at all', () => run('__cropCalls().length'), 0)
+
+      // Even when the photograph carries an angle: the crop that was
+      // saved with it is the composition, not something to recompute.
+      await open(MANUAL, 16.9)
+      await is('an angle on the photograph does not trigger it either', crop, MANUAL)
+
+      // The dimensions are not known until the photograph decodes, so
+      // the panel's first render has none and they land a moment later.
+      // That landing is a dependency change like any other, and treating
+      // it as one overwrites the crop a beat after the file opens -
+      // which looks like auto-crop acting on its own.
+      await open(MANUAL, 16.9)
+      await run('__openUndecoded(' + MANUAL + ', 16.9)')
+      await settle()
+      await is('an undecoded photograph keeps its crop', crop, MANUAL)
+      await run('__decode()')
+      await settle()
+      await is('and still keeps it once the dimensions arrive', crop, MANUAL)
+
+      // What the user does, it still does.
+      await run('__setStraighten(25)')
+      await is('straightening crops to the inscribed rect',
+        crop, '{"x":0.042,"y":0.233,"w":0.917,"h":0.533}')
+      await run('__setStraighten(16.9)')
+      await is('and follows the angle back',
+        crop, '{"x":0.055,"y":0.158,"w":0.889,"h":0.685}')
+
+      await run('__autoCropBox().click()')
+      await is('unticking restores the full frame', crop, FULL)
+      await run('__autoCropBox().click()')
+      await is('and ticking crops again',
+        crop, '{"x":0.055,"y":0.158,"w":0.889,"h":0.685}')
+    },
+  },
+
+  {
+    name: 'the Output drawer records what the user did',
+    harness: 'terminal',
+    async run({ run, is }) {
+      // The drawer was fed only by the main process, which sees Drive
+      // ids: a move logged "Moving 3 item(s)…" and a progress count,
+      // naming neither the files nor where they went. The names and the
+      // folder trail exist only in the renderer, so the lines about them
+      // originate there and reach the drawer over its own bus. This is
+      // the join between the two; the bus itself is unit-tested.
+      const lines = () => run('JSON.stringify(__lines())')
+
+      await is('the drawer starts empty', () => run('__lineCount()'), 0)
+
+      await run(`__log('drive', 'info', 'MOVE /Cernix/2025/DSC_0001.ARW  ->  /Cernix/2026/Keepers/DSC_0001.ARW')`)
+      await is('a line the renderer logged appears', () => run('__lineCount()'), 1)
+
+      // The whole path has to survive onto the screen. It is the point of
+      // the line, and a path clipped at the container edge answers
+      // nothing.
+      await is('with both paths intact',
+        () => run(`__lines()[0].includes('/Cernix/2025/DSC_0001.ARW') && __lines()[0].includes('/Cernix/2026/Keepers/DSC_0001.ARW')`),
+        true)
+      await is('and tagged with its source',
+        () => run(`__lines()[0].includes('drive')`), true)
+
+      await run(`__log('sweep', 'error', 'TRASH failed: /media/card/DCIM/100_PANA/P1100574.JPG')`)
+      await is('a second lands under the first, in order',
+        () => run(`__lines()[1].includes('P1100574.JPG')`), true)
+      await is('and both are still on screen', () => run('__lineCount()'), 2)
+
+      // A path is one long unbroken token with no spaces to break at.
+      // Without `break-all` it runs out of the drawer and takes the rest
+      // of the line with it. Deep enough that it cannot fit at any
+      // plausible drawer width: verified by mutating the wrap away and
+      // watching this go red, which a shorter path did not do.
+      await run(`__log('drive', 'info', 'MOVE ' + __drivePath(
+        'Cernix/2026/February/Barcelona/Sagrada-Familia/Selects/Keepers/Final-Delivery/Client-Approved'
+          .split('/').map(name => ({ name })), 'P1100574-edited-final-v3.JPG'))`)
+      await is('the deep path is on screen', () => run('__lineCount()'), 3)
+      await is('a long path wraps rather than overflowing the drawer',
+        () => run(`(() => {
+          const el = document.querySelector('[role="log"]')
+          return el.scrollWidth <= el.clientWidth + 1
+        })()`), true)
+      await is('and the drawer is a log to a screen reader',
+        () => run(`document.querySelector('[role="log"]').getAttribute('aria-label')`), 'Output')
+    },
+  },
+
+  {
+    name: 'Enter commits the crop',
+    harness: 'crop',
+    async run({ run, is }) {
+      // Reported as "when we are cropping and press Enter it should
+      // effectively crop". The other half of that report - the
+      // Workstation grid stealing the same Enter - is covered by "the
+      // grid yields the keyboard to what is over it". This is the half
+      // that says the overlay does its own job, which had no coverage
+      // because the editor around it wants WebGL, a raw file and Drive.
+      //
+      // The gesture is fired once and awaited; only the reading is
+      // polled. Doing both in one thunk is what made the viewer's arrow
+      // suite unfalsifiable, and a committing keypress is exactly the
+      // kind that must not be repeated by a retry.
+      const committed = () => run('JSON.stringify(__committed())')
+      const press = (key) =>
+        run(`window.dispatchEvent(new KeyboardEvent('keydown', { key: '${key}' }))`)
+
+      await is('nothing is committed on open', committed, '[]')
+
+      // Reshape the rect first, so a pass cannot come from the overlay
+      // handing back the rect it was given. 1:1 on a 4000x3000 source is
+      // three quarters of the width and the full height.
+      await run(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === '1:1').click()`)
+      await is('the 1:1 preset reshapes the rect', () => run('__committed().length'), 0)
+
+      await press('Enter')
+      await is('Enter commits exactly once', () => run('__committed().length'), 1)
+      await is('and commits a square of the source, not the full frame',
+        () => run('__committedAspect()'), 1)
+      await is('so it did not just hand back what it was given',
+        committed, '[{"x":0.125,"y":0,"w":0.75,"h":1}]')
+
+      // Escape is the other exit and must not crop.
+      await press('Escape')
+      await is('Escape cancels', () => run('__cancels()'), 1)
+      await is('and commits nothing further', () => run('__committed().length'), 1)
+    },
+  },
+
+  {
+    name: 'the viewer steps between frames',
+    harness: 'lightbox',
+    async run({ run, is }) {
+      // Reported as "the arrows should change the asset depending on
+      // left or right". Every layer read as correct — the buttons call
+      // the handlers, ArrowRight maps to next, ArrowLeft to prev, and
+      // both callers pass the props — so reading was the wrong
+      // instrument and this is the right one.
+      //
+      // The harness used to pass `() => {}` for both, which proved the
+      // arrows were on screen and could never prove they moved
+      // anything. That is why a break here would have been silent.
+      // The gesture fires once, awaited on its own; only the reading
+      // is polled. Doing it in one thunk made the suite unfalsifiable:
+      // `poll` retries the thunk every 50ms, so each retry pressed the
+      // arrow again, and a wrapping list of three walks through every
+      // value an assertion could ask for inside 150ms. All seven
+      // assertions passed with ArrowLeft wired to `goNext`.
+      // Both halves, together: which frame the list moved to, and which
+      // frame is on screen. The first alone passes for a viewer that
+      // steps its index and keeps showing the previous photograph,
+      // which is what the report would look like from outside.
+      // -1 is the frame the other suites open on, before any step.
+      const at = () => run('JSON.stringify([__index(), __shownFrame()])')
+      const clickArrow = (label) =>
+        run(`document.querySelector('[aria-label="${label}"]').click()`)
+      const pressKey = (key) =>
+        run(`window.dispatchEvent(new KeyboardEvent('keydown', { key: '${key}' }))`)
+
+      await is('starts before any of the three frames', at, '[0,-1]')
+
+      await clickArrow('Next')
+      await is('the right arrow goes forward', at, '[1,1]')
+      await clickArrow('Previous')
+      await is('the left arrow goes back', at, '[0,0]')
+
+      // The keys are the same gesture and a separate code path: they
+      // reach `goNext`/`goPrev` through the window listener rather than
+      // through onClick, so one can work while the other does not.
+      await pressKey('ArrowRight')
+      await is('ArrowRight goes forward', at, '[1,1]')
+      await pressKey('ArrowLeft')
+      await is('ArrowLeft goes back', at, '[0,0]')
+
+      // Both real callers wrap, so the ends of the list are not walls.
+      await pressKey('ArrowLeft')
+      await is('going back from the first wraps to the last', at, '[2,2]')
+      await pressKey('ArrowRight')
+      await is('and forward from the last wraps to the first', at, '[0,0]')
     },
   },
 

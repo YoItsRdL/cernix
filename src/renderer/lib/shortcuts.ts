@@ -74,6 +74,15 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ],
   },
   {
+    title: 'The window',
+    note: 'Anywhere in the app.',
+    shortcuts: [
+      { keys: 'mod + -', what: 'Zoom the interface out, for more room on a scaled screen' },
+      { keys: 'mod + +', what: 'Zoom the interface in' },
+      { keys: 'mod + 0', what: 'Back to the unzoomed size' },
+    ],
+  },
+  {
     title: 'Editing',
     shortcuts: [
       { keys: '\\', what: 'Hold to see the untouched original' },

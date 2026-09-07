@@ -258,7 +258,7 @@ export class DriveClient {
         body: JSON.stringify({ role: 'reader', type: 'anyone' }),
       }
     )
-    if (!response.ok) throw new Error(`Share failed (${response.status})`)
+    if (!response.ok) throw new Error(`Share failed (${response.status}): ${await response.text()}`)
   }
 
   /** List file names in a folder (used for duplicate detection before copy) */

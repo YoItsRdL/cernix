@@ -11,6 +11,8 @@ import {
   sortFilesOldestFirst, sortFolders 
 } from '../utils/distiller-utils'
 import { messageOf } from '../../../../shared/errors'
+import { logActivity, drivePath, count, nameList } from '@/lib/activity-log'
+import { matchesRatingFilter, ratingFilterDescription, type RatingFilter } from '@/lib/rating-filter'
 
 /** Everything the Workstation does to a Drive folder: browse, select,
  *  rename, move, trash and their undos. */
@@ -24,7 +26,7 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const [ratings, setRatings] = useState<Map<string, RatingRecord>>(new Map())
-  const [starsFilter, setStarsFilter] = useState<number | null>(null)
+  const [ratingFilter, setRatingFilterState] = useState<RatingFilter>('all')
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid')
   // null means "no one has asked for a count, follow the width". The
   // viewport derives that from GRID_TARGET_THUMB and reports it back as
@@ -74,20 +76,18 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
   // ── Derived State ──
   useEffect(() => { currentFolderRef.current = currentFolderId })
 
-  const visibleFiles = useMemo(() => {
-    const visible: DriveFile[] = []
-    for (const f of files) {
-      const r = ratings.get(f.id)
-      if (!r) {
-         visible.push(f)
-         continue
-      }
-      const eff = (r.userStars ?? 0) as number
-      if (starsFilter !== null && eff !== starsFilter) continue
-      visible.push(f)
-    }
-    return visible
-  }, [files, ratings, starsFilter])
+  /**
+   * The files the filter admits.
+   *
+   * The predicate is shared with Local Archive rather than written here:
+   * this one used to compare stars for equality, so asking for three hid
+   * the four- and five-star frames, and it pushed an unrated file before
+   * consulting the filter at all, so filtering to five returned the
+   * five-star frames plus everything nobody had looked at yet.
+   */
+  const visibleFiles = useMemo(
+    () => files.filter(f => matchesRatingFilter(ratings.get(f.id), ratingFilter)),
+    [files, ratings, ratingFilter])
 
   // ── Stable Actions ──
 
@@ -184,11 +184,37 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
   }, [currentFolderId, loadContents])
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  /**
+   * Names and paths for the Output drawer.
+   *
+   * Every line the user's actions write is by name and full path. Main
+   * only ever sees Drive ids, so it logged "Moving 3 item(s)…" and a
+   * progress count; an id answers none of the questions a log is opened
+   * to answer. The trail is the only record of where the current folder
+   * sits, and it is already on screen, so no request is needed to say
+   * where something went.
+   */
+  const nameById = useMemo(() => {
+    const byId = new Map<string, string>()
+    for (const f of folders) byId.set(f.id, f.name)
+    for (const f of files) byId.set(f.id, f.name)
+    for (const f of focusFiles ?? []) byId.set(f.id, f.name)
+    return byId
+  }, [folders, files, focusFiles])
+
+  /** A name for an id, falling back to the id so a line is never blank. */
+  const nameOf = useCallback((id: string) => nameById.get(id) ?? id, [nameById])
+  /** The folder on screen, as a path. */
+  const here = useCallback(() => drivePath(breadcrumbs), [breadcrumbs])
+  const namesOf = useCallback(
+    (ids: ReadonlyArray<string>) => nameList(ids.map(nameOf)), [nameOf])
+
   const navigateToFolder = useCallback((folder: DriveFolder) => {
     setCurrentFolderId(folder.id)
     setBreadcrumbs(prev => {
-      if (prev.some(c => c.id === folder.id)) return prev
-      return [...prev, { id: folder.id, name: folder.name }]
+      const next = prev.some(c => c.id === folder.id) ? prev : [...prev, { id: folder.id, name: folder.name }]
+      logActivity('drive', 'info', `OPEN ${drivePath(next)}`)
+      return next
     })
   }, [])
 
@@ -200,6 +226,8 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
   }, [breadcrumbs])
 
   const handleSetStars = useCallback((fileId: string, stars: RatingStars | null) => {
+    logActivity('drive', 'info',
+      `RATE ${here()}/${nameOf(fileId)}  ${stars === null ? 'cleared' : `${stars}★`}`)
     setRatings(prev => {
       const next = new Map(prev)
       const existing = next.get(fileId) ?? { fileId, userStars: null, flag: null, updatedAt: Date.now() }
@@ -207,9 +235,11 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
       return next
     })
     window.electronAPI.ratingSetStars(fileId, stars).catch(() => {})
-  }, [])
+  }, [here, nameOf])
 
   const handleSetFlag = useCallback((fileId: string, flag: RatingFlag) => {
+    logActivity('drive', 'info',
+      `FLAG ${here()}/${nameOf(fileId)}  ${flag === null ? 'cleared' : String(flag)}`)
     setRatings(prev => {
       const next = new Map(prev)
       const existing = next.get(fileId) ?? { fileId, userStars: null, flag: null, updatedAt: Date.now() }
@@ -217,7 +247,7 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
       return next
     })
     window.electronAPI.ratingSetFlag(fileId, flag).catch(() => {})
-  }, [])
+  }, [here, nameOf])
 
   // The order the viewport actually paints: folders first, then the
   // files that survived the filters. Ranges walk this, so it has to
@@ -359,6 +389,18 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
       return
     }
 
+    // Resolved before the move, not after: once the items have gone the
+    // folder reloads and nothing can say where they came from.
+    const from = here()
+    const targetName = nameOf(targetId)
+    const toPath = breadcrumbs.some(c => c.id === targetId)
+      ? drivePath(breadcrumbs.slice(0, breadcrumbs.findIndex(c => c.id === targetId) + 1))
+      : drivePath(breadcrumbs, targetName)
+    const moving = ids.map(nameOf)
+    for (const name of moving) {
+      logActivity('drive', 'info', `MOVE ${from}/${name}  ->  ${toPath}/${name}`)
+    }
+
     const tid = toast.loading(`Moving ${ids.length} item${ids.length === 1 ? '' : 's'}…`)
     try {
       const source = currentFolderId
@@ -369,6 +411,9 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
       const label = `Move ${ids.length} item${ids.length === 1 ? '' : 's'}`
       const undoMove = async () => {
         await window.electronAPI.driveMoveBatch(ids, source, targetId)
+        for (const name of moving) {
+          logActivity('drive', 'info', `MOVE (undo) ${toPath}/${name}  ->  ${from}/${name}`)
+        }
         toast.success('Move undone.')
         if (currentFolderRef.current) loadContents(currentFolderRef.current)
       }
@@ -376,44 +421,57 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
 
       const action = { label: 'Undo', onClick: () => { void undoMove() } }
       if (result.failed > 0) {
+        logActivity('drive', 'warn',
+          `Moved ${result.done}/${result.total} to ${toPath}. ${count(result.failed, 'item')} failed.`)
         toast.warning(`Moved ${result.done}/${result.total}. ${result.failed} failed.`, { id: tid, action })
       } else {
+        logActivity('drive', 'success', `Moved ${count(result.done, 'item')} to ${toPath}.`)
         toast.success(`Moved ${result.done} item${result.done === 1 ? '' : 's'}.`, { id: tid, action })
       }
       setSelected(new Set())
       setFocusFiles(null)
       loadContents(currentFolderId)
     } catch (err) {
+      logActivity('drive', 'error', `MOVE to ${toPath} failed: ${messageOf(err)}`)
       toast.error('Move failed: ' + messageOf(err), { id: tid })
     }
-  }, [pendingMove, currentFolderId, loadContents, pushUndo])
+  }, [pendingMove, currentFolderId, loadContents, pushUndo, here, nameOf, breadcrumbs])
 
   const handleRename = useCallback(async (id: string) => {
     if (!renameValue.trim()) { setRenaming(null); return }
+    const was = nameOf(id)
+    const now = renameValue.trim()
     try {
-      await window.electronAPI.driveRenameFile(id, renameValue.trim())
+      await window.electronAPI.driveRenameFile(id, now)
+      logActivity('drive', 'success', `RENAME ${here()}/${was}  ->  ${here()}/${now}`)
       setRenaming(null)
       if (currentFolderId) loadContents(currentFolderId)
     } catch (err) {
+      logActivity('drive', 'error', `RENAME ${here()}/${was} failed: ${messageOf(err)}`)
       toast.error(messageOf(err))
     }
-  }, [renameValue, currentFolderId, loadContents])
+  }, [renameValue, currentFolderId, loadContents, nameOf, here])
 
   const handleCreateFolder = useCallback(async () => {
     if (!newFolderName.trim() || !currentFolderId) return
     try {
-      await window.electronAPI.driveCreateFolder(currentFolderId, newFolderName.trim())
+      const name = newFolderName.trim()
+      await window.electronAPI.driveCreateFolder(currentFolderId, name)
+      logActivity('drive', 'success', `NEW FOLDER ${here()}/${name}`)
       setCreatingFolder(false)
       setNewFolderName('')
       loadContents(currentFolderId)
     } catch (err) {
+      logActivity('drive', 'error', `NEW FOLDER in ${here()} failed: ${messageOf(err)}`)
       toast.error(messageOf(err))
     }
-  }, [newFolderName, currentFolderId, loadContents])
+  }, [newFolderName, currentFolderId, loadContents, here])
 
   const handleTrashBatch = useCallback(async (ids: string[]) => {
     const total = ids.length
     if (total === 0) return
+    const from = here()
+    for (const name of ids.map(nameOf)) logActivity('drive', 'info', `TRASH ${from}/${name}`)
     const tid = toast.loading(`Trashing 0 / ${total} items…`)
     const unsub = window.electronAPI.onTrashProgress((p) => {
        toast.loading(`Trashing ${p.done} / ${p.total} items…`, { id: tid })
@@ -424,26 +482,34 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
 
       const undoTrash = async () => {
         await window.electronAPI.driveUntrashBatch(ids)
+        logActivity('drive', 'success', `RESTORE ${count(ids.length, 'item')} to ${from}: ${namesOf(ids)}`)
         toast.success('Restored from trash.')
         if (currentFolderRef.current) loadContents(currentFolderRef.current)
       }
       pushUndo({ label: `Trash ${ids.length} item${ids.length === 1 ? '' : 's'}`, undo: undoTrash })
 
       const action = { label: 'Undo', onClick: () => { void undoTrash() } }
-      if (result.failed > 0) toast.warning(`Trashed ${result.done}/${total}. ${result.failed} failed.`, { id: tid, action })
-      else toast.success(`Trashed ${result.done} items.`, { id: tid, action })
+      if (result.failed > 0) {
+        logActivity('drive', 'warn', `Trashed ${result.done}/${total} from ${from}. ${count(result.failed, 'item')} failed.`)
+        toast.warning(`Trashed ${result.done}/${total}. ${result.failed} failed.`, { id: tid, action })
+      } else {
+        logActivity('drive', 'success', `Trashed ${count(result.done, 'item')} from ${from}.`)
+        toast.success(`Trashed ${result.done} items.`, { id: tid, action })
+      }
       setFocusFiles(null)
       setSelected(new Set())
       if (currentFolderId) loadContents(currentFolderId)
     } catch (err) {
       if (unsub) unsub()
+      logActivity('drive', 'error', `TRASH from ${from} failed: ${messageOf(err)}`)
       toast.error('Trash failed: ' + messageOf(err), { id: tid })
     }
-  }, [currentFolderId, loadContents, pushUndo])
+  }, [currentFolderId, loadContents, pushUndo, here, nameOf, namesOf])
 
   const handleDownloadBatch = useCallback(async (items: { id: string; name: string }[]) => {
     const total = items.length
     if (total === 0) return
+    logActivity('drive', 'info', `DOWNLOAD ${count(total, 'item')} from ${here()}: ${nameList(items.map(i => i.name))}`)
     const tid = toast.loading(`Downloading 0 / ${total}…`)
     const unsub = window.electronAPI.onDownloadProgress((p) => {
       toast.loading(`Downloading ${p.done} / ${p.total}…`, { id: tid })
@@ -452,13 +518,19 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
       const result = await window.electronAPI.driveDownloadBatch(items)
       unsub()
       if (result.saved === 0) toast.dismiss(tid)
-      else if (result.failed && result.failed > 0) toast.warning(`Saved ${result.saved}/${total}. ${result.failed} failed.`, { id: tid })
-      else toast.success(`Saved ${result.saved} items.`, { id: tid })
+      else if (result.failed && result.failed > 0) {
+        logActivity('drive', 'warn', `Saved ${result.saved}/${total}. ${count(result.failed, 'item')} failed.`)
+        toast.warning(`Saved ${result.saved}/${total}. ${result.failed} failed.`, { id: tid })
+      } else {
+        logActivity('drive', 'success', `Saved ${count(result.saved, 'item')} to disk.`)
+        toast.success(`Saved ${result.saved} items.`, { id: tid })
+      }
     } catch (err) {
       if (unsub) unsub()
+      logActivity('drive', 'error', `DOWNLOAD failed: ${messageOf(err)}`)
       toast.error('Download failed: ' + messageOf(err), { id: tid })
     }
-  }, [])
+  }, [here])
 
   const handleStageForEditing = useCallback(async (items: { id: string; name: string }[]) => {
     const total = items.length
@@ -500,13 +572,42 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
     onOpenEditor
   ])
 
+  /**
+   * Change the filter, and drop from the selection anything it hides.
+   *
+   * The alternative is a selection that reaches past what is on screen,
+   * and this codebase has already decided that question once: navigating
+   * to another folder clears the selection because the header said
+   * "1 selected" about something nobody could see, and Trash and Download
+   * would have acted on it. A filter hides items exactly the same way, so
+   * it gets the same answer rather than a second one.
+   *
+   * Narrowed rather than cleared: what is still on screen was chosen
+   * deliberately and turning a filter on to tidy the view should not
+   * throw that away.
+   */
+  const setRatingFilter = useCallback((next: RatingFilter) => {
+    setRatingFilterState(next)
+    logActivity('drive', 'info', `FILTER ${here()}  ${ratingFilterDescription(next)}`)
+    setSelected(prev => {
+      if (prev.size === 0) return prev
+      const kept = new Set<string>()
+      for (const f of files) {
+        if (prev.has(f.id) && matchesRatingFilter(ratings.get(f.id), next)) kept.add(f.id)
+      }
+      // Folders are never filtered by a rating, so a selected one stays.
+      for (const f of folders) if (prev.has(f.id)) kept.add(f.id)
+      return kept.size === prev.size ? prev : kept
+    })
+  }, [files, folders, ratings, here])
+
   const setters = useMemo(() => ({
-    setStarsFilter, setViewMode, setColumnOverride, setAutoMaxColumns,
+    setRatingFilter, setViewMode, setColumnOverride, setAutoMaxColumns,
     setLightboxId, setRenaming, setRenameValue, setCreatingFolder, setNewFolderName,
     setDefaultColumns,
     setContextMenu, setFocusedId, setSelected, setShowInspector, setFocusFiles,
     setDraggingIds
-  }), [])
+  }), [setRatingFilter])
 
   const refs = useMemo(() => ({
     renameInputRef, newFolderInputRef
@@ -515,7 +616,7 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
   return {
     state: {
       currentFolderId, rootFolderId, folders, files, loading, selected, focusedId,
-      ratings, starsFilter, viewMode, columnOverride, autoMaxColumns, defaultColumns,
+      ratings, ratingFilter, viewMode, columnOverride, autoMaxColumns, defaultColumns,
       lightboxId, breadcrumbs, renaming, renameValue, creatingFolder, newFolderName,
       contextMenu, focusFiles, focusLabel, showInspector, visibleFiles,
       draggingIds, pendingMove,

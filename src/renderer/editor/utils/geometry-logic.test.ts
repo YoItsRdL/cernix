@@ -6,7 +6,10 @@ import {
   panToScreenDelta,
   cropToTransform,
   transformToCrop,
+  calculateStageLayout,
+  inscribedCrop,
 } from './geometry-logic'
+import { FRAME_PRESETS, findFrame } from '../../../shared/frame-presets'
 
 /**
  * The editor's coordinate maths.
@@ -164,6 +167,151 @@ describe('cropToTransform and transformToCrop are inverses', () => {
       expect(c.h, `${label} h`).toBeGreaterThan(0)
       expect(c.x + c.w, `${label} right edge`).toBeLessThanOrEqual(1 + 1e-9)
       expect(c.y + c.h, `${label} bottom edge`).toBeLessThanOrEqual(1 + 1e-9)
+    }
+  })
+})
+
+/**
+ * Where a frame puts the photograph.
+ *
+ * `calculateStageLayout` is what both the preview and the export ask,
+ * and they share a shader so they cannot disagree about it. That makes
+ * this the furthest the frame path can be checked without a GPU, a raw
+ * file and a real editor session — which is exactly the gap that let a
+ * frame ship in the picker and fail on export before.
+ */
+describe('a frame places the photograph in its cutout', () => {
+  const FIND = (id: string | null) => findFrame(id)
+  const FULL = { x: 0, y: 0, w: 1, h: 1 }
+  const layoutFor = (id: string, container = { width: 1200, height: 900 }) =>
+    calculateStageLayout(
+      container,
+      { w: 4000, h: 3000 },
+      { orientation: 0, frame: id, crop: null },
+      'idle',
+      FIND,
+      FULL,
+      1,
+    )
+
+  it('every shipped preset produces a layout', () => {
+    for (const preset of FRAME_PRESETS) expect(layoutFor(preset.id)).not.toBeNull()
+  })
+
+  // The cutout is a window in the frame. A photograph placed outside it
+  // is painted over by the frame, or off the exported image entirely.
+  it('keeps every cutout inside the frame box it belongs to', () => {
+    for (const preset of FRAME_PRESETS) {
+      const l = layoutFor(preset.id)!
+      const { boxX, boxY, boxW, boxH, cutout } = l.frame!
+      const inside =
+        cutout.x >= boxX - 1e-6 &&
+        cutout.y >= boxY - 1e-6 &&
+        cutout.x + cutout.w <= boxX + boxW + 1e-6 &&
+        cutout.y + cutout.h <= boxY + boxH + 1e-6
+      expect({ id: preset.id, inside }).toEqual({ id: preset.id, inside: true })
+    }
+  })
+
+  // The whole point of a frame is the shape of its window. If the
+  // layout does not preserve the aspect the PNG was measured at, the
+  // photograph is stretched into it.
+  it('preserves each cutout aspect from the preset table', () => {
+    for (const preset of FRAME_PRESETS) {
+      const l = layoutFor(preset.id)!
+      const wanted = preset.cutout.w / preset.cutout.h
+      const got = l.frame!.cutout.w / l.frame!.cutout.h
+      expect({ id: preset.id, ok: near(wanted, got, 1e-6) }).toEqual({ id: preset.id, ok: true })
+    }
+  })
+
+  // The new preset specifically: a landscape window in a portrait card,
+  // so the cutout must be wider than it is tall while the frame is not.
+  it('gives the landscape preset a landscape window in a portrait card', () => {
+    const preset = findFrame('classic-landscape')!
+    const l = layoutFor('classic-landscape')!
+    expect(preset.outer.w / preset.outer.h).toBeLessThan(1)
+    expect(l.frame!.cutout.w / l.frame!.cutout.h).toBeGreaterThan(1)
+    // And it sits below the top of the card rather than flush with it,
+    // which is what the band above the photograph is.
+    expect(l.frame!.cutout.y).toBeGreaterThan(l.frame!.boxY)
+  })
+
+  it('fits the frame inside the container in either window shape', () => {
+    for (const container of [{ width: 1200, height: 900 }, { width: 700, height: 1200 }]) {
+      const l = layoutFor('classic-landscape', container)!
+      const { boxW, boxH } = l.frame!
+      expect(boxW).toBeLessThanOrEqual(container.width + 1e-6)
+      expect(boxH).toBeLessThanOrEqual(container.height + 1e-6)
+    }
+  })
+})
+
+/**
+ * The auto-crop rectangle.
+ *
+ * It lived inside GeometryPanel, private to a React component, which is
+ * why the maths that decides how much of a straightened photograph
+ * survives had no test at all. Here it is a function of four numbers.
+ */
+describe('the inscribed crop for a straightened photograph', () => {
+  const LANDSCAPE = { w: 4000, h: 3000 }
+
+  it('asks for no crop when the photograph is not straightened', () => {
+    expect(inscribedCrop(LANDSCAPE.w, LANDSCAPE.h, 0, 0)).toBeNull()
+    // A hair off level is not worth cropping for, and cropping for it
+    // would throw away pixels every time a slider is nudged and released.
+    expect(inscribedCrop(LANDSCAPE.w, LANDSCAPE.h, 0, 0.01)).toBeNull()
+  })
+
+  it('crops symmetrically about the centre', () => {
+    const r = inscribedCrop(LANDSCAPE.w, LANDSCAPE.h, 0, 16.9)!
+    expect(near(r.x, (1 - r.w) / 2)).toBe(true)
+    expect(near(r.y, (1 - r.h) / 2)).toBe(true)
+  })
+
+  it('takes the same rectangle whichever way the angle leans', () => {
+    const left = inscribedCrop(LANDSCAPE.w, LANDSCAPE.h, 0, -16.9)!
+    const right = inscribedCrop(LANDSCAPE.w, LANDSCAPE.h, 0, 16.9)!
+    expect(near(left.w, right.w)).toBe(true)
+    expect(near(left.h, right.h)).toBe(true)
+  })
+
+  // The rectangle must fit inside the photograph, or the crop reaches
+  // past the edge and the corners it exists to remove come back.
+  it('stays inside the photograph at every angle it accepts', () => {
+    for (let deg = 0.1; deg <= 44; deg += 0.7) {
+      const r = inscribedCrop(LANDSCAPE.w, LANDSCAPE.h, 0, deg)
+      if (!r) continue
+      const ok = r.x >= 0 && r.y >= 0 && r.x + r.w <= 1 + 1e-9 && r.y + r.h <= 1 + 1e-9
+      expect({ deg: Math.round(deg * 10) / 10, ok }).toEqual({ deg: Math.round(deg * 10) / 10, ok: true })
+    }
+  })
+
+  it('keeps less of the photograph the further it is turned', () => {
+    const areas = [5, 10, 20, 30].map(d => {
+      const r = inscribedCrop(LANDSCAPE.w, LANDSCAPE.h, 0, d)!
+      return r.w * r.h
+    })
+    for (let i = 1; i < areas.length; i++) expect(areas[i]).toBeLessThan(areas[i - 1])
+  })
+
+  // A quarter-turn swaps the axes twice over: once for the display the
+  // user is straightening, once converting back to source coordinates.
+  // The two cancel, so the crop in source terms is the same rectangle.
+  it('agrees with itself across a quarter-turn', () => {
+    const upright = inscribedCrop(LANDSCAPE.w, LANDSCAPE.h, 0, 16.9)!
+    const turned = inscribedCrop(LANDSCAPE.w, LANDSCAPE.h, 90, 16.9)!
+    expect(near(upright.w, turned.w)).toBe(true)
+    expect(near(upright.h, turned.h)).toBe(true)
+  })
+
+  it('refuses rather than returning a degenerate rectangle', () => {
+    // Past 45° the inscribed rectangle collapses; the guard must return
+    // null instead of a negative or inverted rect.
+    for (const deg of [45, 60, 89]) {
+      const r = inscribedCrop(LANDSCAPE.w, LANDSCAPE.h, 0, deg)
+      expect(r === null || (r.w > 0 && r.h > 0)).toBe(true)
     }
   })
 })
