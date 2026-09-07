@@ -1,5 +1,62 @@
 # Cernix Workstation Changelog
 
+## [1.2.0] - 2026-09-07
+
+### Added
+- **Filter the library by rating.** All, one star and above through five,
+  or picks only. The app has stored a star and a pick for every
+  photograph since it was written and offered no way to act on either:
+  you could spend an hour rating two thousand frames and the grid still
+  showed all of them, in the same order.
+
+  Workstation only for now. Local Archive records no ratings at all yet,
+  so a filter there would be a control over a permanently empty set.
+
+- **The Output drawer records what you did.** It was fed only by the
+  main process, which sees Drive ids, so moving three files logged
+  "Moving 3 item(s)…" and a progress count — naming neither the files
+  nor where they went. A move now reads
+  `MOVE /Cernix/2025/DSC_0001.ARW  ->  /Cernix/2026/Keepers/DSC_0001.ARW`,
+  one line per file, and opening a folder, renaming, trashing,
+  restoring, downloading, rating, flagging, scanning, importing and
+  sharing each say what happened. Local paths are absolute, because the
+  point of a line about a file leaving is being able to go and find it.
+
+- **The sidebar shows where you are.** It listed only the current
+  folder's children, so arriving anywhere with none of its own emptied
+  the panel to "No folders" — at the point where knowing your position
+  matters most. It draws the trail as a tree now, with the folder you
+  are in marked and its children below, walkable with the arrow keys.
+
+- **Zoom the interface** with Ctrl and `-`, `+` or `0`, remembered
+  between launches. Removing the menu bar took Chromium's own zoom
+  accelerators with it, so on Windows and Linux there was no way to zoom
+  at all. macOS keeps its menu and already had them.
+
+- **A landscape frame preset**: the same card as Classic, with the
+  photograph in a landscape window and a band above and below.
+
+### Fixed
+- **The Share button says when Drive refuses.** It discarded the
+  response body, so a scope error and a rate limit were indistinguishable
+  and the button simply appeared to do nothing.
+- **Enter during a crop crops.** The crop overlay and the Workstation
+  grid both listened for Enter on the window, so Enter committed the
+  crop and also opened whatever folder still held the focus behind the
+  editor, which read as being thrown out of the editor.
+- **Auto-crop no longer overwrites a crop you saved.** It ran when the
+  editor opened, not only when you straightened, and the panel is created
+  fresh for every photograph — so a composition made by hand did not
+  survive being looked at.
+- **Removing a frame removes its positioning.** Choosing None left the
+  photograph scaled and panned to fit a cutout that no longer existed, so
+  it stayed zoomed in as though the frame were still applied.
+- **A frame under 4KB is no longer shipped unreachable.** Vite inlines
+  small assets as data URIs, and the packaged security policy allows
+  those for images but not for `fetch`, which is how frames are loaded.
+  Such a frame appeared correctly in the picker and then failed on
+  export.
+
 ## [1.1.2] - 2026-09-05
 
 ### Fixed
