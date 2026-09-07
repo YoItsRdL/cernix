@@ -379,6 +379,165 @@ module.exports = [
   },
 
   {
+    name: 'filtering the library by rating',
+    harness: 'distiller-rating',
+    async run({ run, is }) {
+      // Twelve files: 5,4,3,2,1 stars on file-1..5, an unrated pick on
+      // file-6, five stars and a pick on file-7, and file-8..12 with no
+      // rating record at all.
+      // The pager's total, not the tiles on screen: the grid pages, so a
+      // tile count cannot tell filtering from paging. This is also the
+      // number the header is required to get right.
+      //
+      // The one folder is always in it. A folder carries no rating, so
+      // filtering by one must not make folders disappear and strand the
+      // user with no way down the tree - which is why the totals below
+      // are the file count plus one rather than the file count.
+      const total = () => run('__total()')
+      const label = () => run('__filterLabel()')
+      // `__ui.open` for the item as well as the trigger: it sends the
+      // whole pointerdown/pointerup/click sequence, and Radix binds its
+      // close to that rather than to a bare click. A plain click changed
+      // the value and left the menu standing open over the grid, which is
+      // not what a person does and hid the fact that it never closed.
+      const pick = async (text) => {
+        await run('__ui.open(__filterTrigger())')
+        await run(`__ui.open(__ui.menuItem(${JSON.stringify(text)}))`)
+        // Escape rather than relying on the selection to dismiss it.
+        // Radix closes on its own pointer sequence and synthetic events do
+        // not reproduce it faithfully, so the menu stays open here in a
+        // way it does not for a person. Dismissing explicitly keeps the
+        // next assertion looking at the grid rather than through a menu;
+        // that selecting also closes it is Radix's behaviour and is not
+        // verified here.
+        await run(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
+      }
+
+      await is('everything is counted to begin with', total, 13)
+      await is('and the header says so', label, 'All')
+
+      // Asserted before anything else reads it. The label lives on a
+      // `textContent`, which a `display: none` element still has, so
+      // every assertion about the header being legible was passing on a
+      // control that was not on screen: the five-star strip this replaced
+      // was hidden below a breakpoint, and the replacement had inherited
+      // the same class.
+      await is('and the control is actually on screen', () => run(`(() => {
+        const el = __filterTrigger()
+        return !!el && !!el.offsetParent && el.getBoundingClientRect().width > 0
+      })()`), true)
+
+      // A threshold, not an equality. The control this replaced compared
+      // stars for equality, so asking for three hid the four- and
+      // five-star frames.
+      await pick('≥ 3')
+      await is('three and up keeps the better ratings too', total, 5)
+      await is('the header carries the filter without being opened', label, '≥ 3')
+
+      // The regression that matters most: five files here have no rating
+      // record, and the old predicate admitted them before it consulted
+      // the filter at all.
+      await pick('≥ 5')
+      await is('an unrated photograph does not pass a threshold', total, 3)
+
+      await pick('≥ 1')
+      await is('one and up excludes a zero-star frame', total, 7)
+
+      await is('the folder survives a filter it cannot satisfy',
+        () => run('!!__ui.tile("Keepers")'), true)
+
+      await pick('Picks')
+      await is('picks are their own decision, stars or not', total, 3)
+      await is('and the header says Picks', label, 'Picks')
+
+      await pick('All')
+      await is('and everything comes back', total, 13)
+
+      // Everything the mouse can do, the keyboard can do. The control it
+      // replaced was five icon buttons, reachable but never labelled as a
+      // group; this is one control that says what it is set to.
+      // `focusVisible: true` because the ring is `focus-visible:ring-1`,
+      // and Chromium only sets that pseudo-class for focus it believes
+      // came from the keyboard. A plain `.focus()` leaves the element
+      // focused with no ring, so measuring one would report a control
+      // with no visible focus when it has one.
+      // Focused inside the poll, which is normally the mistake that makes
+      // a probe unfalsifiable - but focusing is idempotent, and Radix
+      // restores focus asynchronously as the menu unmounts, so a single
+      // shot races that restore and lands wherever it hands back to. If
+      // the control could not take focus at all this would still fail.
+      await is('the trigger takes focus', () => run(
+        '__filterTrigger().focus({ focusVisible: true }), document.activeElement === __filterTrigger()'
+      ), true)
+      await is('and is in the tab order',
+        () => run('__filterTrigger().tabIndex >= 0'), true)
+      // The ring is declared, not measured rendering. It is
+      // `focus-visible:`, and Chromium sets that pseudo-class only for
+      // focus it believes came from a real key press: `focus({
+      // focusVisible: true })` does not persuade it, and a suite cannot
+      // reach `CSS.forcePseudoState`, which needs the debugger from the
+      // runner side. So this asserts the control carries a focus-visible
+      // ring rather than that the ring paints.
+      await is('and declares a focus-visible ring', () => run(`(() => {
+        const c = __filterTrigger().className
+        return /focus-visible:(ring|outline)/.test(c)
+      })()`), true)
+
+      await run(`__filterTrigger().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`)
+      await is('Enter opens the menu', () => run(`!!__ui.menuItem('Picks')`), true)
+      await run(`__ui.open(__ui.menuItem('Picks'))`)
+      await is('and an option can be chosen without a mouse', label, 'Picks')
+    },
+  },
+
+  {
+    name: 'the filter, paging and the selection agree',
+    harness: 'distiller-rating',
+    async run({ run, is }) {
+      const total = () => run('__total()')
+      // Deliberately does not dismiss the menu, unlike the sibling suite:
+      // Escape is bound to "clear the selection", so dismissing that way
+      // emptied the very thing under test and the narrowing assertion
+      // below passed with the narrowing removed. The menu standing open
+      // does not affect a pager readout or a header count.
+      const pick = async (text) => {
+        await run('__ui.open(__filterTrigger())')
+        await run(`__ui.open(__ui.menuItem(${JSON.stringify(text)}))`)
+      }
+
+      // Paging. Narrowing thirteen items to three while standing on the
+      // second page must not strand the user on a page that no longer
+      // exists, showing an empty grid and a pager that disagrees with it.
+      await run('__ui.open(__ui.pageSizeTrigger())')
+      await run(`__ui.click(__ui.menuItem('10 per page'))`)
+      await is('ten to a page', () => run('__ui.pagerCount()'), '1–10 of 13')
+      await run(`__ui.click(__ui.button('2'))`)
+      await is('and the second page is a place', () => run('__ui.pagerCount()'), '11–13 of 13')
+
+      await pick('≥ 5')
+      await is('the page clamps rather than stranding the user',
+        () => run('__ui.pagerCount()'), '1–3 of 3')
+      await is('and there is something on it', () => run('__fileTiles()'), 2)
+
+      // The selection. Navigating to another folder already clears it,
+      // because the header said "1 selected" about something nobody could
+      // see and Trash and Download would have acted on it. A filter hides
+      // items the same way, so it gets the same answer: the selection is
+      // narrowed to what survived rather than reaching past the screen.
+      await pick('All')
+      await run('__ui.key("a", { ctrlKey: true })')
+      await is('everything is selected', () => run('__ui.selectedCount() > 0'), true)
+      const before = await run('__selectedTotal()')
+
+      await pick('≥ 5')
+      await is('the selection is narrowed to what the filter left',
+        () => run('__selectedTotal() < ' + before), true)
+      await is('and nothing selected is off screen',
+        () => run('__selectedTotal() <= __total()'), true)
+    },
+  },
+
+  {
     name: 'auto-crop follows the straighten, not the opening',
     harness: 'geometry',
     async run({ run, is }) {

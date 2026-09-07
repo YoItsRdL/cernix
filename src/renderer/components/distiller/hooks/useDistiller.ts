@@ -12,6 +12,7 @@ import {
 } from '../utils/distiller-utils'
 import { messageOf } from '../../../../shared/errors'
 import { logActivity, drivePath, count, nameList } from '@/lib/activity-log'
+import { matchesRatingFilter, ratingFilterDescription, type RatingFilter } from '@/lib/rating-filter'
 
 /** Everything the Workstation does to a Drive folder: browse, select,
  *  rename, move, trash and their undos. */
@@ -25,7 +26,7 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const [ratings, setRatings] = useState<Map<string, RatingRecord>>(new Map())
-  const [starsFilter, setStarsFilter] = useState<number | null>(null)
+  const [ratingFilter, setRatingFilterState] = useState<RatingFilter>('all')
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid')
   // null means "no one has asked for a count, follow the width". The
   // viewport derives that from GRID_TARGET_THUMB and reports it back as
@@ -75,20 +76,18 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
   // ── Derived State ──
   useEffect(() => { currentFolderRef.current = currentFolderId })
 
-  const visibleFiles = useMemo(() => {
-    const visible: DriveFile[] = []
-    for (const f of files) {
-      const r = ratings.get(f.id)
-      if (!r) {
-         visible.push(f)
-         continue
-      }
-      const eff = (r.userStars ?? 0) as number
-      if (starsFilter !== null && eff !== starsFilter) continue
-      visible.push(f)
-    }
-    return visible
-  }, [files, ratings, starsFilter])
+  /**
+   * The files the filter admits.
+   *
+   * The predicate is shared with Local Archive rather than written here:
+   * this one used to compare stars for equality, so asking for three hid
+   * the four- and five-star frames, and it pushed an unrated file before
+   * consulting the filter at all, so filtering to five returned the
+   * five-star frames plus everything nobody had looked at yet.
+   */
+  const visibleFiles = useMemo(
+    () => files.filter(f => matchesRatingFilter(ratings.get(f.id), ratingFilter)),
+    [files, ratings, ratingFilter])
 
   // ── Stable Actions ──
 
@@ -573,13 +572,42 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
     onOpenEditor
   ])
 
+  /**
+   * Change the filter, and drop from the selection anything it hides.
+   *
+   * The alternative is a selection that reaches past what is on screen,
+   * and this codebase has already decided that question once: navigating
+   * to another folder clears the selection because the header said
+   * "1 selected" about something nobody could see, and Trash and Download
+   * would have acted on it. A filter hides items exactly the same way, so
+   * it gets the same answer rather than a second one.
+   *
+   * Narrowed rather than cleared: what is still on screen was chosen
+   * deliberately and turning a filter on to tidy the view should not
+   * throw that away.
+   */
+  const setRatingFilter = useCallback((next: RatingFilter) => {
+    setRatingFilterState(next)
+    logActivity('drive', 'info', `FILTER ${here()}  ${ratingFilterDescription(next)}`)
+    setSelected(prev => {
+      if (prev.size === 0) return prev
+      const kept = new Set<string>()
+      for (const f of files) {
+        if (prev.has(f.id) && matchesRatingFilter(ratings.get(f.id), next)) kept.add(f.id)
+      }
+      // Folders are never filtered by a rating, so a selected one stays.
+      for (const f of folders) if (prev.has(f.id)) kept.add(f.id)
+      return kept.size === prev.size ? prev : kept
+    })
+  }, [files, folders, ratings, here])
+
   const setters = useMemo(() => ({
-    setStarsFilter, setViewMode, setColumnOverride, setAutoMaxColumns,
+    setRatingFilter, setViewMode, setColumnOverride, setAutoMaxColumns,
     setLightboxId, setRenaming, setRenameValue, setCreatingFolder, setNewFolderName,
     setDefaultColumns,
     setContextMenu, setFocusedId, setSelected, setShowInspector, setFocusFiles,
     setDraggingIds
-  }), [])
+  }), [setRatingFilter])
 
   const refs = useMemo(() => ({
     renameInputRef, newFolderInputRef
@@ -588,7 +616,7 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
   return {
     state: {
       currentFolderId, rootFolderId, folders, files, loading, selected, focusedId,
-      ratings, starsFilter, viewMode, columnOverride, autoMaxColumns, defaultColumns,
+      ratings, ratingFilter, viewMode, columnOverride, autoMaxColumns, defaultColumns,
       lightboxId, breadcrumbs, renaming, renameValue, creatingFolder, newFolderName,
       contextMenu, focusFiles, focusLabel, showInspector, visibleFiles,
       draggingIds, pendingMove,

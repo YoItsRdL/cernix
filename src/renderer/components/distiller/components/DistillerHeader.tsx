@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import {
   ChevronRight, Download, Trash2, Grid as GridIcon, List as ListIcon,
-  FolderPlus, PanelRight, RefreshCw, Star, X
+  FolderPlus, PanelRight, RefreshCw, X
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -9,6 +9,8 @@ import { BreadcrumbItem, MOVE_DRAG_MIME, readMoveDragIds } from '../distiller-ty
 import { Toolbar, TOOLBAR_CONTROL, ToolbarSeparator } from '@/components/ui/toolbar'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
+import { RatingFilterControl } from '@/components/ui/rating-filter-control'
+import type { RatingFilter } from '@/lib/rating-filter'
 
 interface DistillerHeaderProps {
   breadcrumbs: BreadcrumbItem[]
@@ -22,7 +24,7 @@ interface DistillerHeaderProps {
   draggingIds: string[] | null
   /** Ids armed by "Move to…", or null. Crumbs become destinations. */
   pendingMove: string[] | null
-  starsFilter: number | null
+  ratingFilter: RatingFilter
   loading: boolean
   showInspector: boolean
   actions: {
@@ -35,7 +37,7 @@ interface DistillerHeaderProps {
     setColumnOverride: (count: number | null) => void
     setCreatingFolder: (val: boolean) => void
     setShowInspector: (val: boolean | ((v: boolean) => boolean)) => void
-    setStarsFilter: (stars: number | null) => void
+    setRatingFilter: (next: RatingFilter) => void
     refresh: () => void
   }
 }
@@ -43,7 +45,7 @@ interface DistillerHeaderProps {
 export function DistillerHeader({
   breadcrumbs, selectedCount, viewMode, columnOverride,
   autoMaxColumns, defaultColumns, draggingIds, pendingMove,
-  starsFilter, loading, showInspector, actions
+  ratingFilter, loading, showInspector, actions
 }: DistillerHeaderProps) {
   const effectiveColumns = Math.min(columnOverride ?? defaultColumns, autoMaxColumns)
   const atMin = effectiveColumns <= 1
@@ -219,31 +221,16 @@ export function DistillerHeader({
 
       <ToolbarSeparator className="hidden @5xl:block" />
 
-      {/* Star filter. The widest control here by some way, so it is the
-          first thing to go when the panel narrows: the grid still shows
-          each asset's own stars, and the filter is reachable once the
-          inspector is closed or the window widened. */}
-      <div className="hidden @4xl:flex items-center gap-px bg-surface-workspace border border-border-subtle rounded-soft p-0.5 h-7 shrink-0">
-        {[1, 2, 3, 4, 5].map((n) => (
-          <IconButton
-            key={n}
-            icon={<Star size={12} className={(starsFilter ?? 0) >= n ? 'fill-status-warn text-status-warn' : ''} />}
-            aria-label={`Filter by ${n} stars`}
-            onClick={() => actions.setStarsFilter(starsFilter === n ? null : n)}
-            className={cn('h-6 w-6 p-0 rounded-nested hover:scale-110', (starsFilter ?? 0) >= n ? '' : 'opacity-50 hover:opacity-100')}
-          />
-        ))}
-        {starsFilter !== null && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => actions.setStarsFilter(null)}
-            className="ml-1 h-6 px-1.5 rounded-nested text-caption"
-          >
-            Clear
-          </Button>
-        )}
-      </div>
+      {/* The rating filter. Never hidden at a breakpoint, unlike the
+          five-star strip it replaced: that was the widest control in this
+          header and the first to go when the panel narrowed, which put
+          the only way to narrow the library behind a window resize. One
+          button is affordable at every width, and measured at 720px the
+          old one was already gone. */}
+      <RatingFilterControl
+        value={ratingFilter}
+        onChange={actions.setRatingFilter}
+      />
 
       <ToolbarSeparator className="hidden @3xl:block" />
 
