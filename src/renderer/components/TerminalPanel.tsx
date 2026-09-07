@@ -7,13 +7,15 @@
  * Nothing here leaves the process, and nothing is written to disk.
  *
  * It is self-contained on purpose: it subscribes to the sweep, upload
- * and editor IPC events itself and keeps its own buffer, capped at 500
+ * and editor IPC events itself, and to the renderer's own activity bus
+ * for what the user does, and keeps its own buffer, capped at 500
  * entries, so a long session cannot grow it without bound and no parent
  * has to thread log state down to it.
  */
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Terminal, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { onActivity } from '@/lib/activity-log'
 
 export interface LogEntry {
   timestamp: Date
@@ -111,6 +113,11 @@ export function TerminalPanel({ isOpen, onToggle }: TerminalPanelProps) {
       addLog(entry.level as LogEntry['level'] || 'info', entry.source || 'system', entry.message)
     })
 
+    // What the user did, from the renderer. Main sees ids; only this side
+    // knows the names and the folder trail, so the lines that say what
+    // happened to a photograph originate here rather than over IPC.
+    const unsubActivity = onActivity((e) => addLog(e.level, e.source, e.message))
+
     return () => {
       unsubProgress()
       unsubComplete()
@@ -119,6 +126,7 @@ export function TerminalPanel({ isOpen, onToggle }: TerminalPanelProps) {
       unsubUploadProgress()
       unsubUploadComplete()
       unsubSysLog()
+      unsubActivity()
     }
   }, [addLog])
 
@@ -166,6 +174,12 @@ export function TerminalPanel({ isOpen, onToggle }: TerminalPanelProps) {
         <div
           ref={scrollRef}
           onScroll={handleScroll}
+          // `log` is the role for a running record that appends over
+          // time, and it politely announces only when the reader is
+          // idle, which suits a drawer that can append a line per file
+          // during a sweep.
+          role="log"
+          aria-label="Output"
           className="flex-1 overflow-y-auto overflow-x-hidden font-mono text-body leading-[18px] p-2" // eslint-disable-line no-restricted-syntax -- design-allow: the panel title bar is itself the toggle
         >
           {logs.map((entry, i) => (

@@ -438,6 +438,56 @@ module.exports = [
   },
 
   {
+    name: 'the Output drawer records what the user did',
+    harness: 'terminal',
+    async run({ run, is }) {
+      // The drawer was fed only by the main process, which sees Drive
+      // ids: a move logged "Moving 3 item(s)…" and a progress count,
+      // naming neither the files nor where they went. The names and the
+      // folder trail exist only in the renderer, so the lines about them
+      // originate there and reach the drawer over its own bus. This is
+      // the join between the two; the bus itself is unit-tested.
+      const lines = () => run('JSON.stringify(__lines())')
+
+      await is('the drawer starts empty', () => run('__lineCount()'), 0)
+
+      await run(`__log('drive', 'info', 'MOVE /Cernix/2025/DSC_0001.ARW  ->  /Cernix/2026/Keepers/DSC_0001.ARW')`)
+      await is('a line the renderer logged appears', () => run('__lineCount()'), 1)
+
+      // The whole path has to survive onto the screen. It is the point of
+      // the line, and a path clipped at the container edge answers
+      // nothing.
+      await is('with both paths intact',
+        () => run(`__lines()[0].includes('/Cernix/2025/DSC_0001.ARW') && __lines()[0].includes('/Cernix/2026/Keepers/DSC_0001.ARW')`),
+        true)
+      await is('and tagged with its source',
+        () => run(`__lines()[0].includes('drive')`), true)
+
+      await run(`__log('sweep', 'error', 'TRASH failed: /media/card/DCIM/100_PANA/P1100574.JPG')`)
+      await is('a second lands under the first, in order',
+        () => run(`__lines()[1].includes('P1100574.JPG')`), true)
+      await is('and both are still on screen', () => run('__lineCount()'), 2)
+
+      // A path is one long unbroken token with no spaces to break at.
+      // Without `break-all` it runs out of the drawer and takes the rest
+      // of the line with it. Deep enough that it cannot fit at any
+      // plausible drawer width: verified by mutating the wrap away and
+      // watching this go red, which a shorter path did not do.
+      await run(`__log('drive', 'info', 'MOVE ' + __drivePath(
+        'Cernix/2026/February/Barcelona/Sagrada-Familia/Selects/Keepers/Final-Delivery/Client-Approved'
+          .split('/').map(name => ({ name })), 'P1100574-edited-final-v3.JPG'))`)
+      await is('the deep path is on screen', () => run('__lineCount()'), 3)
+      await is('a long path wraps rather than overflowing the drawer',
+        () => run(`(() => {
+          const el = document.querySelector('[role="log"]')
+          return el.scrollWidth <= el.clientWidth + 1
+        })()`), true)
+      await is('and the drawer is a log to a screen reader',
+        () => run(`document.querySelector('[role="log"]').getAttribute('aria-label')`), 'Output')
+    },
+  },
+
+  {
     name: 'Enter commits the crop',
     harness: 'crop',
     async run({ run, is }) {

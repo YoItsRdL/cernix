@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
+import { logActivity, count } from '@/lib/activity-log'
+import { messageOf } from '../../shared/errors'
 
 /** Height of one row in list view. The page arithmetic needs it too. */
 const LIST_ROW_HEIGHT = 36
@@ -207,6 +209,10 @@ export function ReviewView({
   const handleTrashSelected = async () => {
     if (selectedFiles.size === 0 || isTrashing) return
     const targets = scannedFiles.filter(f => selectedFiles.has(f.relativePath))
+    // Absolute, not relative. The whole point of a log line about a file
+    // leaving is being able to go and find it, and a path relative to a
+    // card that is no longer mounted finds nothing.
+    for (const f of targets) logActivity('sweep', 'info', `TRASH ${f.absolutePath}`)
     setIsTrashing(true)
     try {
       const result = await window.electronAPI.mediaTrash(targets.map(f => f.absolutePath))
@@ -221,15 +227,22 @@ export function ReviewView({
       if (trashedRelative.length > 0) onRemoveFiles(trashedRelative)
       const trashed = result.trashedPaths.length
       const failed = result.failures.length
+      for (const f of result.failures) {
+        logActivity('sweep', 'error', `TRASH failed: ${typeof f === 'string' ? f : JSON.stringify(f)}`)
+      }
       if (failed === 0) {
+        logActivity('sweep', 'success', `Moved ${count(trashed, 'file')} to Trash.`)
         toast(`Moved ${trashed} file${trashed === 1 ? '' : 's'} to Trash.`, 'success')
       } else if (trashed === 0) {
+        logActivity('sweep', 'error', `Failed to move ${count(failed, 'file')} to Trash.`)
         toast(`Failed to move ${failed} file${failed === 1 ? '' : 's'} to Trash.`, 'error')
       } else {
+        logActivity('sweep', 'warn', `Trashed ${trashed}, failed ${failed}.`)
         toast(`Trashed ${trashed}, failed ${failed}.`, 'info')
       }
     } catch (err) {
       console.error('mediaTrash failed', err)
+      logActivity('sweep', 'error', `TRASH failed: ${messageOf(err)}`)
       toast('Trash failed.', 'error')
     } finally {
       setIsTrashing(false)
