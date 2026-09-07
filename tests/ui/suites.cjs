@@ -438,6 +438,47 @@ module.exports = [
   },
 
   {
+    name: 'Enter commits the crop',
+    harness: 'crop',
+    async run({ run, is }) {
+      // Reported as "when we are cropping and press Enter it should
+      // effectively crop". The other half of that report - the
+      // Workstation grid stealing the same Enter - is covered by "the
+      // grid yields the keyboard to what is over it". This is the half
+      // that says the overlay does its own job, which had no coverage
+      // because the editor around it wants WebGL, a raw file and Drive.
+      //
+      // The gesture is fired once and awaited; only the reading is
+      // polled. Doing both in one thunk is what made the viewer's arrow
+      // suite unfalsifiable, and a committing keypress is exactly the
+      // kind that must not be repeated by a retry.
+      const committed = () => run('JSON.stringify(__committed())')
+      const press = (key) =>
+        run(`window.dispatchEvent(new KeyboardEvent('keydown', { key: '${key}' }))`)
+
+      await is('nothing is committed on open', committed, '[]')
+
+      // Reshape the rect first, so a pass cannot come from the overlay
+      // handing back the rect it was given. 1:1 on a 4000x3000 source is
+      // three quarters of the width and the full height.
+      await run(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === '1:1').click()`)
+      await is('the 1:1 preset reshapes the rect', () => run('__committed().length'), 0)
+
+      await press('Enter')
+      await is('Enter commits exactly once', () => run('__committed().length'), 1)
+      await is('and commits a square of the source, not the full frame',
+        () => run('__committedAspect()'), 1)
+      await is('so it did not just hand back what it was given',
+        committed, '[{"x":0.125,"y":0,"w":0.75,"h":1}]')
+
+      // Escape is the other exit and must not crop.
+      await press('Escape')
+      await is('Escape cancels', () => run('__cancels()'), 1)
+      await is('and commits nothing further', () => run('__committed().length'), 1)
+    },
+  },
+
+  {
     name: 'the viewer steps between frames',
     harness: 'lightbox',
     async run({ run, is }) {
