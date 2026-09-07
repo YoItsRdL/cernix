@@ -17,7 +17,7 @@ import { EditCache } from './services/edit-cache'
 import { PresetStore } from './services/preset-store'
 import { LogEntry } from '../shared/ipc-types'
 import { THEME_META_KEY, ZOOM_META_KEY, WINDOW_BACKGROUND, MAC_TRAFFIC_LIGHTS, MAC_TITLEBAR_BAND, type ThemeName } from './constants'
-import { DEFAULT_ZOOM, parseZoom, stepZoom, zoomIntent } from './services/zoom'
+import { DEFAULT_ZOOM, bindsOwnZoomShortcuts, parseZoom, stepZoom, zoomIntent } from './services/zoom'
 import { getThumbnail, UnthumbnailableError } from './services/thumbnail-cache'
 import { registerDriveHandlers } from './ipc/drive-ipc'
 import { registerSystemHandlers } from './ipc/system-ipc'
@@ -292,7 +292,10 @@ class CernixApp {
 
     // The same removal took the zoom accelerators, and unlike devtools
     // and reload those have to work in a packaged build, so this one is
-    // not gated on the dev branch above.
+    // not gated on the dev branch above. It is gated on the platform
+    // instead: macOS keeps its menu and therefore already has these
+    // three, and binding them twice is worse than not binding them.
+    // See `bindsOwnZoomShortcuts`.
     //
     // How many CSS pixels the interface gets is decided by the desktop's
     // scale setting: a 2160x1440 panel at 150% reports 1440x960, a third
@@ -304,24 +307,21 @@ class CernixApp {
     // does not need reapplying after Vite's HMR; what it does need is to
     // be written down, because the origin's zoom does not survive a
     // restart and dev and production are different origins.
-    this.window.webContents.on('before-input-event', (event, input) => {
-      if (input.type !== 'keyDown') return
-      const intent = zoomIntent(input.key, {
-        control: input.control,
-        meta: input.meta,
-        alt: input.alt,
-        isMac: process.platform === 'darwin',
+    if (bindsOwnZoomShortcuts(process.platform)) {
+      this.window.webContents.on('before-input-event', (event, input) => {
+        if (input.type !== 'keyDown') return
+        const intent = zoomIntent(input.key, { control: input.control, alt: input.alt })
+        if (!intent) return
+        event.preventDefault()
+        // Read back from Chromium rather than tracking a copy here: it is
+        // the one that knows, and its value drifts off the ladder by a
+        // float hair, which `stepZoom` snaps back.
+        const current = this.window?.webContents.getZoomFactor() ?? DEFAULT_ZOOM
+        this.setZoom(
+          intent === 'reset' ? DEFAULT_ZOOM : stepZoom(current, intent === 'in' ? 1 : -1),
+        )
       })
-      if (!intent) return
-      event.preventDefault()
-      // Read back from Chromium rather than tracking a copy here: it is
-      // the one that knows, and its value drifts off the ladder by a
-      // float hair, which `stepZoom` snaps back.
-      const current = this.window?.webContents.getZoomFactor() ?? DEFAULT_ZOOM
-      this.setZoom(
-        intent === 'reset' ? DEFAULT_ZOOM : stepZoom(current, intent === 'in' ? 1 : -1),
-      )
-    })
+    }
 
     // The window hosts one document and never navigates away from it.
     // Without these, anything that sets `location` in the renderer gets

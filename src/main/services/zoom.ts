@@ -72,16 +72,48 @@ export function parseZoom(raw: string | null | undefined): number {
   return ZOOM_STEPS[nearestIndex(value)]
 }
 
-/** Which key, if any, this is. Null when the combination is not ours. */
+/**
+ * Does the app bind its own zoom shortcuts on this platform?
+ *
+ * Only where the default menu has been removed. `Menu.setApplicationMenu(null)`
+ * runs everywhere except macOS, and the menu it removes carries the
+ * `zoomin`, `zoomout` and `resetzoom` roles — verified by reading the
+ * default menu back: "View: Actual Size [role=resetzoom] | Zoom In
+ * [role=zoomin] | Zoom Out [role=zoomout]".
+ *
+ * So macOS never had the gap this fixes: it keeps its menu and with it
+ * ⌘+, ⌘- and ⌘0. Binding them again there would put two mechanisms on
+ * one keystroke, disagreeing about both the ladder and whether the
+ * result is written down. Same shape, and the same reason, as
+ * `drawsOwnCaptionButtons` in the renderer: macOS keeps its own and the
+ * app must not draw a second.
+ *
+ * The cost is that zoom is not remembered across launches on macOS,
+ * because the menu roles do not report through here. That is exactly
+ * what macOS did before any of this, so it is a gap rather than a
+ * regression, and closing it means rebuilding that menu with the app's
+ * own handlers — which cannot be tested from a machine that is not a
+ * Mac.
+ */
+export function bindsOwnZoomShortcuts(platform: string): boolean {
+  return platform !== 'darwin'
+}
+
+/**
+ * Which key, if any, this is. Null when the combination is not ours.
+ *
+ * Ctrl and not ⌘, because this is only ever consulted where
+ * `bindsOwnZoomShortcuts` is true, and that is every platform except the
+ * one whose modifier is ⌘. A Mac branch here would be a branch that
+ * cannot run.
+ *
+ * Alt is excluded so this cannot swallow a binding that shares the key.
+ */
 export function zoomIntent(
   key: string,
-  { control, meta, alt, isMac }: { control: boolean; meta: boolean; alt: boolean; isMac: boolean },
+  { control, alt }: { control: boolean; alt: boolean },
 ): 'in' | 'out' | 'reset' | null {
-  // ⌘ on a Mac, Ctrl everywhere else, matching `forPlatform` in the
-  // shortcut sheet. Alt is excluded so this cannot swallow a binding
-  // that happens to share the key.
-  if (alt) return null
-  if (!(isMac ? meta : control)) return null
+  if (alt || !control) return null
 
   // `=` and `+` are the same physical key; which one arrives depends on
   // Shift and on the layout, and a numeric keypad sends the glyph

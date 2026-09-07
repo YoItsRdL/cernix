@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { ZOOM_STEPS, DEFAULT_ZOOM, stepZoom, parseZoom, zoomIntent } from './zoom'
+import {
+  ZOOM_STEPS, DEFAULT_ZOOM, stepZoom, parseZoom, zoomIntent, bindsOwnZoomShortcuts,
+} from './zoom'
 
-const MAC = { control: false, meta: true, alt: false, isMac: true }
-const PC = { control: true, meta: false, alt: false, isMac: false }
+const HELD = { control: true, alt: false }
 
 describe('the zoom ladder', () => {
   it('has 1 on it, exactly, so reset is reachable', () => {
@@ -70,41 +71,45 @@ describe('reading the stored zoom', () => {
 })
 
 describe('recognising the keypress', () => {
-  it('reads Ctrl and the Mac reads Command', () => {
-    expect(zoomIntent('-', PC)).toBe('out')
-    expect(zoomIntent('-', MAC)).toBe('out')
-  })
-
-  it('takes both halves of the shared +/= key', () => {
-    expect(zoomIntent('=', PC)).toBe('in')
-    expect(zoomIntent('+', PC)).toBe('in')
-    expect(zoomIntent('_', PC)).toBe('out')
-  })
-
-  it('0 resets', () => {
-    expect(zoomIntent('0', PC)).toBe('reset')
+  it('takes Ctrl with either half of the shared +/= key', () => {
+    expect(zoomIntent('=', HELD)).toBe('in')
+    expect(zoomIntent('+', HELD)).toBe('in')
+    expect(zoomIntent('-', HELD)).toBe('out')
+    expect(zoomIntent('_', HELD)).toBe('out')
+    expect(zoomIntent('0', HELD)).toBe('reset')
   })
 
   // Without the modifier these are a hyphen and a zero. The viewer binds
   // 0-5 to star ratings, so swallowing a bare 0 would take a rating away.
-  it('ignores the same keys without the modifier', () => {
-    const none = { control: false, meta: false, alt: false, isMac: false }
+  it('ignores the same keys without Ctrl', () => {
+    const none = { control: false, alt: false }
     expect(zoomIntent('0', none)).toBeNull()
     expect(zoomIntent('-', none)).toBeNull()
-  })
-
-  it('ignores the wrong modifier for the platform', () => {
-    expect(zoomIntent('-', { control: false, meta: true, alt: false, isMac: false })).toBeNull()
-    expect(zoomIntent('-', { control: true, meta: false, alt: false, isMac: true })).toBeNull()
+    expect(zoomIntent('=', none)).toBeNull()
   })
 
   it('leaves Alt combinations alone', () => {
-    expect(zoomIntent('-', { ...PC, alt: true })).toBeNull()
+    expect(zoomIntent('-', { control: true, alt: true })).toBeNull()
   })
 
   it('is not interested in any other key', () => {
     for (const k of ['a', '1', 'Enter', 'ArrowLeft', 'Escape']) {
-      expect(zoomIntent(k, PC)).toBeNull()
+      expect(zoomIntent(k, HELD)).toBeNull()
     }
+  })
+})
+
+describe('which platforms bind their own zoom', () => {
+  // The app removes the default menu everywhere but macOS, and that menu
+  // carries the zoomin/zoomout/resetzoom roles. So macOS already has
+  // these three keys and binding them again would put two mechanisms on
+  // one keystroke; every other platform has none and needs them.
+  it('binds on the platforms whose menu was removed', () => {
+    expect(bindsOwnZoomShortcuts('linux')).toBe(true)
+    expect(bindsOwnZoomShortcuts('win32')).toBe(true)
+  })
+
+  it('leaves macOS to its own menu', () => {
+    expect(bindsOwnZoomShortcuts('darwin')).toBe(false)
   })
 })
