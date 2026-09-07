@@ -4,6 +4,7 @@
  */
 
 import type { FramePreset } from '@/../shared/frame-presets'
+import type { Orientation } from '@/../shared/edit-params'
 
 export interface Rect {
   x: number;
@@ -271,5 +272,57 @@ export function transformToCrop(
     y: cy,
     w: clamp(w, MIN_EXTENT, 1 - cx),
     h: clamp(h, MIN_EXTENT, 1 - cy),
+  }
+}
+
+/**
+ * Returns the largest axis-aligned rectangle inscribed inside a `w × h`
+ * rectangle that has been rotated by `theta` radians.
+ *
+ * The result is expressed as a normalized crop rect in source-image coords
+ * [0..1], centered on the image. Returns null when the angle is effectively
+ * zero (no crop needed) or when the inscribed rect degenerates (should not
+ * happen for |theta| < pi/4, but we guard defensively).
+ */
+export function inscribedCrop(
+  imgW: number,
+  imgH: number,
+  orientation: Orientation,
+  thetaDeg: number,
+): Rect | null {
+  if (Math.abs(thetaDeg) < 0.05) return null
+
+  // The shader composes orientation first, then straightenDeg, so the image
+  // that the user perceives as "the thing being rotated" is the post-orientation
+  // image. Use effective dims for the geometry.
+  const swap = orientation === 90 || orientation === 270
+  const effW = swap ? imgH : imgW
+  const effH = swap ? imgW : imgH
+
+  const theta = Math.abs(thetaDeg) * (Math.PI / 180)
+  const cosT = Math.cos(theta)
+  const sinT = Math.sin(theta)
+  const cosDouble = Math.cos(2 * theta) // cos²-sin² = cos(2θ)
+
+  // Solve the system where the inscribed rect's corners touch the rotated rect's edges.
+  // iw and ih are in effective-display pixels.
+  const iw = (effW * cosT - effH * sinT) / cosDouble
+  const ih = (effH * cosT - effW * sinT) / cosDouble
+
+  if (iw <= 0 || ih <= 0) return null
+
+  // Convert from effective-display pixels to normalized source-UV coords.
+  // When orientation is 90/270 the effective x direction maps to source y and
+  // vice-versa, so we swap back.
+  const nw = swap ? ih / imgW : iw / imgW
+  const nh = swap ? iw / imgH : ih / imgH
+
+  if (nw <= 0 || nh <= 0 || nw > 1 || nh > 1) return null
+
+  return {
+    x: (1 - nw) / 2,
+    y: (1 - nh) / 2,
+    w: nw,
+    h: nh,
   }
 }

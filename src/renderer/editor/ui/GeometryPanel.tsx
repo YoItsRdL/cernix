@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { RotateCcw, RotateCw, FlipHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Slider } from './Slider'
 import { FULL_FRAME_CROP } from '../../../shared/edit-params'
+import { inscribedCrop } from '../utils/geometry-logic'
 import type { CropRect, Orientation } from '@/types'
 
 interface GeometryPanelProps {
@@ -19,58 +20,6 @@ interface GeometryPanelProps {
   onCropChange: (v: CropRect) => void
 }
 
-/**
- * Returns the largest axis-aligned rectangle inscribed inside a `w × h`
- * rectangle that has been rotated by `theta` radians.
- *
- * The result is expressed as a normalized crop rect in source-image coords
- * [0..1], centered on the image. Returns null when the angle is effectively
- * zero (no crop needed) or when the inscribed rect degenerates (should not
- * happen for |theta| < pi/4, but we guard defensively).
- */
-function inscribedCrop(
-  imgW: number,
-  imgH: number,
-  orientation: Orientation,
-  thetaDeg: number,
-): CropRect | null {
-  if (Math.abs(thetaDeg) < 0.05) return null
-
-  // The shader composes orientation first, then straightenDeg, so the image
-  // that the user perceives as "the thing being rotated" is the post-orientation
-  // image. Use effective dims for the geometry.
-  const swap = orientation === 90 || orientation === 270
-  const effW = swap ? imgH : imgW
-  const effH = swap ? imgW : imgH
-
-  const theta = Math.abs(thetaDeg) * (Math.PI / 180)
-  const cosT = Math.cos(theta)
-  const sinT = Math.sin(theta)
-  const cosDouble = Math.cos(2 * theta) // cos²-sin² = cos(2θ)
-
-  // Solve the system where the inscribed rect's corners touch the rotated rect's edges.
-  // iw and ih are in effective-display pixels.
-  const iw = (effW * cosT - effH * sinT) / cosDouble
-  const ih = (effH * cosT - effW * sinT) / cosDouble
-
-  if (iw <= 0 || ih <= 0) return null
-
-  // Convert from effective-display pixels to normalized source-UV coords.
-  // When orientation is 90/270 the effective x direction maps to source y and
-  // vice-versa, so we swap back.
-  const nw = swap ? ih / imgW : iw / imgW
-  const nh = swap ? iw / imgH : ih / imgH
-
-  if (nw <= 0 || nh <= 0 || nw > 1 || nh > 1) return null
-
-  return {
-    x: (1 - nw) / 2,
-    y: (1 - nh) / 2,
-    w: nw,
-    h: nh,
-  }
-}
-
 export function GeometryPanel({
   orientation,
   flipH,
@@ -84,8 +33,35 @@ export function GeometryPanel({
 }: GeometryPanelProps) {
   const [autoCrop, setAutoCrop] = useState(true)
 
-  // Recompute crop whenever straightenDeg, autoCrop, or image dims change.
+  /**
+   * What the geometry was last time this ran, or null before the first.
+   *
+   * Auto-crop follows a straighten the *user* performs. It used to fire
+   * on mount as well, and this panel is created fresh for every
+   * photograph, so opening one silently replaced whatever crop was saved
+   * on it: with the inscribed rect if it carried an angle, and with the
+   * full frame if it did not. A crop composed by hand did not survive
+   * being looked at.
+   *
+   * Comparing against the previous values rather than counting renders
+   * is what makes that safe. `imageDims` arrives asynchronously, so the
+   * first run is often the one where it is still null and the second is
+   * the one where it lands — and a "skip the first render" guard would
+   * let that second one through and overwrite the crop anyway.
+   */
+  const seen = useRef<{ deg: number; orientation: Orientation; auto: boolean } | null>(null)
+
   useEffect(() => {
+    const now = { deg: straightenDeg, orientation, auto: autoCrop }
+    const before = seen.current
+    seen.current = now
+
+    // Adopt what the photograph arrived with rather than overwriting it.
+    if (!before) return
+    // Only geometry the user changed drives a recompute. Without this,
+    // `imageDims` landing counts as a change and undoes their crop.
+    if (before.deg === now.deg && before.orientation === now.orientation && before.auto === now.auto) return
+
     if (!autoCrop || !imageDims) return
     const rect = inscribedCrop(imageDims.w, imageDims.h, orientation, straightenDeg)
     onCropChange(rect ?? FULL_FRAME_CROP)

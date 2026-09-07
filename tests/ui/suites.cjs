@@ -379,6 +379,65 @@ module.exports = [
   },
 
   {
+    name: 'auto-crop follows the straighten, not the opening',
+    harness: 'geometry',
+    async run({ run, is }) {
+      const crop = () => run('JSON.stringify(__crop())')
+      const MANUAL = '{"x":0.2,"y":0.2,"w":0.5,"h":0.5}'
+      const FULL = '{"x":0,"y":0,"w":1,"h":1}'
+
+      // Every assertion here is a negative - the crop did *not* change -
+      // and `poll` returns on its first match, so a negative is true the
+      // instant before the bug happens and passes for the wrong reason.
+      // Verified: without this settle, removing the guard these cover
+      // leaves the suite green. So the event is allowed to be processed
+      // first, and only then is the absence asserted.
+      const settle = () => new Promise(r => setTimeout(r, 400))
+      const open = async (c, deg) => { await run(`__openWith(${c}, ${deg})`); await settle() }
+
+      // The panel is created fresh for every photograph and its
+      // auto-crop state is local and starts on, so the effect used to
+      // fire on mount and replace whatever crop the photograph carried.
+      // A crop composed by hand did not survive being looked at.
+      await open(MANUAL, 0)
+      await is('opening leaves a saved crop alone', crop, MANUAL)
+      await is('and asks for nothing at all', () => run('__cropCalls().length'), 0)
+
+      // Even when the photograph carries an angle: the crop that was
+      // saved with it is the composition, not something to recompute.
+      await open(MANUAL, 16.9)
+      await is('an angle on the photograph does not trigger it either', crop, MANUAL)
+
+      // The dimensions are not known until the photograph decodes, so
+      // the panel's first render has none and they land a moment later.
+      // That landing is a dependency change like any other, and treating
+      // it as one overwrites the crop a beat after the file opens -
+      // which looks like auto-crop acting on its own.
+      await open(MANUAL, 16.9)
+      await run('__openUndecoded(' + MANUAL + ', 16.9)')
+      await settle()
+      await is('an undecoded photograph keeps its crop', crop, MANUAL)
+      await run('__decode()')
+      await settle()
+      await is('and still keeps it once the dimensions arrive', crop, MANUAL)
+
+      // What the user does, it still does.
+      await run('__setStraighten(25)')
+      await is('straightening crops to the inscribed rect',
+        crop, '{"x":0.042,"y":0.233,"w":0.917,"h":0.533}')
+      await run('__setStraighten(16.9)')
+      await is('and follows the angle back',
+        crop, '{"x":0.055,"y":0.158,"w":0.889,"h":0.685}')
+
+      await run('__autoCropBox().click()')
+      await is('unticking restores the full frame', crop, FULL)
+      await run('__autoCropBox().click()')
+      await is('and ticking crops again',
+        crop, '{"x":0.055,"y":0.158,"w":0.889,"h":0.685}')
+    },
+  },
+
+  {
     name: 'the viewer steps between frames',
     harness: 'lightbox',
     async run({ run, is }) {
