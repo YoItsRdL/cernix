@@ -379,6 +379,116 @@ module.exports = [
   },
 
   {
+    name: 'the sidebar shows where you are',
+    harness: 'sidebar',
+    async run({ run, is }) {
+      // Reported from `Cernix / 2026 / September / 06`: a day folder with
+      // nothing inside it, where the whole panel read "No folders" and
+      // said nothing about the three levels above.
+      const rows = () => run('JSON.stringify(__rows().map(r => r.name))')
+
+      await is('the trail is drawn even with nothing inside this folder',
+        rows, '["Cernix","2026","September","06"]')
+      await is('and "No folders" is gone',
+        () => run(`document.body.innerText.includes('No folders')`), false)
+
+      await is('the folder we are in is the one marked',
+        () => run('JSON.stringify(__rows().filter(r => r.current).map(r => r.name))'),
+        '["06"]')
+      await is('and the depth is carried to a screen reader, not just drawn',
+        () => run('JSON.stringify(__rows().map(r => r.level))'), '[1,2,3,4]')
+
+      // Indent is the only thing that says "inside". If two levels share
+      // one it stops being a tree and becomes a list.
+      await is('each level is indented further than the one above',
+        () => run(`(() => {
+          const ind = __rows().map(r => r.indent)
+          return ind.every((v, i) => i === 0 || v > ind[i - 1])
+        })()`), true)
+
+      // Children hang below the current folder, not beside it.
+      await run(`__setChildren(['Keepers','Rejects'])`)
+      await is('children hang one level below where we are',
+        () => run('JSON.stringify(__rows().map(r => [r.name, r.level]))'),
+        '[["Cernix",1],["2026",2],["September",3],["06",4],["Keepers",5],["Rejects",5]]')
+
+      // An ancestor is a step back up the trail; a child is a step down.
+      // They navigate differently and only the trail knows how far back.
+      await run(`__row('September').click()`)
+      await is('an ancestor goes back to its place in the trail',
+        () => run('JSON.stringify(__navigations())'), '["crumb:2"]')
+      await run(`__row('Keepers').click()`)
+      await is('and a child goes into that folder',
+        () => run('JSON.stringify(__navigations())'), '["crumb:2","folder:Keepers"]')
+
+      // Pressing the folder you are already in would navigate to where
+      // you already are.
+      await run(`__row('06').click()`)
+      await is('the folder we are in is not a link',
+        () => run('JSON.stringify(__navigations())'), '["crumb:2","folder:Keepers"]')
+
+      // Depth is the user's own Drive structure, so it has no ceiling,
+      // and the panel is 208px. Measured before the clamp the label lost
+      // 12px a level and was 5px wide at eleven deep: an indent with
+      // nothing in it. The indent stops at MAX_INDENT_DEPTH so a name
+      // stays readable however deep the tree goes.
+      await run('__setDeepTrail(12)')
+      await is('the label stops shrinking once the indent caps',
+        () => run(`(() => {
+          const w = Array.from({ length: 12 }, (_, d) => __labelWidth(d))
+          return Math.min(...w) >= w[6] && w[11] === w[6]
+        })()`), true)
+      await is('and no name is squeezed to nothing',
+        () => run('Math.min(...Array.from({length:12}, (_, d) => __labelWidth(d))) > 40'), true)
+
+      // The clamp is a drawing decision. Reporting a folder as six deep
+      // when it is eleven deep would lie about the tree to the reader
+      // who can least afford it.
+      // Twelve ancestors and the two children still hanging below them,
+      // which is the point: the level keeps counting past the cap.
+      await is('but the true depth still reaches a screen reader',
+        () => run('JSON.stringify(__rows().map(r => r.level))'),
+        '[1,2,3,4,5,6,7,8,9,10,11,12,13,13]')
+
+      await run('__setTrail(4)')
+
+      // `role="tree"` promises arrow navigation: a reader told the widget
+      // is a tree presses Down and expects to move. The first version
+      // announced the role and left every row its own tab stop, so
+      // crossing a four-deep trail took four presses and Down did
+      // nothing. One stop in, arrows within.
+      await is('the tree is a single stop in the tab order',
+        () => run('__tabStops()'), 1)
+      await is('and the stop is the folder we are in, not the top of the trail',
+        () => run('__tabStopName()'), '06')
+
+      await run(`__row('06').focus()`)
+      await is('focus starts where we are', () => run('__focused()'), '06')
+      await run(`__treeKey('ArrowUp')`)
+      await is('ArrowUp climbs the trail', () => run('__focused()'), 'September')
+      await run(`__treeKey('ArrowDown')`)
+      await is('ArrowDown goes back down', () => run('__focused()'), '06')
+      await run(`__treeKey('Home')`)
+      await is('Home reaches the root', () => run('__focused()'), 'Cernix')
+      await run(`__treeKey('End')`)
+      await is('End reaches the last row', () => run('__focused()'), 'Rejects')
+
+      // The ends are walls, not wraps: a tree is a place, and running off
+      // the top of one silently lands you somewhere you did not ask for.
+      await run(`__treeKey('Home')`)
+      await run(`__treeKey('ArrowUp')`)
+      await is('and the top does not wrap', () => run('__focused()'), 'Cernix')
+
+      // At the root there is one row and it is where we are, not an
+      // ancestor of something.
+      await run('__setTrail(1)')
+      await is('at the root, the root is where we are',
+        () => run('JSON.stringify(__rows().map(r => [r.name, r.current]))'),
+        '[["Cernix",true],["Keepers",false],["Rejects",false]]')
+    },
+  },
+
+  {
     name: 'filtering the library by rating',
     harness: 'distiller-rating',
     async run({ run, is }) {

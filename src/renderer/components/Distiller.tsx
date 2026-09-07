@@ -59,6 +59,7 @@ export function Distiller({ onOpenEditor, editorOpen = false }: DistillerProps) 
     <div className="flex h-full bg-surface-workspace text-text-emphatic select-none overflow-hidden font-sans">
       <DistillerSidebar
         folders={state.folders}
+        breadcrumbs={state.breadcrumbs}
         loading={state.loading}
         currentFolderId={state.currentFolderId}
         rootFolderId={state.rootFolderId}
