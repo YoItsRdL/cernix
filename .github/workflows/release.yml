@@ -118,6 +118,29 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         run: npm run ${{ matrix.script }}
 
+      - name: Check the macOS bundle is sealed
+        # The one thing this machine class can check and a Linux dev box
+        # cannot. 1.2.0 shipped a bundle with no
+        # `_CodeSignature/CodeResources` at all: electron-builder renamed
+        # the executable and rewrote Info.plist without re-sealing, and
+        # macOS reported the download as "damaged and can't be opened",
+        # which offers the user only Move to Trash. `afterPack` ad-hoc
+        # signs it now; this is what stops that regressing silently.
+        #
+        # `codesign --verify` must pass. `spctl` must NOT: ad-hoc means
+        # signed by nobody, so Gatekeeper still refuses it, and asserting
+        # that keeps this step honest about what ad-hoc buys — a bundle
+        # whose seal is intact, not a trusted app.
+        if: matrix.os == 'macos-latest'
+        run: |
+          for app in release/mac*/Cernix.app; do
+            echo "== $app"
+            test -d "$app/Contents/_CodeSignature" \
+              || { echo "::error::$app has no _CodeSignature: the bundle was not sealed"; exit 1; }
+            codesign --verify --deep --strict --verbose=2 "$app"
+            codesign --display --verbose=2 "$app" 2>&1 | sed -n '1,6p'
+          done
+
       - name: Let Chromium's sandbox helper run
         # Linux only, and only in CI. `chrome-sandbox` must be owned by
         # root with mode 4755 or Electron aborts rather than run
@@ -218,8 +241,18 @@ jobs:
 
             **No build is code-signed.** Windows SmartScreen shows
             "Windows protected your PC": choose *More info → Run anyway*.
-            macOS Gatekeeper needs *right-click → Open* the first time,
-            or `xattr -dr com.apple.quarantine` on the app.
+
+            On macOS, drag Cernix to Applications, then run once:
+
+            ```
+            xattr -dr com.apple.quarantine /Applications/Cernix.app
+            ```
+
+            Right-click → Open is offered widely as the macOS answer and
+            it does not always work here: a browser download is
+            quarantined, and for an app signed by nobody macOS can report
+            it as *damaged*, which offers only Move to Trash. Removing the
+            quarantine attribute is the step that always works.
 
             Verify any download against the sha256 in `binary.json`.
 
