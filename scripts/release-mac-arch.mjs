@@ -64,18 +64,17 @@ const bin = new URL(`../node_modules/.bin/${builder}`, import.meta.url).pathname
 /**
  * Throw away whatever the previous pass built.
  *
- * `install-app-deps --arch=x64` reported success and left an arm64
- * module in the bundle, and the x64 dmg shipped a native module an Intel
- * Mac cannot load. electron-builder does pass `npm_config_arch=x64`, and
- * it sets `npm_config_force` only when the *platform* differs — darwin
- * to darwin is the same platform, so a cross-*architecture* pass runs
- * unforced over a tree that already holds the other architecture's
- * build.
+ * Belt and braces now rather than the fix. The real fault was that
+ * `--mac --arm64` did not restrict anything: the mac targets in
+ * package.json pinned `arch: ["arm64", "x64"]` onto both dmg and zip, so
+ * every invocation built both, and the second one ran against whichever
+ * modules the first had left behind. Each bundle shipped its opposite's
+ * native module.
  *
- * Removing it first means the pass has nothing to leave alone. Cheaper
- * than forcing every dependency to compile from source, which was the
- * other way to be sure and which makes Linux and Windows depend on a
- * toolchain to fix a macOS architecture.
+ * The targets name no architecture now, so the flag below decides, and
+ * one pass builds one thing. This clean stays because it costs nothing
+ * and the failure it guards — a bundle carrying a module it cannot load
+ * — is expensive and silent until someone opens the app.
  */
 const moduleBuild = new URL('../node_modules/better-sqlite3/build', import.meta.url).pathname
 if (fs.existsSync(moduleBuild)) {
