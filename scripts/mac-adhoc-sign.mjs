@@ -1,43 +1,60 @@
 /**
  * Ad-hoc sign the macOS bundle, immediately after it is packed.
  *
- * Why this exists, precisely. Electron's own binary arrives ad-hoc
- * signed, and electron-builder then renames the executable and rewrites
- * `Info.plist` without re-sealing the bundle: the published 1.2.0 app
- * carried `LC_CODE_SIGNATURE` on its main executable and no
- * `_CodeSignature/CodeResources` at all. To macOS that is a bundle whose
- * contents no longer match its signature, which is indistinguishable
- * from tampering, so Gatekeeper reports:
+ * Why this exists. Electron's binary arrives ad-hoc signed;
+ * electron-builder then renames the executable and rewrites
+ * `Info.plist` and does not re-seal. Unzipping the published 1.2.0 app:
+ * the main executable carried `LC_CODE_SIGNATURE` and the bundle had no
+ * `_CodeSignature/CodeResources` at all. To macOS that is contents which
+ * no longer match their signature, so Gatekeeper reported:
  *
  *     "Cernix" is damaged and can't be opened. You should move it to
  *     the Trash.
  *
- * That is the wrong dialog to get, and not because it is rude. The
- * ordinary unsigned-app dialog offers a way through — right-click Open,
- * or Privacy & Security → Open Anyway. "Damaged" offers only Move to
- * Trash, so a first-time user has no path forward and every instruction
- * we published for macOS was useless to them.
+ * That dialog matters more than its rudeness: the ordinary unsigned-app
+ * warning offers a way through, and this one offers only Move to Trash,
+ * so a first-time user had no path forward at all.
  *
- * `mac.identity: null` tells electron-builder to skip signing outright,
- * and setting it to "-" does not help: `findIdentity` searches the
- * keychain for that qualifier, finds nothing, and skips anyway
- * (app-builder-lib/out/macPackager.js). So the sealing is done here.
+ * `mac.identity: null` tells electron-builder to skip signing, and "-"
+ * does not help — `findIdentity` searches the keychain for that
+ * qualifier, finds nothing, and skips anyway. So the sealing happens
+ * here.
  *
- * This does NOT make the app trusted. Ad-hoc means "signed by nobody",
- * so Gatekeeper still warns and the user still has to allow it once.
- * What it buys is a bundle whose seal is intact, which turns an
- * unrecoverable error into the normal warning. A clean first run needs a
- * Developer ID certificate and notarisation, which costs money and is
- * the user's decision — see "Code-signing certificate" in AGENTS.md.
+ * ── Why @electron/osx-sign and not codesign directly ──
+ *
+ * Two hand-rolled attempts failed, each on a real ordering rule:
+ *
+ *   `codesign --deep` — a `.node` is a Mach-O under `Contents/Resources`,
+ *   so it is both nested code and a sealed resource. `--deep` signs it,
+ *   rewriting the file, after the bundle recorded that resource's hash,
+ *   leaving "a sealed resource is missing or invalid" on exactly that
+ *   file. Apple deprecates `--deep` for this class of reason.
+ *
+ *   Signing inside-out by hand — "Electron Framework.framework: code
+ *   object is not signed at all, In subcomponent: .../Helpers/
+ *   chrome_crashpad_handler". Frameworks contain their own nested
+ *   helpers and dylibs, so one level of "inside" is not enough.
+ *
+ * The order is the whole problem, and it is a solved one: this is the
+ * library electron-builder itself signs with. Hand-rolling it again
+ * would be writing a third implementation of something already correct.
+ *
+ * ── What this does and does not buy ──
+ *
+ * Ad-hoc means signed by nobody, so macOS still warns once and `spctl`
+ * still refuses. What it buys is a bundle whose seal is intact, which
+ * turns an unrecoverable error into the normal warning with a way
+ * through. A clean first run needs a Developer ID certificate and
+ * notarisation, which costs money and is the user's call — the
+ * "Code-signing certificate" open decision in AGENTS.md.
  */
 import { execFileSync } from 'node:child_process'
+import { sign } from '@electron/osx-sign'
 import fs from 'node:fs'
 import path from 'node:path'
 
 export default async function afterPack(context) {
-  // Only macOS has codesign, and only macOS needs this. Every other
-  // platform's build must pass straight through untouched: this hook
-  // runs for all three.
+  // Only macOS has codesign, and this hook runs for every platform.
   if (context.electronPlatformName !== 'darwin') return
 
   const appName = `${context.packager.appInfo.productFilename}.app`
@@ -46,55 +63,26 @@ export default async function afterPack(context) {
     throw new Error(`ad-hoc signing: no bundle at ${appPath}`)
   }
 
-  // Signed inside-out, and deliberately not with `--deep`.
-  //
-  // `--deep` was the first attempt and it failed the same way twice, on
-  // the same file:
-  //
-  //     file modified: .../app.asar.unpacked/node_modules/better-sqlite3/
-  //                    build/Release/better_sqlite3.node
-  //     Cernix.app: a sealed resource is missing or invalid
-  //
-  // A `.node` is a Mach-O living under `Contents/Resources`, so it is
-  // both nested code and a sealed resource. `--deep` signs it, which
-  // rewrites the file, after the enclosing bundle has already recorded
-  // that resource's hash — so the seal describes the file as it was a
-  // moment earlier. Apple deprecates `--deep` for exactly this class of
-  // reason and says to sign nested code first and the bundle last, so
-  // every hash is taken over a file that has stopped changing.
-  const inner = []
-  const resources = path.join(appPath, 'Contents', 'Resources')
-  const walk = (dir) => {
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, e.name)
-      if (e.isDirectory()) walk(full)
-      else if (e.isFile() && e.name.endsWith('.node')) inner.push(full)
-    }
-  }
-  if (fs.existsSync(resources)) walk(resources)
+  console.log(`  ad-hoc signing ${appName}`)
+  await sign({
+    app: appPath,
+    // "-" is codesign's ad-hoc identity. `identityValidation: false` is
+    // required with it: the default searches the keychain for a
+    // certificate matching the string, and there is no certificate
+    // called "-" to find.
+    identity: '-',
+    identityValidation: false,
+    platform: 'darwin',
+    // No hardened runtime: it is a prerequisite for notarisation, and
+    // without notarisation it only removes entitlements Electron wants.
+    ignore: [],
+  })
 
-  // Then the helpers and frameworks, which are bundles of their own and
-  // must be sealed before the app that contains them.
-  const frameworks = path.join(appPath, 'Contents', 'Frameworks')
-  if (fs.existsSync(frameworks)) {
-    for (const e of fs.readdirSync(frameworks, { withFileTypes: true })) {
-      if (e.name.endsWith('.app') || e.name.endsWith('.framework')) {
-        inner.push(path.join(frameworks, e.name))
-      }
-    }
-  }
-
-  for (const target of inner) {
-    execFileSync('codesign', ['--force', '--sign', '-', target], { stdio: 'inherit' })
-  }
-  console.log(`  sealed ${inner.length} nested items`)
-
-  // The bundle last.
-  execFileSync('codesign', ['--force', '--sign', '-', appPath], { stdio: 'inherit' })
-
-  // Verified here rather than trusted, because the whole defect was a
-  // bundle that looked built and was not sealed. `--deep` is right for
-  // *verifying*: it walks everything and is what Gatekeeper does.
+  // Verified rather than trusted, because the defect was a bundle that
+  // looked built and was not sealed. `--deep` is wrong for signing and
+  // right for verifying: it walks everything, which is what Gatekeeper
+  // does. A seal that does not hold must fail the build rather than
+  // reach a release page.
   execFileSync('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath], {
     stdio: 'inherit',
   })
