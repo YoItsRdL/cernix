@@ -83,9 +83,37 @@ if (fs.existsSync(moduleBuild)) {
   console.log(`\n  cleared the previous native build so ${arch} cannot inherit it`)
 }
 
-// Order matters: the modules have to match the bundle being built, so
-// they are prepared immediately before it and not once at the top.
+/**
+ * Report the architecture of the native module at each stage.
+ *
+ * Three theories about why the x64 bundle carries an arm64 module have
+ * each been wrong: a hardlink into node_modules, the trailing host
+ * rebuild, and a stale build the arch pass declined to replace. Each was
+ * reasoned from the outside and cost a run. electron-builder does pass
+ * `npm_config_arch`, @electron/rebuild does pass `--arch` to
+ * prebuild-install, and the module is still arm64 in the artifact — so
+ * the answer is somewhere between those two facts, and guessing at it
+ * from a Linux machine has stopped being useful.
+ */
+const nodeFile = new URL(
+  '../node_modules/better-sqlite3/build/Release/better_sqlite3.node', import.meta.url).pathname
+const archOf = (where) => {
+  if (!fs.existsSync(nodeFile)) return console.log(`  [arch] ${where}: absent`)
+  const out = spawnSync('lipo', ['-archs', nodeFile], { encoding: 'utf-8' })
+  console.log(`  [arch] ${where}: ${(out.stdout || out.stderr || '?').trim()}`)
+}
+
+archOf('in node_modules, before install-app-deps')
 run(`native modules for ${arch}`, bin, ['install-app-deps', `--arch=${arch}`])
+archOf('in node_modules, after install-app-deps')
 run(`packaging macOS ${arch}`, bin, ['--mac', `--${arch}`, '--publish', 'never'])
+archOf('in node_modules, after packaging')
+const packed = new URL(
+  `../release/${arch === 'arm64' ? 'mac-arm64' : 'mac'}/Cernix.app/Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node`,
+  import.meta.url).pathname
+if (fs.existsSync(packed)) {
+  const out = spawnSync('lipo', ['-archs', packed], { encoding: 'utf-8' })
+  console.log(`  [arch] inside the packed bundle: ${(out.stdout || out.stderr || '?').trim()}`)
+}
 
 console.log(`\n  macOS ${arch} built with ${arch} native modules.\n`)
