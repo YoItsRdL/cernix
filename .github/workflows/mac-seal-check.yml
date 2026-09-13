@@ -42,6 +42,7 @@ jobs:
           set -uo pipefail
           shopt -s nullglob
           checked=0
+          bad=0
           for zip in release/Cernix-*-*.zip; do
             echo "== $zip"
             work=$(mktemp -d)
@@ -57,7 +58,22 @@ jobs:
             # an x64 artifact contains an arm64 module, that is the
             # answer and there is nothing left to guess about.
             node_file="$app/Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node"
-            echo "   better_sqlite3.node: $(lipo -archs "$node_file" 2>/dev/null || file -b "$node_file")"
+            got_arch=$(lipo -archs "$node_file" 2>/dev/null || echo unknown)
+            case "$zip" in
+              *-arm64.zip) want_arch=arm64 ;;
+              *-x64.zip)   want_arch=x86_64 ;;
+              *)           want_arch="$got_arch" ;;
+            esac
+            echo "   better_sqlite3.node: $got_arch (want $want_arch)"
+            # Asserted, not printed. A bundle carrying the other
+            # architecture's native module installs and then cannot open
+            # its database — the failure release-mac-arch.mjs exists to
+            # prevent, which came back when the runner became Apple
+            # Silicon and x64 became the cross-compile.
+            if [ "$got_arch" != "$want_arch" ]; then
+              echo "::error::$zip ships a $got_arch native module; it needs $want_arch"
+              bad=$((bad+1))
+            fi
             codesign --verify --deep --strict --verbose=2 "$app" || echo "   ^ seal failed"
             codesign --display --verbose=2 "$app" 2>&1 | grep -E 'Identifier|Signature|Format'
             rm -rf "$work"; checked=$((checked+1))
@@ -70,6 +86,7 @@ jobs:
             hdiutil detach "$mnt" >/dev/null; checked=$((checked+1))
           done
           test "$checked" -ge 4 || { echo "::error::only $checked artifacts"; exit 1; }
+          test "$bad" -eq 0 || { echo "::error::$bad artifact(s) carry the wrong architecture"; exit 1; }
           echo "$checked macOS artifacts verified"
 
       - name: Launch it the way a person does
