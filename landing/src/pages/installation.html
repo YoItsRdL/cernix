@@ -145,9 +145,16 @@
                 </h2>
                 <p class="mt-space-2 text-landing-body text-text-muted">
                   Disk image, Apple Silicon and Intel. Not signed, so
-                  Gatekeeper needs <span class="text-text-emphatic">right-click → Open</span>
-                  the first time.
+                  after dragging it to Applications, run this once:
                 </p>
+                <!-- The command, not "right-click → Open". That is the
+                     advice everyone gives for macOS and it does not
+                     always work here: a browser download is quarantined,
+                     and for an app signed by nobody macOS can report it
+                     as "damaged", which offers only Move to Trash and no
+                     way through. Removing the quarantine attribute
+                     always works, so it is what the page says. -->
+                <code class="mt-space-3 block w-full overflow-x-auto rounded-soft border border-border-subtle bg-surface-raised px-space-3 py-space-2 text-landing-meta text-text-emphatic">xattr -dr com.apple.quarantine /Applications/Cernix.app</code>
               </div>
               <a
                 data-platform-download="macos"
