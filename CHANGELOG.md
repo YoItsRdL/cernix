@@ -1,5 +1,39 @@
 # Cernix Workstation Changelog
 
+## [1.2.1] - 2026-09-13
+
+### Fixed
+- **macOS no longer reports Cernix as damaged.** Every macOS build ever
+  published — 1.1.1, 1.1.2 and 1.2.0 — opened to:
+
+      "Cernix" is damaged and can't be opened. You should move it to
+      the Trash.
+
+  Electron's binary arrives ad-hoc signed, and electron-builder then
+  renamed the executable and rewrote `Info.plist` without re-sealing the
+  bundle. Inspecting the published 1.2.0 app: the main executable
+  carried `LC_CODE_SIGNATURE` and the bundle had no
+  `_CodeSignature/CodeResources` at all. To macOS that is contents which
+  no longer match their signature, which is indistinguishable from
+  tampering.
+
+  The bundle is ad-hoc signed after packaging now, and the release build
+  fails if the seal does not verify, so this cannot ship unnoticed
+  again.
+
+  This does not make Cernix a trusted app: ad-hoc means signed by
+  nobody, so macOS still warns once. What it changes is that the warning
+  is now the ordinary one with a way through, rather than "damaged",
+  which offers only Move to Trash and left a first-time user with no
+  path forward at all.
+
+- **The macOS instructions were wrong, and are now the command that
+  works.** The release notes and the installation page both said
+  right-click → Open. That is the usual advice for an unsigned app and
+  it cannot dismiss "damaged". Both now give:
+
+      xattr -dr com.apple.quarantine /Applications/Cernix.app
+
 ## [1.2.0] - 2026-09-07
 
 ### Added
