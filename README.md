@@ -83,11 +83,23 @@ it.
 
 ## Install
 
-Grab the installer from the [releases page](https://github.com/YoItsRdL/cernix/releases). The published builds are Windows only for now. Linux and macOS run from source, and both have been verified on real hardware: `npm run release:linux` produces an AppImage, `npm run release:mac` a dmg and a zip for Apple Silicon and Intel.
+Grab a build from the [releases page](https://github.com/YoItsRdL/cernix/releases). Every release publishes all three: a Windows installer, a Linux AppImage, and macOS dmgs for Apple Silicon and Intel.
 
 ### Unsigned builds
 
-Releases are **not code-signed**. A certificate is a recurring cost this project doesn't carry, so Windows SmartScreen shows *"Windows protected your PC"* on first run: choose **More info → Run anyway**.
+Releases are **not code-signed**. A certificate is a recurring cost this project doesn't carry, so each platform asks once.
+
+**Windows**: SmartScreen shows *"Windows protected your PC"*. Choose **More info → Run anyway**.
+
+**macOS**: drag Cernix to Applications, then run this once:
+
+```
+xattr -dr com.apple.quarantine /Applications/Cernix.app
+```
+
+Right-click → Open is the usual advice for an unsigned Mac app and it is not enough here: a download carries a quarantine flag, and macOS may call the app *damaged*, which offers only Move to Trash. Removing the flag is the step that always works.
+
+**Linux**: mark the AppImage executable and run it.
 
 Every release publishes a sha256 alongside the installer. If you'd rather not trust a binary at all, the source is here and `npm run build` produces the same app.
 
