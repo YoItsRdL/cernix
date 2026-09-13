@@ -96,6 +96,28 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [editorFile])
 
+  /**
+   * Leaving for another section closes the editor.
+   *
+   * It is a full-screen surface over the workbench and a sibling of the
+   * tab content, not a tab itself, so nothing about switching tabs used
+   * to touch it: it stayed mounted and painted over whatever you
+   * switched to. Reported from the Workstation — click Local Archive
+   * mid-edit and the two headers draw on top of each other.
+   *
+   * Closed rather than hidden. A hidden editor keeps its WebGL context
+   * and its key handlers, and a full-screen surface listening for keys
+   * over a library it is not showing is the same defect as the grid that
+   * answered Enter from behind the editor.
+   *
+   * Nothing is lost: EditorView flushes the params store to XMP in its
+   * unmount cleanup, the same path Escape has always taken.
+   */
+  const handleTabChange = useCallback((tab: TabId) => {
+    setEditorFile(null)
+    setActiveTab(tab)
+  }, [])
+
   // Hidden design-system sandbox. Ctrl/Cmd + Shift + D. The sandbox
   // is the in-app equivalent of Storybook; keeps design work inside
   // the running renderer where tokens, primitives, and state treatments
@@ -305,7 +327,7 @@ export default function App() {
         {/* Workstation Sidebar (Left Explorer) */}
         <Sidebar 
           activeTab={activeTab} 
-          onTabChange={setActiveTab}
+          onTabChange={handleTabChange}
           volumes={volumes}
           authStatus={authStatus}
           onConnectCloud={handleConnectCloud}
@@ -524,7 +546,7 @@ export default function App() {
                                  {sharing ? 'Sharing…' : 'Share'}
                                </Button>
                              )}
-                             <Button variant="primary" size="sm" onClick={() => setActiveTab('organize')} className="gap-2 font-bold">
+                             <Button variant="primary" size="sm" onClick={() => handleTabChange('organize')} className="gap-2 font-bold">
                                <FolderTree size={12} />
                                Go to Workstation
                              </Button>
