@@ -9,8 +9,12 @@ name: macOS seal check
 # Linux and no macOS build. A macOS-only fix that cannot be run before
 # it is tagged is a fix that gets debugged on the release page.
 #
-# Delete this once the signing is proven. It is scaffolding, not a gate:
-# the real check lives in release.yml, where it blocks a publish.
+# Written as a throwaway and kept, because it earned it: it caught two
+# further signing faults — --deep leaving a stale resource hash, and a
+# hand-rolled inside-out order that could not sign a framework whose own
+# helper was unsigned — before either reached a release page. It is not a
+# gate; the gate lives in release.yml, where it blocks a publish. This is
+# the way to exercise a macOS-only change from a Linux machine at all.
 
 on:
   workflow_dispatch:

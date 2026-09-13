@@ -1,5 +1,25 @@
 # Cernix Workstation Changelog
 
+## [1.2.3] - 2026-09-13
+
+### Fixed
+- **The macOS builds are signed and published again.** 1.2.1 and 1.2.2
+  each shipped Windows and Linux and no macOS build: the seal check
+  correctly refused to publish a bundle whose signature did not hold.
+
+  Two ordering rules were behind it. `codesign --deep` signs a `.node`
+  under `Contents/Resources` as nested code, rewriting the file after
+  the bundle has already sealed that resource's hash. Signing inside-out
+  by hand then failed on `Electron Framework.framework`, whose own
+  nested `chrome_crashpad_handler` was unsigned — one level of "inside"
+  is not enough.
+
+  Signing now goes through `@electron/osx-sign`, the library
+  electron-builder itself uses, which knows the order. Verified on a
+  macOS runner before release: all four artifacts — both dmgs and both
+  zips, arm64 and x64 — report `valid on disk` and satisfy their
+  designated requirement.
+
 ## [1.2.2] - 2026-09-13
 
 ### Fixed
