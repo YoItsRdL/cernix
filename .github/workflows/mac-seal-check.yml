@@ -1,0 +1,74 @@
+name: macOS seal check
+
+# A throwaway: builds the macOS bundles and verifies their signatures,
+# and publishes nothing.
+#
+# It exists because the machine this project is developed on is Linux,
+# `codesign` is macOS-only, and two releases were already spent finding
+# that out the public way — 1.2.1 and 1.2.2 both shipped Windows and
+# Linux and no macOS build. A macOS-only fix that cannot be run before
+# it is tagged is a fix that gets debugged on the release page.
+#
+# Delete this once the signing is proven. It is scaffolding, not a gate:
+# the real check lives in release.yml, where it blocks a publish.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  seal:
+    name: Build macOS and verify the seal
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx electron-builder install-app-deps
+      - name: Build the macOS bundles
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        run: npm run release:mac
+
+      - name: Verify the shipped artifacts
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          checked=0
+          for zip in release/Cernix-*-*.zip; do
+            echo "== $zip"
+            work=$(mktemp -d)
+            unzip -q "$zip" -d "$work"
+            app="$work/Cernix.app"
+            test -d "$app/Contents/_CodeSignature" \
+              || { echo "::error::$zip has no _CodeSignature"; exit 1; }
+            codesign --verify --deep --strict --verbose=2 "$app"
+            codesign --display --verbose=2 "$app" 2>&1 | grep -E 'Identifier|Signature|Format'
+            rm -rf "$work"; checked=$((checked+1))
+          done
+          for dmg in release/Cernix-*.dmg; do
+            echo "== $dmg"
+            mnt=$(mktemp -d)
+            hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$dmg" >/dev/null
+            codesign --verify --deep --strict --verbose=2 "$mnt/Cernix.app"
+            hdiutil detach "$mnt" >/dev/null; checked=$((checked+1))
+          done
+          test "$checked" -ge 4 || { echo "::error::only $checked artifacts"; exit 1; }
+          echo "$checked macOS artifacts verified"
+
+      - name: What Gatekeeper would say
+        # Expected to refuse: ad-hoc is signed by nobody. Recorded rather
+        # than asserted, so the log says plainly what this does and does
+        # not buy.
+        if: always()
+        run: |
+          for dmg in release/Cernix-*.dmg; do
+            mnt=$(mktemp -d)
+            hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$dmg" >/dev/null || continue
+            echo "== $dmg"
+            spctl --assess --type execute --verbose=4 "$mnt/Cernix.app" 2>&1 | sed 's/^/    /' || true
+            hdiutil detach "$mnt" >/dev/null || true
+          done

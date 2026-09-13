@@ -46,20 +46,55 @@ export default async function afterPack(context) {
     throw new Error(`ad-hoc signing: no bundle at ${appPath}`)
   }
 
-  // `--deep` is deprecated by Apple for distribution signing, and is
-  // still the right tool for ad-hoc: it seals the helpers and frameworks
-  // inside the bundle, which is exactly what was missing. There is no
-  // notarisation here for its deprecation to matter to.
+  // Signed inside-out, and deliberately not with `--deep`.
   //
-  // No `--options runtime`: the hardened runtime is a prerequisite for
-  // notarisation, and without notarisation it only removes the
-  // entitlements Electron expects and buys nothing.
-  console.log(`  ad-hoc signing ${appName}`)
-  execFileSync('codesign', ['--force', '--deep', '--sign', '-', appPath], { stdio: 'inherit' })
+  // `--deep` was the first attempt and it failed the same way twice, on
+  // the same file:
+  //
+  //     file modified: .../app.asar.unpacked/node_modules/better-sqlite3/
+  //                    build/Release/better_sqlite3.node
+  //     Cernix.app: a sealed resource is missing or invalid
+  //
+  // A `.node` is a Mach-O living under `Contents/Resources`, so it is
+  // both nested code and a sealed resource. `--deep` signs it, which
+  // rewrites the file, after the enclosing bundle has already recorded
+  // that resource's hash — so the seal describes the file as it was a
+  // moment earlier. Apple deprecates `--deep` for exactly this class of
+  // reason and says to sign nested code first and the bundle last, so
+  // every hash is taken over a file that has stopped changing.
+  const inner = []
+  const resources = path.join(appPath, 'Contents', 'Resources')
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, e.name)
+      if (e.isDirectory()) walk(full)
+      else if (e.isFile() && e.name.endsWith('.node')) inner.push(full)
+    }
+  }
+  if (fs.existsSync(resources)) walk(resources)
+
+  // Then the helpers and frameworks, which are bundles of their own and
+  // must be sealed before the app that contains them.
+  const frameworks = path.join(appPath, 'Contents', 'Frameworks')
+  if (fs.existsSync(frameworks)) {
+    for (const e of fs.readdirSync(frameworks, { withFileTypes: true })) {
+      if (e.name.endsWith('.app') || e.name.endsWith('.framework')) {
+        inner.push(path.join(frameworks, e.name))
+      }
+    }
+  }
+
+  for (const target of inner) {
+    execFileSync('codesign', ['--force', '--sign', '-', target], { stdio: 'inherit' })
+  }
+  console.log(`  sealed ${inner.length} nested items`)
+
+  // The bundle last.
+  execFileSync('codesign', ['--force', '--sign', '-', appPath], { stdio: 'inherit' })
 
   // Verified here rather than trusted, because the whole defect was a
-  // bundle that looked built and was not sealed. A signature that does
-  // not verify must fail the build rather than reach a release page.
+  // bundle that looked built and was not sealed. `--deep` is right for
+  // *verifying*: it walks everything and is what Gatekeeper does.
   execFileSync('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath], {
     stdio: 'inherit',
   })
