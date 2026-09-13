@@ -1,5 +1,46 @@
 # Cernix Workstation Changelog
 
+## [1.2.4] - 2026-09-13
+
+### Fixed
+- **macOS opens without being repaired first.** 1.2.3 installed, cleared
+  Gatekeeper, and then died on launch with the Electron framework
+  "not valid for use in process ... different Team IDs". Signing each
+  nested item separately gives every one its own ad-hoc identity, and
+  macOS 26 requires the framework's to match the executable's. The whole
+  bundle is signed in one pass now, so they share one.
+
+- **The Intel build ships an Intel binary.** Every macOS build since the
+  platform was added shipped an arm64 `better_sqlite3.node` inside the
+  x64 app, so an Intel Mac would install Cernix and then fail to open its
+  databases. The mac targets pinned both architectures onto every target,
+  so `--mac --arm64` built *both* and each pass packaged whatever the
+  previous one had left in `node_modules`. The targets name no
+  architecture now; one pass builds one thing.
+
+  Apple Silicon was unaffected — it happened to end up with the module it
+  needed.
+
+- **The release build checks the app, not just its signature.** Every
+  gate passed on 1.2.3 and it still crashed: the smoke test ran the
+  executable inside the bundle, straight from a shell, which does not
+  enforce library validation. Opening the bundle through launchd does,
+  and that is the only way anybody actually starts it. The macOS check
+  now copies the app out of the dmg, clears quarantine, opens it, and
+  requires it to still be alive twelve seconds later — and refuses to
+  publish an artifact whose native module is the wrong architecture.
+
+- **Switching sections closes the editor.** Editing a photograph in the
+  Workstation and clicking Local Archive drew both surfaces on top of
+  each other. The editor is a sibling of the tab content, so nothing
+  about changing tabs touched it.
+
+### Added
+- **Release notes say what changed.** Every release page carried the same
+  download-and-unblock text and nothing about the release. The CHANGELOG
+  entry is the release notes now, and a version without one fails the
+  build before anything compiles.
+
 ## [1.2.3] - 2026-09-13
 
 ### Fixed
