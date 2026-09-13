@@ -110,6 +110,25 @@ jobs:
             rm -rf "$staged"
           done
 
+      - name: Keep the build so it can be opened on a real Mac
+        # The point of the whole workflow. A runner can verify a
+        # signature and launch a bundle; it cannot tell you the app is
+        # usable. This hands the dmgs back so the person who reported the
+        # fault can open the fix before it is tagged, which is the step
+        # whose absence turned one macOS defect into three releases.
+        #
+        # Downloaded through a browser it arrives quarantined and zipped
+        # by Actions, so it needs the same xattr line any release does.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cernix-macos-test-build
+          path: |
+            release/Cernix-*.dmg
+            release/Cernix-*.zip
+          if-no-files-found: error
+          retention-days: 7
+
       - name: What Gatekeeper would say
         # Expected to refuse: ad-hoc is signed by nobody. Recorded rather
         # than asserted, so the log says plainly what this does and does
