@@ -28,6 +28,7 @@
  * Usage:  node scripts/release-mac-arch.mjs --arch=arm64|x64
  */
 import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
 
 const arg = process.argv.slice(2).find(a => a.startsWith('--arch='))
 const arch = arg?.split('=')[1]
@@ -59,6 +60,28 @@ function run(label, command, args) {
 
 const builder = process.platform === 'win32' ? 'electron-builder.cmd' : 'electron-builder'
 const bin = new URL(`../node_modules/.bin/${builder}`, import.meta.url).pathname
+
+/**
+ * Throw away whatever the previous pass built.
+ *
+ * `install-app-deps --arch=x64` reported success and left an arm64
+ * module in the bundle, and the x64 dmg shipped a native module an Intel
+ * Mac cannot load. electron-builder does pass `npm_config_arch=x64`, and
+ * it sets `npm_config_force` only when the *platform* differs — darwin
+ * to darwin is the same platform, so a cross-*architecture* pass runs
+ * unforced over a tree that already holds the other architecture's
+ * build.
+ *
+ * Removing it first means the pass has nothing to leave alone. Cheaper
+ * than forcing every dependency to compile from source, which was the
+ * other way to be sure and which makes Linux and Windows depend on a
+ * toolchain to fix a macOS architecture.
+ */
+const moduleBuild = new URL('../node_modules/better-sqlite3/build', import.meta.url).pathname
+if (fs.existsSync(moduleBuild)) {
+  fs.rmSync(moduleBuild, { recursive: true, force: true })
+  console.log(`\n  cleared the previous native build so ${arch} cannot inherit it`)
+}
 
 // Order matters: the modules have to match the bundle being built, so
 // they are prepared immediately before it and not once at the top.

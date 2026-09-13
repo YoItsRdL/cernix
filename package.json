@@ -112,7 +112,6 @@
       "icon": "build-resources/icon.ico",
       "target": "nsis"
     },
-    "buildDependenciesFromSource": true,
     "afterPack": "scripts/mac-adhoc-sign.mjs",
     "mac": {
       "icon": "build-resources/icon.png",
