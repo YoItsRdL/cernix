@@ -100,6 +100,18 @@ jobs:
             exit 1
           fi
 
+      - name: Check the release says what changed
+        # Before anything is built, because the cheapest place to find a
+        # missing changelog entry is before three platforms compile.
+        # Every release page used to carry the same text — which file to
+        # download, how to get past the unsigned warning — and nothing
+        # about what was different. The account existed in CHANGELOG.md
+        # and never reached the page anybody read.
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          node scripts/release-notes.mjs "$VERSION" > /dev/null
+
       - name: Install dependencies
         run: npm ci
 
@@ -241,6 +253,13 @@ jobs:
           node scripts/landing-update-binary.mjs --release-tag "$TAG"
           cat landing/binary.json
 
+      - name: Write the release notes from the changelog
+        run: |
+          VERSION="${{ github.event.inputs.tag || github.ref_name }}"
+          node scripts/release-notes.mjs "${VERSION#v}" --out release-notes.md
+          echo "--- notes ---"
+          head -20 release-notes.md
+
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
@@ -256,31 +275,7 @@ jobs:
           # that did build would make one broken target hold up all of
           # them. The build job already failed loudly for that platform.
           fail_on_unmatched_files: false
-          body: |
-            Cernix for Windows, Linux and macOS.
-
-            | Platform | File |
-            |---|---|
-            | Windows | `Cernix-Setup-*.exe` — installer |
-            | Linux | `Cernix-*.AppImage` — mark executable and run |
-            | macOS | `Cernix-*.dmg` — Apple Silicon and Intel |
-
-            **No build is code-signed.** Windows SmartScreen shows
-            "Windows protected your PC": choose *More info → Run anyway*.
-
-            On macOS, drag Cernix to Applications, then run once:
-
-            ```
-            xattr -dr com.apple.quarantine /Applications/Cernix.app
-            ```
-
-            Right-click → Open is offered widely as the macOS answer and
-            it does not always work here: a browser download is
-            quarantined, and for an app signed by nobody macOS can report
-            it as *damaged*, which offers only Move to Trash. Removing the
-            quarantine attribute is the step that always works.
-
-            Verify any download against the sha256 in `binary.json`.
+          body_path: release-notes.md
 
       - name: Summary
         run: |
