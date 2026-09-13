@@ -20,27 +20,32 @@
  * qualifier, finds nothing, and skips anyway. So the sealing happens
  * here.
  *
- * ── Why @electron/osx-sign and not codesign directly ──
+ * ── One pass, with --deep ──
  *
- * Two hand-rolled attempts failed, each on a real ordering rule:
+ * Signed in a single `codesign --force --deep --sign -` over the whole
+ * bundle, and this took three wrong turns to arrive at.
  *
- *   `codesign --deep` — a `.node` is a Mach-O under `Contents/Resources`,
- *   so it is both nested code and a sealed resource. `--deep` signs it,
- *   rewriting the file, after the bundle recorded that resource's hash,
- *   leaving "a sealed resource is missing or invalid" on exactly that
- *   file. Apple deprecates `--deep` for this class of reason.
+ * Signing each nested item separately — which is what
+ * @electron/osx-sign does, and what signing inside-out by hand does —
+ * produces a bundle that verifies perfectly and cannot launch. On
+ * macOS 26 the loader refuses it:
  *
- *   Signing inside-out by hand — "Electron Framework.framework: code
- *   object is not signed at all, In subcomponent: .../Helpers/
- *   chrome_crashpad_handler". Frameworks contain their own nested
- *   helpers and dylibs, so one level of "inside" is not enough.
+ *     Library not loaded: @rpath/Electron Framework.framework/...
+ *     not valid for use in process: mapping process and mapped file
+ *     (non-platform) have different Team IDs
  *
- * The order is the whole problem, and it is a solved one: this is the
- * library electron-builder itself signs with. Hand-rolling it again
- * would be writing a third implementation of something already correct.
+ * Each separate ad-hoc signature is its own identity, and library
+ * validation requires the framework's to match the executable's. One
+ * pass over the bundle gives them all the same one. Confirmed on the
+ * reporter's own machine: re-signing the installed app with exactly
+ * this command turned a launch crash into a working app.
+ *
+ * `--deep` is deprecated by Apple for distribution signing. That
+ * deprecation is about Developer ID and notarisation, neither of which
+ * applies here, and the alternative it points to — signing each piece
+ * individually — is precisely what does not work for ad-hoc.
  *
  * ── What this does and does not buy ──
- *
  * Ad-hoc means signed by nobody, so macOS still warns once and `spctl`
  * still refuses. What it buys is a bundle whose seal is intact, which
  * turns an unrecoverable error into the normal warning with a way
@@ -49,7 +54,6 @@
  * "Code-signing certificate" open decision in AGENTS.md.
  */
 import { execFileSync } from 'node:child_process'
-import { sign } from '@electron/osx-sign'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -64,19 +68,7 @@ export default async function afterPack(context) {
   }
 
   console.log(`  ad-hoc signing ${appName}`)
-  await sign({
-    app: appPath,
-    // "-" is codesign's ad-hoc identity. `identityValidation: false` is
-    // required with it: the default searches the keychain for a
-    // certificate matching the string, and there is no certificate
-    // called "-" to find.
-    identity: '-',
-    identityValidation: false,
-    platform: 'darwin',
-    // No hardened runtime: it is a prerequisite for notarisation, and
-    // without notarisation it only removes entitlements Electron wants.
-    ignore: [],
-  })
+  execFileSync('codesign', ['--force', '--deep', '--sign', '-', appPath], { stdio: 'inherit' })
 
   // Verified rather than trusted, because the defect was a bundle that
   // looked built and was not sealed. `--deep` is wrong for signing and

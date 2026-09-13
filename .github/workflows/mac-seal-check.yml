@@ -63,6 +63,44 @@ jobs:
           test "$checked" -ge 4 || { echo "::error::only $checked artifacts"; exit 1; }
           echo "$checked macOS artifacts verified"
 
+      - name: Launch it the way a person does
+        # The hole that let a crashing build reach a user. `npm run smoke`
+        # launches Cernix.app/Contents/MacOS/Cernix — the inner
+        # executable, straight from a shell — and that path does not
+        # enforce library validation. Opening the *bundle* goes through
+        # launchd, which does, and that is where 1.2.3 died:
+        #
+        #   Library not loaded: @rpath/Electron Framework.framework/...
+        #   (non-platform) have different Team IDs
+        #
+        # Verifying a signature is not the same as running what it
+        # signed. This runs it.
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for dmg in release/Cernix-*-arm64.dmg; do
+            mnt=$(mktemp -d); staged=$(mktemp -d)
+            hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$dmg" >/dev/null
+            # Copied out and de-quarantined, which is what a user ends up
+            # with after dragging to Applications.
+            cp -R "$mnt/Cernix.app" "$staged/"
+            hdiutil detach "$mnt" >/dev/null
+            xattr -dr com.apple.quarantine "$staged/Cernix.app" || true
+
+            echo "== launching $(basename "$dmg") through launchd"
+            open -a "$staged/Cernix.app" || { echo "::error::open refused the bundle"; exit 1; }
+            sleep 12
+            if pgrep -f "$staged/Cernix.app/Contents/MacOS/Cernix" >/dev/null; then
+              echo "   still running after 12s"
+              pkill -f "$staged/Cernix.app/Contents/MacOS/Cernix" || true
+            else
+              echo "::error::the app did not stay running — it launched and died"
+              log show --last 2m --predicate 'process == "Cernix"' 2>/dev/null | tail -30 || true
+              exit 1
+            fi
+            rm -rf "$staged"
+          done
+
       - name: What Gatekeeper would say
         # Expected to refuse: ad-hoc is signed by nobody. Recorded rather
         # than asserted, so the log says plainly what this does and does
