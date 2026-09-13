@@ -118,28 +118,54 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         run: npm run ${{ matrix.script }}
 
-      - name: Check the macOS bundle is sealed
-        # The one thing this machine class can check and a Linux dev box
-        # cannot. 1.2.0 shipped a bundle with no
-        # `_CodeSignature/CodeResources` at all: electron-builder renamed
-        # the executable and rewrote Info.plist without re-sealing, and
-        # macOS reported the download as "damaged and can't be opened",
-        # which offers the user only Move to Trash. `afterPack` ad-hoc
-        # signs it now; this is what stops that regressing silently.
+      - name: Check the shipped macOS bundles are sealed
+        # Checks the artifacts, not `release/mac*/Cernix.app`. The first
+        # version of this checked the build directory and failed the x64
+        # bundle with "a sealed resource is missing or invalid" on
+        # better_sqlite3.node — correctly, but about a file nobody
+        # downloads: `release:mac` ends with a bare `install-app-deps` to
+        # put the host's native modules back, the bundle's copy is
+        # hardlinked into node_modules, and that final rebuild rewrites
+        # it underneath the signature. The dmg and zip were already made
+        # by then, so they were fine and the directory was not.
         #
-        # `codesign --verify` must pass. `spctl` must NOT: ad-hoc means
-        # signed by nobody, so Gatekeeper still refuses it, and asserting
-        # that keeps this step honest about what ad-hoc buys — a bundle
-        # whose seal is intact, not a trusted app.
+        # So: verify the thing a user downloads. `codesign --verify` must
+        # pass. `spctl` is deliberately not asserted — ad-hoc means
+        # signed by nobody, Gatekeeper still refuses it, and claiming
+        # otherwise would make this check a lie.
         if: matrix.os == 'macos-latest'
         run: |
-          for app in release/mac*/Cernix.app; do
-            echo "== $app"
+          set -euo pipefail
+          shopt -s nullglob
+
+          checked=0
+          for zip in release/Cernix-*-*.zip; do
+            echo "== $zip"
+            work=$(mktemp -d)
+            unzip -q "$zip" -d "$work"
+            app="$work/Cernix.app"
             test -d "$app/Contents/_CodeSignature" \
-              || { echo "::error::$app has no _CodeSignature: the bundle was not sealed"; exit 1; }
+              || { echo "::error::$zip ships a bundle with no _CodeSignature"; exit 1; }
             codesign --verify --deep --strict --verbose=2 "$app"
-            codesign --display --verbose=2 "$app" 2>&1 | sed -n '1,6p'
+            codesign --display --verbose=2 "$app" 2>&1 | grep -E 'Identifier|Signature|Format'
+            rm -rf "$work"
+            checked=$((checked+1))
           done
+
+          for dmg in release/Cernix-*.dmg; do
+            echo "== $dmg"
+            mnt=$(mktemp -d)
+            hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$dmg" >/dev/null
+            codesign --verify --deep --strict --verbose=2 "$mnt/Cernix.app"
+            hdiutil detach "$mnt" >/dev/null
+            checked=$((checked+1))
+          done
+
+          # A loop over nothing passes silently, which is the shape of
+          # green tick that hides a missing build.
+          test "$checked" -ge 4 \
+            || { echo "::error::expected 4 macOS artifacts to verify, saw $checked"; exit 1; }
+          echo "$checked macOS artifacts verified"
 
       - name: Let Chromium's sandbox helper run
         # Linux only, and only in CI. `chrome-sandbox` must be owned by

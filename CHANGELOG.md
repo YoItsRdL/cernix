@@ -1,5 +1,19 @@
 # Cernix Workstation Changelog
 
+## [1.2.2] - 2026-09-13
+
+### Fixed
+- **The macOS builds actually reach the release page.** 1.2.1 shipped
+  Windows and Linux and no macOS build at all: the new seal check ran
+  against `release/mac*/Cernix.app` and failed the x64 bundle on
+  `better_sqlite3.node`. Correctly, but about a file nobody downloads —
+  `release:mac` ends with a bare `install-app-deps` to restore the
+  host's native modules, the bundle's copy is hardlinked into
+  `node_modules`, and that last rebuild rewrites it underneath the
+  signature. The dmg and zip were already written by then. The check now
+  verifies the artifacts themselves, and fails if it finds fewer than
+  the four it expects, because a loop over nothing passes quietly.
+
 ## [1.2.1] - 2026-09-13
 
 ### Fixed
