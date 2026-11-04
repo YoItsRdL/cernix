@@ -47,10 +47,10 @@ export function Inspector({
       {...props}
     >
       <header className="h-12 shrink-0 flex items-center justify-between gap-space-2 px-space-4 border-b border-border-subtle bg-surface-raised">
-        <span className="text-caption font-bold text-text-muted uppercase tracking-widest flex items-center gap-space-2 min-w-0 truncate">
+        <h2 className="text-caption font-bold text-text-muted uppercase tracking-widest flex items-center gap-space-2 min-w-0 truncate">
           {icon}
           {title}
-        </span>
+        </h2>
         {(actions || onClose) && (
           <span className="flex items-center gap-space-1 shrink-0">
             {actions}

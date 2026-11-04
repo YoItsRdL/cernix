@@ -3,6 +3,7 @@ import { Slider } from './Slider'
 import { cn } from '@/lib/utils'
 import type { EditParams, HslAdjustments, HslRange, HslBand } from '@/types'
 import { HSL_RANGES, DEFAULT_PARAMS } from '../../../shared/edit-params'
+import { HUE_SWATCHES } from '../utils/hue-swatches'
 
 interface HslPanelProps {
   hsl: HslAdjustments
@@ -13,20 +14,7 @@ interface HslPanelProps {
   onCompareChange?: (fn: ((p: EditParams) => EditParams) | null) => void
 }
 
-/* eslint-disable no-restricted-syntax -- design-allow: the eight hue bands
-   this panel edits, matching Lightroom Classic and Camera Raw so preset
-   libraries import 1:1. */
-const SWATCHES: Record<HslRange, string> = {
-  red:     '#e74c3c',
-  orange:  '#e67e22',
-  yellow:  '#f1c40f',
-  green:   '#27ae60',
-  aqua:    '#1abc9c',
-  blue:    '#2980b9',
-  purple:  '#8e44ad',
-  magenta: '#d63384',
-}
-/* eslint-enable no-restricted-syntax */
+const SWATCHES: Record<HslRange, string> = HUE_SWATCHES
 
 export function HslPanel({ hsl, onChange, onCompareChange }: HslPanelProps) {
   const [active, setActive] = useState<HslRange>('red')

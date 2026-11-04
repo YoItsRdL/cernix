@@ -213,15 +213,6 @@ export function DistillerViewport({
     pagination,
     idAt: i => items[i]?.id,
     onSelect: actions.applySelection,
-    onActivate: i => {
-      const item = items[i]
-      if (!item) return
-      if ('mimeType' in item && (item as DriveFile).mimeType !== 'application/vnd.google-apps.folder') {
-        actions.setLightboxId(item.id)
-      } else {
-        actions.navigateToFolder(item as DriveFolder)
-      }
-    },
     // A full-screen surface over this grid owns the keyboard while it
     // is up. Without the last two, Enter reached both the viewer's crop
     // commit and this grid at once — the crop committed and the grid
@@ -334,8 +325,8 @@ export function DistillerViewport({
             <span className="text-body flex-1 truncate font-medium">{item.name}</span>
           )}
           
-          {!isFolder && <span className="text-code text-text-disabled font-mono w-16 text-right shrink-0">{formatSize((item as DriveFile).size)}</span>}
-          <span className="text-code text-text-disabled font-mono w-24 text-right shrink-0">{formatDate(item.createdTime)}</span>
+          {!isFolder && <span className="text-code text-text-muted font-mono w-16 text-right shrink-0">{formatSize((item as DriveFile).size)}</span>}
+          <span className="text-code text-text-muted font-mono w-24 text-right shrink-0">{formatDate(item.createdTime)}</span>
         </div>
       )
     }
@@ -421,7 +412,10 @@ export function DistillerViewport({
           }}
           onDoubleClick={(e: React.MouseEvent) => {
             e.stopPropagation()
-            if (!isFolder) actions.setLightboxId(item.id)
+            // A folder opens on one click already; this is Enter on a
+            // focused tile, which opens whatever the tile is.
+            if (isFolder) actions.navigateToFolder(item as DriveFolder)
+            else actions.setLightboxId(item.id)
           }}
           onContextMenu={(e: React.MouseEvent) => {
             e.preventDefault()

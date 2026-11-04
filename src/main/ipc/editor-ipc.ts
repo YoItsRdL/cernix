@@ -8,8 +8,11 @@ import { DriveClient } from '../services/drive-client'
 import { XmpWriter } from '../services/xmp-writer'
 import type { PathGuard } from '../services/approved-paths'
 import { postprocessExport } from '../services/export-postprocess'
+import { startPath, rememberPick } from '../services/dialog-folders'
 import { EditParams, DEFAULT_PARAMS } from '../../shared/edit-params'
+import { fileIdArg, nameArg, flagArg, paramsArg } from './args'
 import type { Stars } from '../services/rating-store'
+import { tracked } from '../services/work-in-progress'
 
 // Helper for extension resolution
 const EXPORT_MIME: Record<string, string> = {
@@ -52,13 +55,10 @@ export function registerEditorHandlers(
     // The renderer is the caller this is defending against, so anything
     // outside the scale is dropped rather than written.
     if (stars !== null && !(Number.isInteger(stars) && stars >= 0 && stars <= 5)) return
-    ratingStore.setUserStars(fileId, stars as Stars)
+    ratingStore.setUserStars(fileIdArg(fileId), stars as Stars)
   })
   ipcMain.handle('rating:set-flag', (_, fileId: string, flag: 'pick' | null) => {
-    ratingStore.setFlag(fileId, flag)
-  })
-  ipcMain.handle('rating:set-user-pick', (_, fileId: string, picked: boolean) => {
-    ratingStore.setUserPick(fileId, picked)
+    ratingStore.setFlag(fileIdArg(fileId), flagArg(flag))
   })
 
   // ── Editor Vitals ──
@@ -78,11 +78,17 @@ export function registerEditorHandlers(
   })
 
   ipcMain.handle('editor:write-params', async (_, sourcePath: string, params: EditParams) => {
+    // Refused out loud: a silent return read as "saved", and the editor
+    // went on showing a photograph whose edits were going nowhere.
     if (!isAllowedPath(sourcePath)) {
       console.warn('[editor] Refused a sidecar write outside the approved paths')
-      return
+      throw new Error('Cernix may not save edits next to that file.')
     }
-    return XmpWriter.write(sourcePath, params)
+    // A file, not a folder: the sidecar is written beside it, and the
+    // guard admits an approved root itself, whose neighbour is outside it.
+    const st = await fs.lstat(sourcePath).catch(() => null)
+    if (!st?.isFile()) throw new Error('Edits can only be saved next to a photograph.')
+    return XmpWriter.write(sourcePath, paramsArg(params))
   })
 
   /**
@@ -112,7 +118,7 @@ export function registerEditorHandlers(
   }
 
   // ── Export Authority ──
-  ipcMain.handle('editor:upload-export', async (_, sourceFileId: string, bytes: ArrayBuffer, outputName: string, sourceCachePath: string | null, subpath: string[] | null) => {
+  ipcMain.handle('editor:upload-export', tracked('exporting to Drive', async (_, sourceFileId: string, bytes: ArrayBuffer, outputName: string, sourceCachePath: string | null, subpath: string[] | null, keepLocation: boolean) => {
     const log = (msg: string) => sendToRenderer('sys:log', { level: 'info', source: 'editor', message: msg })
     log('Export: mirroring source path under \'Cernix Shared\'...')
     let { folderId, path: mirrorPath } = await driveClient.resolveSharedMirrorFolder(sourceFileId)
@@ -130,7 +136,7 @@ export function registerEditorHandlers(
 
     log(`Export: destination = Cernix Shared${mirrorPath.length ? '/' + mirrorPath.join('/') : ''}`)
     log(`Export: postprocessing ${bytes.byteLength} bytes (EXIF + ICC)...`)
-    const { bytes: enriched, warning } = await postprocessExport(new Uint8Array(bytes), sourceForMetadata(sourceCachePath, log), (stage) => log(`Export stage: ${stage}`))
+    const { bytes: enriched, warning } = await postprocessExport(new Uint8Array(bytes), sourceForMetadata(sourceCachePath, log), { keepLocation: keepLocation === true, onProgress: (stage) => log(`Export stage: ${stage}`) })
     if (warning) log(`Export: warning - ${warning}`)
 
     log('Export: choosing filename (collision-safe)...')
@@ -141,13 +147,13 @@ export function registerEditorHandlers(
     const result = await driveClient.uploadBytes(enriched, finalName, folderId, mimeType)
     log(`Export uploaded: ${finalName} (${result.id})`)
     return { ...result, name: finalName, mirrorPath, warning }
-  })
+  }))
 
   // Local export. Same postprocess pipeline as the Drive path, just
   // writes the enriched bytes to a user-chosen filesystem path instead
   // of uploading. The Save dialog gives the user full control over
   // filename and directory, so we skip the collision-avoidance dance.
-  ipcMain.handle('editor:save-export-local', async (_, bytes: ArrayBuffer, outputName: string, sourceCachePath: string | null) => {
+  ipcMain.handle('editor:save-export-local', tracked('saving an export', async (_, bytes: ArrayBuffer, outputName: string, sourceCachePath: string | null, keepLocation: boolean) => {
     // `window` was captured at handler-registration time (before
     // createWindow ran), so it's permanently null. Use the live
     // focused window for the dialog parent. Same fix as
@@ -155,27 +161,28 @@ export function registerEditorHandlers(
     const parent = BrowserWindow.getFocusedWindow() ?? window
     const log = (msg: string) => sendToRenderer('sys:log', { level: 'info', source: 'editor', message: msg })
 
-    const dialogOpts = { defaultPath: outputName, title: 'Export image' }
+    const dialogOpts = { defaultPath: startPath('export', outputName), title: 'Export image' }
     const pick = parent
       ? await dialog.showSaveDialog(parent, dialogOpts)
       : await dialog.showSaveDialog(dialogOpts)
     if (pick.canceled || !pick.filePath) return { saved: false as const }
+    rememberPick('export', pick.filePath)
 
     log(`Local export: postprocessing ${bytes.byteLength} bytes (EXIF + ICC)...`)
-    const { bytes: enriched, warning } = await postprocessExport(new Uint8Array(bytes), sourceForMetadata(sourceCachePath, log), (stage) => log(`Export stage: ${stage}`))
+    const { bytes: enriched, warning } = await postprocessExport(new Uint8Array(bytes), sourceForMetadata(sourceCachePath, log), { keepLocation: keepLocation === true, onProgress: (stage) => log(`Export stage: ${stage}`) })
     if (warning) log(`Local export: warning - ${warning}`)
 
     log(`Local export: writing ${enriched.length} bytes to ${pick.filePath}...`)
     await fs.writeFile(pick.filePath, enriched)
     log(`Local export saved: ${pick.filePath}`)
     return { saved: true as const, path: pick.filePath, warning }
-  })
+  }))
 
   // ── Preset Services ──
   ipcMain.handle('preset:list', () => presetStore.list())
-  ipcMain.handle('preset:save', (_, name: string, params: EditParams) => presetStore.save(name, params))
-  ipcMain.handle('preset:delete', (_, id: string) => presetStore.delete(id))
-  ipcMain.handle('preset:rename', (_, id: string, name: string) => presetStore.rename(id, name))
+  ipcMain.handle('preset:save', (_, name: string, params: EditParams) => presetStore.save(nameArg(name), paramsArg(params)))
+  ipcMain.handle('preset:delete', (_, id: string) => presetStore.delete(fileIdArg(id)))
+  ipcMain.handle('preset:rename', (_, id: string, name: string) => presetStore.rename(fileIdArg(id), nameArg(name)))
 
   // ── Preset thumbnail cache ──
   // Disk cache for the preset-grid thumbnails. The renderer renders
@@ -183,10 +190,14 @@ export function registerEditorHandlers(
   // posts the bytes here; on the second-and-later opens for the
   // same photo it reads them back instead of re-rendering.
   ipcMain.handle('preset-thumb:get', async (_, sourceHash: string, presetId: string, presetUpdatedAt: string) => {
-    const buf = await getPresetThumb(sourceHash, presetId, presetUpdatedAt)
+    const buf = await getPresetThumb(fileIdArg(sourceHash), fileIdArg(presetId), fileIdArg(presetUpdatedAt))
     return buf ? buf : null
   })
   ipcMain.handle('preset-thumb:put', async (_, sourceHash: string, presetId: string, presetUpdatedAt: string, bytes: Uint8Array) => {
-    await putPresetThumb(sourceHash, presetId, presetUpdatedAt, Buffer.from(bytes))
+    // A thumbnail is a few KB; the cap is only there so a bad call cannot fill the disk.
+    if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0 || bytes.byteLength > 2 * 1024 * 1024) {
+      throw new Error('That is not a preset thumbnail.')
+    }
+    await putPresetThumb(fileIdArg(sourceHash), fileIdArg(presetId), fileIdArg(presetUpdatedAt), Buffer.from(bytes))
   })
 }

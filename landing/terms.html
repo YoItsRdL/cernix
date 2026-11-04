@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Cernix Terms of Use. Free, as-is, no warranty. Your data stays yours. Google Drive is the only third-party service, and is subject to its own terms." />
+  <meta name="description" content="Cernix Terms of Use. Free, as-is, no warranty. Your data stays yours. Google Drive, which you opt into, is the only third-party service you connect, and is subject to its own terms. Cernix also checks GitHub for updates, which you can turn off." />
   <title>Terms of Use: Cernix</title>
 
   <meta property="og:type" content="article" />
@@ -22,27 +22,32 @@
   <!-- The header's brand tile, at tab size. SVG so it stays sharp at any
        scale and can answer prefers-color-scheme; the PNG is for iOS, which
        wants a square it can mask itself and does not read SVG here. -->
+  <!-- One address per page: the apex serves and www redirects, so a
+       crawler or a shared link otherwise sees two. -->
+  <link rel="canonical" href="https://cernix.app/terms">
+  <meta property="og:url" content="https://cernix.app/terms">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Theme, resolved before the first paint. A stored choice wins;
        otherwise the OS preference decides. Inline and synchronous on
        purpose: deferring it shows a frame of the wrong palette. -->
   <script>
     (function () {
+      // Read apart: localStorage throws in private mode, and that must not
+      // also discard the OS preference.
+      var saved = null
+      try { saved = localStorage.getItem('cernix-theme') } catch (e) { /* private mode */ }
+      var dark = false
       try {
-        var saved = localStorage.getItem('cernix-theme')
-        var dark = saved ? saved === 'dark'
+        dark = saved ? saved === 'dark'
           : window.matchMedia('(prefers-color-scheme: dark)').matches
-        if (dark) document.documentElement.classList.add('dark')
-      } catch (e) { /* private mode: stay light */ }
+      } catch (e) { /* no matchMedia: stay light */ }
+      if (dark) document.documentElement.classList.add('dark')
     })()
   </script>
 
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dist/style.css?v=afb42194" />
+  <link rel="stylesheet" href="dist/style.css?v=99e49885" />
 </head>
 <body>
 
@@ -164,7 +169,7 @@
               Terms of Use
             </h1>
             <p class="text-landing-nav font-mono text-text-disabled tracking-widest uppercase">
-              Last updated · 2026-05-24
+              Last updated · 2026-11-03
             </p>
           </header>
 
@@ -172,14 +177,15 @@
           <!-- ─── Scope ────────────────────────────────────────── -->
           <section class="mb-16">
             <p class="text-landing-sub text-text-emphatic mb-space-4">
-              These terms cover your use of Cernix: the Windows desktop
-              application and this website.
+              These terms cover your use of Cernix: the desktop application
+              for Windows, macOS and Linux, and this website.
             </p>
             <p class="text-landing-body text-text-muted">
               By downloading, installing, or using Cernix, you agree to the
               terms below. If you don't agree, please don't use the app, and
-              if you have already installed it, uninstall and delete
-              <span translate="no" class="font-mono text-text-emphatic">%APPDATA%\Cernix</span>.
+              if you have already installed it, copy your photographs out of
+              <span translate="no" class="font-mono text-text-emphatic">staging/library</span> in its data folder, then uninstall it and delete that
+              folder (see <a class="text-accent-primary hover:underline" href="#stopping">Stopping</a>).
             </p>
           </section>
 
@@ -282,7 +288,7 @@
               Third-party services
             </h2>
             <p class="text-landing-body text-text-muted mb-space-4">
-              Cernix optionally talks to one Google service:
+              Cernix talks to two outside services, one of them only if you connect it:
             </p>
             <ul class="space-y-space-3 text-landing-body text-text-muted mb-space-4">
               <li class="flex gap-space-3">
@@ -290,6 +296,11 @@
                 <span class="min-w-0"><span class="text-text-emphatic">Google Drive</span>: when you connect your Google account. Your use is governed by the
                   <a class="text-accent-primary hover:underline" href="https://policies.google.com/terms" target="_blank" rel="noopener">Google Terms of Service</a> and
                   <a class="text-accent-primary hover:underline" href="https://policies.google.com/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+              </li>
+              <li class="flex gap-space-3">
+                <span class="text-text-disabled font-mono shrink-0">·</span>
+                <span class="min-w-0"><span class="text-text-emphatic">GitHub</span>: to check for a newer version when Cernix starts and every few hours, and to download an update. It sees your IP address, the version you run and your operating system. You can turn the check off in Settings under Updates. Its use is governed by
+                  <a class="text-accent-primary hover:underline" href="https://docs.github.com/site-policy/github-terms/github-terms-of-service" target="_blank" rel="noopener">GitHub's Terms of Service</a>.</span>
               </li>
             </ul>
             <p class="text-landing-body text-text-muted">
@@ -355,9 +366,11 @@
               Stopping
             </h2>
             <p class="text-landing-body text-text-muted">
-              You can stop using Cernix at any time. Uninstall the app and
-              delete <span translate="no" class="font-mono text-text-emphatic">%APPDATA%\Cernix</span> to remove
-              all local data. Files you have uploaded to your own Google Drive
+              You can stop using Cernix at any time. Its data folder is
+              <span translate="no" class="font-mono text-text-emphatic">%APPDATA%\Cernix</span> on Windows, <span translate="no" class="font-mono text-text-emphatic">~/Library/Application Support/Cernix</span> on a Mac, <span translate="no" class="font-mono text-text-emphatic">~/.config/Cernix</span> on Linux. It holds the photographs you swept off
+              your cards, in <span translate="no" class="font-mono text-text-emphatic">staging/library</span>, and they may be the only copy:
+              copy them somewhere else first. Then uninstall the app and
+              delete the data folder to remove all local data. Files you have uploaded to your own Google Drive
               remain yours and stay where they are until you delete them in Drive.
             </p>
           </section>
@@ -516,7 +529,7 @@
           <ul class="space-y-2.5">
             <li><a href="https://github.com/YoItsRdL/cernix" target="_blank" rel="noopener" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">GitHub</a></li>
             <li><a href="https://github.com/YoItsRdL/cernix#readme" target="_blank" rel="noopener" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">Read me</a></li>
-            <li><a href="https://github.com/YoItsRdL/cernix#first-launch" target="_blank" rel="noopener" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">SmartScreen note</a></li>
+            <li><a href="https://github.com/YoItsRdL/cernix#unsigned-builds" target="_blank" rel="noopener" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">SmartScreen note</a></li>
             <!-- The same ask the spill in the corner makes, for anyone who
                  scrolled past it or never had a pointer to hover with. -->
             <li><a href="https://buymeacoffee.com/ibonescalap" target="_blank" rel="noopener" class="inline-flex items-center gap-space-2 text-landing-caption text-text-muted hover:text-text-emphatic transition-colors"><svg class="w-3.5 h-3.5 text-accent-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2v2"/><path d="M14 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/><path d="M6 2v2"/></svg>Buy us a coffee</a></li>
@@ -547,20 +560,38 @@
   </footer>
 
   <!-- Theme toggle. Writes the same cernix-theme key the pre-paint
-       script above reads, so the choice travels with the visitor. -->
+       script above reads, so the choice travels with the visitor.
+
+       The change runs inside a view transition where the browser has one
+       (see "Theme crossfade" in style.css). Its new picture is taken once
+       the page is ready to be seen in the new theme: anything that needs a
+       moment (the hero film's other cut) registers a promise on
+       window.cernixThemeReady, and the toggle waits for it, at most 150 ms. -->
   <script>
     (function () {
       var toggle = document.getElementById('theme-toggle')
       if (!toggle) return
+      var root = document.documentElement
       var sync = function () {
-        var dark = document.documentElement.classList.contains('dark')
+        var dark = root.classList.contains('dark')
         toggle.setAttribute('aria-label', dark ? 'Light mode' : 'Dark mode')
       }
       sync()
-      toggle.addEventListener('click', function () {
-        var dark = document.documentElement.classList.toggle('dark')
+      var flip = function () {
+        var dark = root.classList.toggle('dark')
         try { localStorage.setItem('cernix-theme', dark ? 'dark' : 'light') } catch (e) {}
         sync()
+        // Told synchronously, so a listener can register what to wait for.
+        root.dispatchEvent(new Event('cernix:theme'))
+        var ready = window.cernixThemeReady
+        window.cernixThemeReady = null
+        return ready ? Promise.race([ready, new Promise(function (r) { setTimeout(r, 150) })]) : null
+      }
+      var still = false
+      try { still = window.matchMedia('(prefers-reduced-motion: reduce)').matches } catch (e) { /* no matchMedia */ }
+      toggle.addEventListener('click', function () {
+        if (document.startViewTransition && !still) document.startViewTransition(flip)
+        else flip()
       })
     })()
   </script>

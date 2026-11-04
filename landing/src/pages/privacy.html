@@ -1,4 +1,4 @@
-<!-- {"out":"privacy.html","base":"/","cta":"","privacyInk":"text-text-emphatic","termsInk":"text-text-muted","installInk":"text-text-muted"} -->
+<!-- {"canonical":"https://cernix.app/privacy","out":"privacy.html","base":"/","cta":"","privacyInk":"text-text-emphatic","termsInk":"text-text-muted","installInk":"text-text-muted"} -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -76,7 +76,7 @@
               Privacy Policy
             </h1>
             <p class="text-landing-nav font-mono text-text-disabled tracking-widest uppercase">
-              Last updated · 2026-05-24
+              Last updated · 2026-11-03
             </p>
           </header>
 
@@ -84,8 +84,8 @@
           <!-- ─── Overview ──────────────────────────────────────── -->
           <section class="mb-16">
             <p class="text-landing-sub text-text-emphatic mb-space-4">
-              Cernix is a Windows desktop application. It runs entirely on your
-              computer.
+              Cernix is a desktop application for Windows, macOS and Linux. It runs
+              entirely on your computer.
             </p>
             <p class="text-landing-body text-text-muted mb-space-4">
               We do not operate an application server, run analytics, collect
@@ -100,7 +100,7 @@
               Cernix is free and open source. There is no purchase, no licence
               key, and no payment processor, so there is no billing data to
               collect. The only external services involved are the ones
-              <em>you</em> opt into (Google Drive), plus the fonts the app loads at startup.
+              <em>you</em> opt into (Google Drive) and GitHub, for the update check described below.
             </p>
             <p class="text-landing-body text-text-muted">
               This page documents every external request Cernix makes, every
@@ -123,7 +123,7 @@
               </li>
               <li class="flex gap-space-3">
                 <span class="text-text-disabled font-mono shrink-0">2.</span>
-                <span class="min-w-0"><span class="text-text-emphatic">Your local archive folder.</span> Once you sweep files off a card, Cernix writes them to a date-organised local folder (<span translate="no" class="font-mono text-text-emphatic">YYYY / Month / DD</span>) under the directory you pick.</span>
+                <span class="min-w-0"><span class="text-text-emphatic">Your local archive folder.</span> Once you sweep files off a card, Cernix writes them to a date-organised local folder (<span translate="no" class="font-mono text-text-emphatic">YYYY / Month / DD</span>) inside its own data folder, in <span translate="no" class="font-mono text-text-emphatic">staging/library</span> (the data folder is <span translate="no" class="font-mono text-text-emphatic">%APPDATA%\Cernix</span> on Windows, <span translate="no" class="font-mono text-text-emphatic">~/Library/Application Support/Cernix</span> on a Mac, <span translate="no" class="font-mono text-text-emphatic">~/.config/Cernix</span> on Linux). These are your photographs, not a cache: they may be the only copy once the card is reformatted.</span>
               </li>
               <li class="flex gap-space-3">
                 <span class="text-text-disabled font-mono shrink-0">3.</span>
@@ -131,11 +131,11 @@
               </li>
               <li class="flex gap-space-3">
                 <span class="text-text-disabled font-mono shrink-0">4.</span>
-                <span class="min-w-0"><span class="text-text-emphatic">App-data files.</span> An encrypted token file (<span translate="no" class="font-mono text-text-emphatic">auth-tokens.enc</span>, see "What's sent to Google" below) and a SQLite ledger (<span translate="no" class="font-mono text-text-emphatic">sync.db</span>) live in <span translate="no" class="font-mono text-text-emphatic">%APPDATA%\Cernix</span>. The ledger records which files you've already uploaded so Cernix doesn't re-push them.</span>
+                <span class="min-w-0"><span class="text-text-emphatic">App-data files.</span> In the data folder: an encrypted token file (<span translate="no" class="font-mono text-text-emphatic">auth-tokens.enc</span>, see "What Cernix sends to Google" below); a SQLite ledger of what you have uploaded, so Cernix does not re-push it (<span translate="no" class="font-mono text-text-emphatic">cernix-v1.db</span>); your ratings and picks (<span translate="no" class="font-mono text-text-emphatic">cernix-ratings.db</span>); your presets (<span translate="no" class="font-mono text-text-emphatic">presets.json</span>); and, only if the app crashes at startup, an error log (<span translate="no" class="font-mono text-text-emphatic">startup-error.log</span>).</span>
               </li>
               <li class="flex gap-space-3">
                 <span class="text-text-disabled font-mono shrink-0">5.</span>
-                <span class="min-w-0"><span class="text-text-emphatic">Caches.</span> Thumbnail, preset-preview, and generative-fill caches under <span translate="no" class="font-mono text-text-emphatic">%APPDATA%\Cernix</span>. Safe to delete; they regenerate.</span>
+                <span class="min-w-0"><span class="text-text-emphatic">Caches.</span> Thumbnails and preset previews, and <span translate="no" class="font-mono text-text-emphatic">edit-cache/</span>, where Drive files you open to edit are downloaded to. Safe to delete; they regenerate or download again. When an update is downloaded, the updater also keeps it in a cache of its own, outside the data folder.</span>
               </li>
             </ul>
           </section>
@@ -147,7 +147,7 @@
               What Cernix sends to Google
             </h2>
             <p class="text-landing-body text-text-muted mb-space-6">
-              Two separate destinations. Drive is opt-in and does nothing until you connect an account; fonts are not: see below.
+              Drive is opt-in and does nothing until you connect an account. Cernix makes no other request to Google.
             </p>
 
             <h3 class="text-landing-sub font-medium text-text-emphatic mb-space-3 mt-space-6">
@@ -158,15 +158,19 @@
             </p>
             <ul class="space-y-space-2 text-landing-caption font-mono text-text-emphatic mb-space-6 pl-space-4 border-l border-border-subtle">
               <li><span class="text-accent-primary">drive.file</span> <span class="text-text-muted"> access limited to files Cernix itself creates. It can upload RAW + XMP pairs into its own folder and browse what it put there; the rest of your Drive is invisible to it, including to a compromised copy of the app.</span></li>
-              <li><span class="text-accent-primary">userinfo.email</span> <span class="text-text-muted"> the email address linked to your Google account, shown in the app so you know which account is connected.</span></li>
-              <li><span class="text-accent-primary">userinfo.profile</span> <span class="text-text-muted"> display name and avatar, shown in the in-app account widget.</span></li>
+              <li><span class="text-accent-primary">userinfo.email</span> <span class="text-text-muted"> the email address linked to your Google account. shown in Settings so you can see which account is connected. Cernix does nothing else with it.</span></li>
+              <li><span class="text-accent-primary">userinfo.profile</span> <span class="text-text-muted"> display name and avatar. Cernix reads them with the email but does not display them today, and does nothing else with them.</span></li>
             </ul>
             <p class="text-landing-body text-text-muted mb-space-4">
               Tokens received from Google are encrypted with Electron's
               <span translate="no" class="font-mono text-text-emphatic">safeStorage</span> (which delegates to the
-              OS keystore: DPAPI on Windows) and written to
+              OS keystore: DPAPI on Windows, the Keychain on a Mac, the desktop keyring on Linux) and written to
               <span translate="no" class="font-mono text-text-emphatic">auth-tokens.enc</span>. They never leave your
               machine except to be refreshed against Google's own token endpoint.
+              Where the system offers no keystore, Cernix does not save the token and
+              you sign in again next time. The keystore protects the token from other
+              users of the computer; it does not protect it from malware running as
+              you.
             </p>
             <p class="text-landing-body text-text-muted">
               When you sync, Cernix uploads the RAW + XMP files you select to the
@@ -175,25 +179,40 @@
             </p>
 
             <h3 class="text-landing-sub font-medium text-text-emphatic mb-space-3 mt-12">
-              2. Google Fonts (on every launch)
+              2. Fonts (no request)
             </h3>
+            <p class="text-landing-body text-text-muted">
+              The app's typefaces are bundled with it, and this site serves its own.
+              Neither asks Google Fonts or any other host for them, so opening Cernix
+              without connecting Drive makes no request at all, apart from the update
+              check below.
+            </p>
+          </section>
+
+
+          <!-- ─── The update check ─────────────────────────────────── -->
+          <section id="the-update-check" class="mb-16 pt-16 border-t border-border-subtle scroll-mt-24">
+            <h2 class="text-landing-title font-semibold text-text-emphatic mb-space-4">
+              The update check
+            </h2>
             <p class="text-landing-body text-text-muted mb-space-4">
-              This is the one request Cernix makes without being asked. The app
-              loads its two typefaces from
-              <span translate="no" class="font-mono text-text-emphatic">fonts.googleapis.com</span> and
-              <span translate="no" class="font-mono text-text-emphatic">fonts.gstatic.com</span> at startup, which means
-              Google sees your IP address and approximate location every time you open it:
-              even if you never connect Drive.
+              When it starts, and every six hours while it runs, Cernix asks
+              <span translate="no" class="font-mono text-text-emphatic">github.com</span>, where its releases are
+              published, whether there is a newer version. The request is for a small
+              file listing the latest version; when it is newer, Windows and Linux then
+              download the installer from the same place. GitHub sees your IP address,
+              the version you run and your operating system, as it does for anyone who
+              opens a release page. Nothing else is sent: no identifier, no account, no
+              usage data.
             </p>
             <p class="text-landing-body text-text-muted mb-space-4">
-              No account, no cookie, and nothing identifying you as an Cernix user is
-              attached; it is the same request any website using Google Fonts makes. We
-              would rather it did not happen at all, and bundling the fonts with the app
-              would remove it. That is a change we intend to make.
+              Nothing installs without you. A downloaded update waits until you restart
+              Cernix, or until the next time you quit. On a Mac, Cernix only tells you a
+              new version is out and links to it.
             </p>
             <p class="text-landing-body text-text-muted">
-              Offline, the request fails silently and the app falls back to a system font.
-              Nothing else about Cernix depends on it.
+              Turn it off in Settings under Updates, and Cernix makes no update request
+              at all.
             </p>
           </section>
 
@@ -207,7 +226,7 @@
             <ul class="space-y-space-3 text-landing-body text-text-muted">
               <li class="flex gap-space-3">
                 <span class="text-status-success font-mono shrink-0">·</span>
-                <span class="min-w-0"><span class="text-text-emphatic">No analytics.</span> No Google Analytics, no Mixpanel, no Sentry, no PostHog. Open the network panel and you will see the app talk to Google's APIs and nothing else.</span>
+                <span class="min-w-0"><span class="text-text-emphatic">No analytics.</span> No Google Analytics, no Mixpanel, no Sentry, no PostHog. Open the network panel and you will see the app talk to Google's APIs, and to GitHub for the update check, and nothing else.</span>
               </li>
               <li class="flex gap-space-3">
                 <span class="text-status-success font-mono shrink-0">·</span>
@@ -227,7 +246,7 @@
               </li>
               <li class="flex gap-space-3">
                 <span class="text-status-success font-mono shrink-0">·</span>
-                <span class="min-w-0"><span class="text-text-emphatic">No third-party trackers.</span> This page loads no third-party scripts, fonts, or beacons: the app does load its fonts from Google, disclosed above. The network panel on first load shows requests only against this site's own origin.</span>
+                <span class="min-w-0"><span class="text-text-emphatic">No third-party trackers.</span> This page loads no third-party scripts, fonts, or beacons. The network panel on first load shows requests only against this site's own origin.</span>
               </li>
               <li class="flex gap-space-3">
                 <span class="text-status-success font-mono shrink-0">·</span>
@@ -245,11 +264,11 @@
             <ul class="space-y-space-3 text-landing-body text-text-muted">
               <li class="flex gap-space-3">
                 <span class="text-text-disabled font-mono shrink-0">→</span>
-                <span class="min-w-0"><span class="text-text-emphatic">Disconnect Google Drive.</span> Settings → Account → Disconnect inside the app, or revoke Cernix's access directly at <a class="text-accent-primary hover:underline" href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.</span>
+                <span class="min-w-0"><span class="text-text-emphatic">Disconnect Google Drive.</span> Settings → Google Drive → Disconnect inside the app, which also deletes the sign-in Cernix stored on your computer. You can also revoke Cernix's access directly at <a class="text-accent-primary hover:underline" href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.</span>
               </li>
               <li class="flex gap-space-3">
                 <span class="text-text-disabled font-mono shrink-0">→</span>
-                <span class="min-w-0"><span class="text-text-emphatic">Delete all local data.</span> Uninstall Cernix, then delete <span translate="no" class="font-mono text-text-emphatic">%APPDATA%\Cernix</span>. Token, ledger, caches: all gone.</span>
+                <span class="min-w-0"><span class="text-text-emphatic">Delete all local data.</span> First copy your photographs out of <span translate="no" class="font-mono text-text-emphatic">staging/library</span> in Cernix's data folder: it holds everything you swept off a card, and they may be the only copy. Then uninstall Cernix and delete the data folder (<span translate="no" class="font-mono text-text-emphatic">%APPDATA%\Cernix</span> on Windows, <span translate="no" class="font-mono text-text-emphatic">~/Library/Application Support/Cernix</span> on a Mac, <span translate="no" class="font-mono text-text-emphatic">~/.config/Cernix</span> on Linux). Token, ledger, caches and the archive: all gone.</span>
               </li>
               <li class="flex gap-space-3">
                 <span class="text-text-disabled font-mono shrink-0">→</span>
@@ -305,6 +324,12 @@
                 href="#what-cernix-sends-to-google"
                 class="block -ml-px border-l border-transparent pl-space-4 text-landing-caption text-text-muted hover:text-text-emphatic hover:border-border-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus transition-colors"
               >What Cernix sends to Google</a>
+            </li>
+            <li>
+              <a
+                href="#the-update-check"
+                class="block -ml-px border-l border-transparent pl-space-4 text-landing-caption text-text-muted hover:text-text-emphatic hover:border-border-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus transition-colors"
+              >The update check</a>
             </li>
             <li>
               <a

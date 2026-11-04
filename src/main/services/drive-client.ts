@@ -47,7 +47,10 @@ export interface RootFolderStore {
  * .attacker.example` contains the string and is not Google. Scheme is
  * pinned to https so the token cannot be sent in clear.
  */
-const GOOGLE_MEDIA_HOSTS = ['googleusercontent.com', 'googleapis.com', 'google.com']
+const GOOGLE_MEDIA_HOSTS = ['googleusercontent.com']
+
+/** Single hosts, not their subdomains: the thumbnail endpoint on Drive itself. */
+const GOOGLE_MEDIA_EXACT_HOSTS = ['drive.google.com']
 
 /**
  * Escape a value being interpolated into a Drive `q=` filter.
@@ -65,12 +68,37 @@ export function escapeDriveQueryValue(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/'/g, '\\\'')
 }
 
+/**
+ * What a refused trash or restore says, in a sentence.
+ *
+ * Under `drive.file` Drive refuses to trash a folder while it holds
+ * anything the app has no write access to (a file added in the Drive web
+ * app, or one from before the access was revoked), and answers with a
+ * JSON body that means nothing to the person reading the log. Every other
+ * failure keeps Google's own text.
+ */
+export function describeTrashFailure(trashed: boolean, status: number, body: string): string {
+  if (trashed && status === 403 && body.includes('appNotAuthorizedToChild')) {
+    return 'Drive will not let Cernix trash this folder: it holds items Cernix has no write access to, such as files added in Drive itself. Open the folder in Drive to remove it there.'
+  }
+  return `${trashed ? 'Trash' : 'Untrash'} failed (${status}): ${body}`
+}
+
 export function isGoogleMediaUrl(raw: string): boolean {
   let url: URL
   try { url = new URL(raw) } catch { return false }
   if (url.protocol !== 'https:') return false
   const host = url.hostname.toLowerCase()
-  return GOOGLE_MEDIA_HOSTS.some(h => host === h || host.endsWith(`.${h}`))
+  return GOOGLE_MEDIA_EXACT_HOSTS.includes(host) || GOOGLE_MEDIA_HOSTS.some(h => host === h || host.endsWith(`.${h}`))
+}
+
+/**
+ * A Drive file id: letters, digits, `_` and `-`. It is put into a URL that
+ * carries the token, so anything else (a slash, a `?`, a `..`) would let a
+ * renderer steer the request to another path under the API.
+ */
+export function isDriveFileId(raw: string): boolean {
+  return /^[A-Za-z0-9_-]{6,128}$/.test(raw)
 }
 
 export class DriveClient {
@@ -233,7 +261,7 @@ export class DriveClient {
     )
     if (!response.ok) {
       const body = await response.text()
-      throw new Error(`${trashed ? 'Trash' : 'Untrash'} failed (${response.status}): ${body}`)
+      throw new Error(describeTrashFailure(trashed, response.status, body))
     }
   }
 
@@ -387,7 +415,21 @@ export class DriveClient {
     }
     try {
       const token = await this.requireToken()
-      const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      // Redirects are followed by hand, each hop checked against the same
+      // list: a redirect from a thumbnail host would otherwise carry the
+      // token wherever it pointed.
+      let target = url
+      let response = await fetch(target, { headers: { Authorization: `Bearer ${token}` }, redirect: 'manual' })
+      for (let hop = 0; hop < 3 && response.status >= 300 && response.status < 400; hop++) {
+        const next = response.headers.get('location')
+        if (!next) return null
+        target = new URL(next, target).toString()
+        if (!isGoogleMediaUrl(target)) {
+          console.warn('[DriveClient] Refused a thumbnail redirect to another host')
+          return null
+        }
+        response = await fetch(target, { headers: { Authorization: `Bearer ${token}` }, redirect: 'manual' })
+      }
       if (!response.ok) return null
       const buffer = await response.arrayBuffer()
       const base64 = Buffer.from(buffer).toString('base64')

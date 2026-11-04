@@ -1,0 +1,86 @@
+name: Test
+
+# Every gate the repository has, on every push and pull request, and
+# before a release builds (release.yml calls this).
+#
+# Until this existed nothing ran them: the release workflow only built,
+# and the pre-commit hook only lints and typechecks. A unit suite that
+# could not load on a Windows checkout and a viewer suite that failed on
+# every run both reached a release unnoticed.
+#
+# Windows and Linux, because both ship and the first of those defects
+# existed only on Windows. macOS is left to the release build and the
+# seal check: its runners are the slowest and the costliest, and nothing
+# here depends on the platform in a way the other two do not cover.
+
+on:
+  # Branches only: a release tag runs these through release.yml instead.
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            # A desktop session is already there.
+            display: ''
+          - name: Linux
+            os: ubuntu-latest
+            # xvfb's default screen is 640x480, smaller than the UI
+            # runner's windows, and a clamped window measures a layout
+            # nobody uses.
+            display: xvfb-run -a -s "-screen 0 1920x1080x24"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Let Chromium's sandbox helper run
+        # Same reason as release.yml: `chrome-sandbox` must be owned by
+        # root with mode 4755 or Electron aborts rather than run
+        # unsandboxed. Here it is the `electron` package's copy, which
+        # runs the UI suites and the token checks.
+        if: runner.os == 'Linux'
+        run: |
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npx vitest run
+
+      - name: Design and motion audits
+        shell: bash
+        run: |
+          npm run check:canvas
+          npm run check:type
+          npm run check:shortcuts
+          npm run check:motion
+          ${{ matrix.display }} npm run check:contrast
+          ${{ matrix.display }} npm run check:hierarchy
+
+      - name: UI suites
+        shell: bash
+        run: ${{ matrix.display }} npm run test:ui

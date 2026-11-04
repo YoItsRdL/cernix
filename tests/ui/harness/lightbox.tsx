@@ -108,14 +108,23 @@ function Harness() {
   }
 
   /**
-   * How much of the window the photograph takes, as a percentage.
+   * Whether the photograph takes the room it was given.
    *
    * Guards the test against passing for the wrong reason: a frame
-   * shrunk to a postage stamp would also overlap nothing.
+   * shrunk to a postage stamp would also overlap nothing. It was a
+   * share of the window (over 45%), which is a property of the screen:
+   * on a 1280x800 display at 150% the window is clamped to 689px tall,
+   * the photograph fills its stage exactly and still comes to 40%. So
+   * it asks the two things the layout promises instead: the stage is
+   * most of the window on both axes, and the photograph meets the
+   * stage's edges on at least one, which is what contain-fit means.
    */
-  w.__frameFill = () => {
+  w.__frameFits = () => {
     const f = frameRect()
-    return Math.round((f.width * f.height) / (window.innerWidth * window.innerHeight) * 100)
+    const stage = document.querySelector('img')!.parentElement!.getBoundingClientRect()
+    const stageIsTheRoom = stage.width > window.innerWidth * 0.6 && stage.height > window.innerHeight * 0.6
+    const meetsAnEdge = Math.abs(f.width - stage.width) <= 1 || Math.abs(f.height - stage.height) <= 1
+    return stageIsTheRoom && meetsAnEdge
   }
 
   // What the viewer asks its surface to do. Both libraries pass

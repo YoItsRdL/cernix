@@ -75,7 +75,24 @@ export function MediaPlaceholder({ className }: { className?: string }) {
 export function MediaFrame({ src, lowSrc, className }: { src: string; lowSrc?: string; className?: string }) {
   const [loaded, setLoaded] = React.useState(false)
   const [lowReady, setLowReady] = React.useState(false)
-  const waiting = useDeferredLoading(!loaded && !lowReady)
+  // The picture could not be loaded: a RAW file with no preview inside it, a
+  // damaged file. It used to wait on the placeholder for good, which reads as
+  // "still loading" and never ends.
+  const [failed, setFailed] = React.useState(false)
+  const waiting = useDeferredLoading(!loaded && !lowReady && !failed)
+
+  if (failed) {
+    return (
+      <div role="status" className="absolute inset-0 flex flex-col items-center justify-center gap-space-2 text-center">
+        <FrameGround />
+        <ImageIcon size={18} className="relative text-text-muted" aria-hidden />
+        <p className="relative text-body text-text-default">No preview to show</p>
+        <p className="relative text-metadata text-text-muted max-w-xs">
+          This file has no picture Cernix can display. It will still be copied with the rest.
+        </p>
+      </div>
+    )
+  }
 
   return (
     <>
@@ -108,6 +125,7 @@ export function MediaFrame({ src, lowSrc, className }: { src: string; lowSrc?: s
         src={src}
         alt=""
         onLoad={() => setLoaded(true)}
+        onError={() => setFailed(true)}
         className={cn(
           // Bounded by the frame the viewer hands it, not by the window.
           'relative max-w-full max-h-full object-contain rounded-soft shadow-2xl',

@@ -16,6 +16,15 @@
 export const VIDEO_EXTS = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v'] as const
 export const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'heic', 'tiff', 'webp'] as const
 
+/** Camera RAW formats. A browser cannot show one; the picture inside it can be (F-046). */
+export const RAW_EXTS = ['raw', 'rw2', 'cr2', 'cr3', 'nef', 'arw', 'dng', 'orf', 'raf', 'srw', 'pef'] as const
+const RAW_RE = new RegExp(`\\.(${RAW_EXTS.join('|')})$`, 'i')
+
+/** True when `path` ends in a camera RAW extension (case-insensitive). */
+export function isRawPath(path: string): boolean {
+  return RAW_RE.test(path)
+}
+
 const VIDEO_RE = new RegExp(`\\.(${VIDEO_EXTS.join('|')})$`, 'i')
 const IMAGE_RE = new RegExp(`\\.(${IMAGE_EXTS.join('|')})$`, 'i')
 

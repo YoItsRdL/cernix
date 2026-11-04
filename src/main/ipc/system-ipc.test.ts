@@ -14,7 +14,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const handlers = new Map<string, (...a: unknown[]) => unknown>()
 
 vi.mock('electron', () => ({
-  ipcMain: { handle: (ch: string, fn: (...a: unknown[]) => unknown) => { handlers.set(ch, fn) } },
+  ipcMain: {
+    handle: (ch: string, fn: (...a: unknown[]) => unknown) => { handlers.set(ch, fn) },
+    // The synchronous channels (theme:get); none is under test here.
+    on: () => {},
+  },
   dialog: { showOpenDialog: vi.fn() },
   BrowserWindow: { getFocusedWindow: () => null, fromWebContents: () => null },
   shell: { openExternal: vi.fn(), trashItem: (p: string) => trashItem(p) },
@@ -73,7 +77,7 @@ describe('sweep handlers refuse an unapproved path', () => {
   })
 })
 
-type TrashResult = { trashedPaths: string[]; failures: string[] }
+type TrashResult = { trashedPaths: string[]; missingPaths: string[]; failures: { path: string; reason: string; message: string }[] }
 const trash = (paths: string[]) =>
   handlers.get('media:trash')!({}, paths) as Promise<TrashResult>
 
@@ -87,7 +91,7 @@ describe('media:trash refuses a path the user never chose', () => {
     const res = await trash(['C:\\Users\\test\\Documents\\taxes.pdf'])
     expect(trashItem).not.toHaveBeenCalled()
     expect(res.trashedPaths).toEqual([])
-    expect(res.failures[0]).toContain('forbidden')
+    expect(res.failures[0].reason).toBe('forbidden')
   })
 
   it('still trashes a file the guard admits', async () => {
@@ -101,5 +105,27 @@ describe('media:trash refuses a path the user never chose', () => {
     expect(trashItem).toHaveBeenCalledTimes(1)
     expect(res.trashedPaths).toEqual(['D:\\Shoot\\keep.arw'])
     expect(res.failures).toHaveLength(1)
+  })
+})
+
+describe('media:trash takes files, never a folder', () => {
+  it('refuses a directory the guard admits, so one call cannot recycle a whole archive', async () => {
+    const fs = await import('node:fs')
+    const os = await import('node:os')
+    const path = await import('node:path')
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cernix-trash-'))
+    const file = path.join(dir, 'a.jpg')
+    fs.writeFileSync(file, 'x')
+    try {
+      register(() => true)
+      trashItem.mockClear()
+      const res = await trash([dir, file])
+      expect(trashItem).toHaveBeenCalledTimes(1)
+      expect(trashItem).toHaveBeenCalledWith(file)
+      expect(res.trashedPaths).toEqual([file])
+      expect(res.failures.map(f => f.path)).toEqual([dir])
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

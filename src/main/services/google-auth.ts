@@ -79,20 +79,35 @@ const TOKEN_FILE = 'auth-tokens.enc'
 const LOOPBACK_PORT = 8899
 const REDIRECT_URI = `http://localhost:${LOOPBACK_PORT}/oauth/callback`
 
+/** A sign-in ended because the person started another. */
+class SupersededSignIn extends Error {
+  constructor() { super('Sign-in restarted') }
+}
+
 export class GoogleAuthManager extends EventEmitter {
   private clientId: string
   private clientSecret: string
   private tokens: AuthTokens | null = null
   private refreshTimer: ReturnType<typeof setTimeout> | null = null
   private callbackServer: Server | null = null
+  /**
+   * Ends the sign-in in progress, if there is one. Pressing Connect
+   * again abandons the consent tab of the first press, and the first
+   * listener kept the loopback port for good: every later attempt then
+   * failed to bind until the app restarted.
+   */
+  private abandonPending: (() => void) | null = null
 
   constructor() {
     super()
     // Environment first so a developer can override without rebuilding;
     // otherwise the values Vite compiled in at build time, which is the
-    // only source a packaged .exe has.
-    this.clientId = process.env['GOOGLE_CLIENT_ID'] || BUILD_GOOGLE_CLIENT_ID
-    this.clientSecret = process.env['GOOGLE_CLIENT_SECRET'] || BUILD_GOOGLE_CLIENT_SECRET
+    // only source a packaged .exe has. The installed app takes only the
+    // compiled-in pair: an environment that could swap the OAuth client
+    // could send the sign-in to someone else's (F-034).
+    const fromEnv = !app.isPackaged
+    this.clientId = (fromEnv && process.env['GOOGLE_CLIENT_ID']) || BUILD_GOOGLE_CLIENT_ID
+    this.clientSecret = (fromEnv && process.env['GOOGLE_CLIENT_SECRET']) || BUILD_GOOGLE_CLIENT_SECRET
 
     if (!this.clientId || !this.clientSecret) {
       // Drive is simply unavailable in this state; `connect()` refuses
@@ -112,10 +127,13 @@ export class GoogleAuthManager extends EventEmitter {
    * Call this on app startup.
    */
   async initialize(): Promise<void> {
-    const saved = this.loadTokensFromDisk()
+    const saved = await this.loadTokensFromDisk()
     if (saved) {
-      this.tokens = saved
+      this.tokens = saved.tokens
       console.log('[GoogleAuth] Loaded saved tokens')
+
+      // The keystore rotated its key: seal the tokens again under the new one.
+      if (saved.reEncrypt) await this.saveTokensToDisk()
 
       // Check if access token is still valid
       if (this.isTokenExpired()) {
@@ -154,6 +172,9 @@ export class GoogleAuthManager extends EventEmitter {
 
       console.log('[GoogleAuth] Successfully connected')
     } catch (err) {
+      // Replaced by a newer press of Connect: not a failure to report,
+      // the newer flow is the one the person is looking at.
+      if (err instanceof SupersededSignIn) return
       console.error('[GoogleAuth] Connection failed:', messageOf(err))
       this.emit('auth:error', { message: messageOf(err) })
     }
@@ -221,8 +242,28 @@ export class GoogleAuthManager extends EventEmitter {
    * Returns the auth code when the user completes the flow.
    */
   private waitForAuthCode(): Promise<{ code: string, codeVerifier: string }> {
+    // One sign-in at a time: the one before this is over.
+    this.abandonPending?.()
+
     return new Promise((resolve, reject) => {
       const { state: expectedState, codeVerifier, codeChallenge } = createFlowSecrets()
+
+      // This flow's own server and timer. The timeout used to close
+      // whichever server was current, so an old flow's timer could end a
+      // newer one.
+      let settled = false
+      let timer: NodeJS.Timeout | null = null
+      const finish = (): boolean => {
+        if (settled) return false
+        settled = true
+        if (timer) clearTimeout(timer)
+        this.abandonPending = null
+        this.shutdownCallbackServer()
+        return true
+      }
+      this.abandonPending = () => {
+        if (finish()) reject(new SupersededSignIn())
+      }
 
       // Build the consent URL
       const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth')
@@ -254,26 +295,24 @@ export class GoogleAuthManager extends EventEmitter {
           // deliver its own code and sign them into someone else's
           // account, and their photographs upload there.
           if (!matchesState(url.searchParams.get('state'), expectedState)) {
+            // Refused and nothing more. Ending the flow here let any page
+            // that could reach the port abort a sign-in in progress.
             res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8', Connection: 'close' })
             res.end(this.getErrorPage('state_mismatch'))
-            this.shutdownCallbackServer()
-            reject(new Error('OAuth callback did not carry the expected state'))
             return
           }
 
           if (error) {
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', Connection: 'close' })
             res.end(this.getErrorPage(error))
-            this.shutdownCallbackServer()
-            reject(new Error(`OAuth error: ${error}`))
+            if (finish()) reject(new Error(`OAuth error: ${error}`))
             return
           }
 
           if (code) {
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', Connection: 'close' })
             res.end(this.getSuccessPage())
-            this.shutdownCallbackServer()
-            resolve({ code, codeVerifier })
+            if (finish()) resolve({ code, codeVerifier })
             return
           }
 
@@ -294,13 +333,12 @@ export class GoogleAuthManager extends EventEmitter {
       })
 
       this.callbackServer.on('error', (err) => {
-        reject(new Error(`Failed to start callback server: ${err.message}`))
+        if (finish()) reject(new Error(`Failed to start callback server: ${err.message}`))
       })
 
       // Timeout after 5 minutes
-      setTimeout(() => {
-        this.shutdownCallbackServer()
-        reject(new Error('OAuth flow timed out (5 minutes)'))
+      timer = setTimeout(() => {
+        if (finish()) reject(new Error('OAuth flow timed out (5 minutes)'))
       }, 5 * 60 * 1000)
     })
   }
@@ -343,7 +381,7 @@ export class GoogleAuthManager extends EventEmitter {
       scope: data.scope || SCOPES.join(' '),
     }
 
-    this.saveTokensToDisk()
+    await this.saveTokensToDisk()
     this.scheduleRefresh()
   }
 
@@ -391,7 +429,7 @@ export class GoogleAuthManager extends EventEmitter {
         this.tokens.refresh_token = data.refresh_token
       }
 
-      this.saveTokensToDisk()
+      await this.saveTokensToDisk()
       this.scheduleRefresh()
 
       console.log('[GoogleAuth] Access token refreshed')
@@ -412,7 +450,7 @@ export class GoogleAuthManager extends EventEmitter {
   /**
    * Will `safeStorage` actually encrypt, or only appear to?
    *
-   * On Windows and macOS the answer is `isEncryptionAvailable()` and
+   * On Windows and macOS the answer is `isAsyncEncryptionAvailable()` and
    * nothing more: DPAPI and the Keychain are always there.
    *
    * Linux is the reason this function exists. When no keyring answers,
@@ -428,8 +466,8 @@ export class GoogleAuthManager extends EventEmitter {
    * tokens in memory and the next launch asks for consent again. That
    * is a worse experience than a silent downgrade and a true one.
    */
-  private canEncryptTokens(): { ok: boolean; reason?: string } {
-    if (!safeStorage.isEncryptionAvailable()) {
+  private async canEncryptTokens(): Promise<{ ok: boolean; reason?: string }> {
+    if (!(await safeStorage.isAsyncEncryptionAvailable())) {
       return { ok: false, reason: 'the OS reports no encryption backend' }
     }
     if (process.platform === 'linux') {
@@ -449,10 +487,25 @@ export class GoogleAuthManager extends EventEmitter {
     return { ok: true }
   }
 
-  private saveTokensToDisk(): void {
+  /**
+   * Saves run one after another. Encryption is async, so two refreshes
+   * close together could otherwise finish out of order and leave the
+   * older tokens on disk.
+   */
+  private saving: Promise<void> = Promise.resolve()
+
+  private saveTokensToDisk(): Promise<void> {
+    // Caught here so one failed save cannot stall every later one.
+    this.saving = this.saving
+      .then(() => this.writeTokens())
+      .catch(err => console.error('[GoogleAuth] Failed to save tokens:', messageOf(err)))
+    return this.saving
+  }
+
+  private async writeTokens(): Promise<void> {
     if (!this.tokens) return
 
-    const encryptable = this.canEncryptTokens()
+    const encryptable = await this.canEncryptTokens()
     if (!encryptable.ok) {
       console.warn(`[GoogleAuth] Not saving tokens: ${encryptable.reason}.`)
       // Said to the user, not only to a console a packaged app does not
@@ -474,7 +527,7 @@ export class GoogleAuthManager extends EventEmitter {
 
     try {
       const json = JSON.stringify(this.tokens)
-      const encrypted = safeStorage.encryptString(json)
+      const encrypted = await safeStorage.encryptStringAsync(json)
       fs.writeFileSync(this.getTokenFilePath(), encrypted)
       console.log('[GoogleAuth] Tokens saved (encrypted)')
     } catch (err) {
@@ -482,7 +535,7 @@ export class GoogleAuthManager extends EventEmitter {
     }
   }
 
-  private loadTokensFromDisk(): AuthTokens | null {
+  private async loadTokensFromDisk(): Promise<{ tokens: AuthTokens; reEncrypt: boolean } | null> {
     const filePath = this.getTokenFilePath()
 
     try {
@@ -490,11 +543,12 @@ export class GoogleAuthManager extends EventEmitter {
 
       // A file written under one backend cannot be read under another —
       // a keyring that stopped running, a `--password-store` that
-      // changed. `decryptString` throws on that, and the catch below
-      // turns it into a fresh sign-in, which is the right outcome.
+      // changed. Decryption throws on that, and the catch below turns it
+      // into a fresh sign-in, which is the right outcome. Files written
+      // by the synchronous API of earlier releases decrypt here too.
       const encrypted = fs.readFileSync(filePath)
-      const json = safeStorage.decryptString(encrypted)
-      return JSON.parse(json) as AuthTokens
+      const { result, shouldReEncrypt } = await safeStorage.decryptStringAsync(encrypted)
+      return { tokens: JSON.parse(result) as AuthTokens, reEncrypt: shouldReEncrypt }
     } catch (err) {
       console.error('[GoogleAuth] Failed to load tokens:', messageOf(err))
       return null

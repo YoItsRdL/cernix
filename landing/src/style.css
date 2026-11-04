@@ -8,6 +8,7 @@
  */
 
 @import "tailwindcss" source(none);
+@import "../../src/shared/fonts.css";
 @import "../../src/shared/tokens.css";
 @import "../../src/shared/scrollbar.css";
 
@@ -185,11 +186,17 @@
     }
   }
 
+  /* The starting opacity lives here, not in an `opacity-0` utility on the
+   * element: utilities outrank this layer, so the reduced-motion rule
+   * below could never lift it and the standfirst and both CTAs stayed
+   * invisible for anyone who asked for less motion. */
   .reveal-stagger-1 {
+    opacity: 0;
     animation: hero-fade-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards;
   }
 
   .reveal-stagger-2 {
+    opacity: 0;
     animation: hero-fade-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards;
   }
 
@@ -320,16 +327,19 @@
    * src/shared/tokens.css and compiles into this bundle, so the
    * landing page and the app share one source for both themes.
    *
-   * `:where()` holds specificity at 0 so every Tailwind colour
-   * utility, including hover states carrying their own transition,
-   * still wins over this rule.
+   * The fade is one view transition of the whole page (the toggle
+   * script starts it): the browser blends a picture of each theme on
+   * the compositor. It used to be a colour transition on every element,
+   * which on this page started some 2,800 transitions at once and held
+   * a frame for half a second; the hero film, a video, could not fade
+   * with them at all, so its old cut sat on the new page. Browsers
+   * without view transitions, and reduced motion, switch at once.
    */
   @media (prefers-reduced-motion: no-preference) {
-    :where(body, body *) {
-      transition:
-        background-color var(--duration-slow) var(--ease-standard),
-        border-color var(--duration-slow) var(--ease-standard),
-        color var(--duration-slow) var(--ease-standard);
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+      animation-duration: var(--duration-slow);
+      animation-timing-function: var(--ease-standard);
     }
   }
 

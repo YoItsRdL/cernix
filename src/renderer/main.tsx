@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client'
 import { MotionConfig } from 'framer-motion'
 import App from './App'
 import { ErrorBoundary } from './components/ErrorBoundary'
+// On its own rather than @imported from index.css: Tailwind inlines an
+// @import, and the fonts' relative URLs then resolve against the wrong
+// folder and are left out of the build.
+import '../shared/fonts.css'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   HardDrive,
   Settings,
@@ -35,11 +35,27 @@ export function Sidebar({
   // This is display state catching up, not the source of truth.
   const [theme, setTheme] = useState<'light' | 'dark'>(() => window.electronAPI.themeGet())
 
+  // The theme can change under the rail: from Settings, or because the
+  // system's did while the choice is "follow the system".
+  useEffect(() => window.electronAPI.onThemeChanged(setTheme), [])
+
+  // The button is an explicit choice of the other one; "follow the system"
+  // is chosen in Settings.
   const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark'
-    setTheme(next)
-    void window.electronAPI.themeSet(next)
+    void window.electronAPI.themeSet(theme === 'dark' ? 'light' : 'dark')
   }
+  // The button is under the scrim whenever a dialog or the viewer is
+  // open, so the theme could not be changed from there at all.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || !e.shiftKey || e.altKey) return
+      if (e.key !== 'L' && e.key !== 'l') return
+      e.preventDefault()
+      toggleTheme()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  })
   const [isExpanded, setIsExpanded] = useState(false)
 
   // Labels fade rather than unmount; see the wordmark note below.
@@ -120,10 +136,11 @@ export function Sidebar({
       </div>
 
       {/* Activity Icons (Primary Workstations) */}
-      <div className="flex flex-col items-start w-full flex-1">
+      <nav aria-label="Workspaces" className="flex flex-col items-start w-full flex-1 pt-0.5">
         <ActivityButton
           icon={<HardDrive size={18} strokeWidth={1.5} />}
           label="Local Archive"
+          current
           active={activeTab === 'library-ingest' || activeTab === 'local'}
           expanded={isExpanded}
           onClick={() => onTabChange('library-ingest')}
@@ -132,14 +149,15 @@ export function Sidebar({
         <ActivityButton
           icon={<FolderTree size={18} strokeWidth={1.5} />}
           label="Workstation"
+          current
           active={activeTab === 'organize'}
           expanded={isExpanded}
           onClick={() => onTabChange('organize')}
         />
-      </div>
+      </nav>
 
       {/* Utility Bottom Strip */}
-      <div className="flex flex-col items-start w-full">
+      <div className="flex flex-col items-start w-full pb-0.5">
         {/* Appearance. In the rail rather than behind Settings: it is a
             display preference, and needing a modal to change how the app
             looks is one step too many. The icon shows the theme it
@@ -156,6 +174,7 @@ export function Sidebar({
         <ActivityButton
           icon={<User size={18} strokeWidth={1.5} />}
           label="Account"
+          description={authStatus?.connected ? 'Drive connected' : 'Drive not connected'}
           active={authStatus?.connected ?? false}
           expanded={isExpanded}
           onClick={onConnectCloud}
@@ -201,6 +220,8 @@ function ActivityButton({
   expanded,
   onClick,
   statusDot,
+  current,
+  description,
 }: {
   icon: React.ReactNode,
   label: string,
@@ -210,18 +231,25 @@ function ActivityButton({
   /** When set, paints a small status dot at the bottom-right of the
    *  icon: success-green for `'on'`, muted disabled for `'off'`. */
   statusDot?: 'on' | 'off'
+  /** A destination: `active` is then also the page the person is on. */
+  current?: boolean
+  /** What the dot says, for anyone who cannot see it. */
+  description?: string
 }) {
   return (
     <motion.button
       whileTap={{ scale: 0.97 }}
       onClick={onClick}
+      aria-current={current && active ? 'page' : undefined}
+      aria-label={description ? `${label}, ${description}` : label}
       className={cn(
         // Hover is a CSS class, not framer-motion's whileHover.
         // whileHover writes background-color as an INLINE style, and an
         // inline style outranks every class, so an active background
         // set by class could never paint. That is why the selected item
         // was invisible.
-        'w-full h-12 flex items-center transition-colors relative group',
+        'w-full h-11 flex items-center transition-colors relative group',
+        'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-border-focus',
         active
           ? 'text-secondary-foreground font-semibold'
           : 'text-sidebar-foreground/60 hover:text-sidebar-foreground'
@@ -245,7 +273,7 @@ function ActivityButton({
       <span
         aria-hidden
         className={cn(
-          'absolute inset-y-1 inset-x-1 rounded-soft transition-colors pointer-events-none',
+          'absolute inset-y-0.5 inset-x-1 rounded-soft transition-colors pointer-events-none',
           active ? 'bg-secondary' : 'group-hover:bg-overlay-hover',
         )}
       />
@@ -287,7 +315,7 @@ function ActivityButton({
       </span>
 
       {!expanded && (
-        <div className="absolute left-full ml-3 px-3 py-1.5 bg-surface-workspace border border-accent-primary/10 rounded-none shadow-[0_0_20px_rgba(0,0,0,0.8)] text-code font-mono tracking-widest whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50">          
+        <div aria-hidden className="absolute left-full ml-3 px-3 py-1.5 bg-surface-workspace border border-accent-primary/10 rounded-none shadow-[0_0_20px_rgba(0,0,0,0.8)] text-code font-mono tracking-widest whitespace-nowrap opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 pointer-events-none transition-all z-50">          
           {label.toUpperCase()}
         </div>
       )}

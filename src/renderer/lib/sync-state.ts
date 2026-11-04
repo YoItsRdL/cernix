@@ -11,8 +11,19 @@
  * questions from one ledger lookup, so a file was imported exactly when
  * it was uploaded. A third word for a state nothing can be in.
  */
-export type SyncState = 'new' | 'synced'
+export type SyncState = 'new' | 'copied' | 'synced' | 'damaged'
 
-export function syncStateFor(file: { isUploaded: boolean }): SyncState {
-  return file.isUploaded ? 'synced' : 'new'
+/**
+ * `copied` is the state the note above said nothing could be in, and
+ * now something can: the scan checks the local archive as well as the
+ * ledger, so a card copied with Drive off is not offered again as new
+ * (decision 18). It is not on Drive, so it sits on the "not synced" side
+ * of every count; it is only left unselected.
+ */
+export function syncStateFor(file: { isUploaded: boolean; isCopied?: boolean; damage?: string }): SyncState {
+  // A broken file is not a sync state, but it is the one thing about it
+  // the person needs before importing, so it takes the badge's place.
+  if (file.damage) return 'damaged'
+  if (file.isUploaded) return 'synced'
+  return file.isCopied ? 'copied' : 'new'
 }

@@ -1,6 +1,7 @@
 import { Slider } from './Slider'
 import type { BlackAndWhite, EditParams } from '@/types'
 import { DEFAULT_PARAMS } from '../../../shared/edit-params'
+import { HUE_SWATCHES } from '../utils/hue-swatches'
 
 type BwChannel = keyof Pick<BlackAndWhite, 'red' | 'orange' | 'yellow' | 'green' | 'aqua' | 'blue' | 'purple' | 'magenta'>
 
@@ -12,20 +13,16 @@ interface BlackWhitePanelProps {
   onCompareChange?: (fn: ((p: EditParams) => EditParams) | null) => void
 }
 
-/* eslint-disable no-restricted-syntax -- design-allow: the eight hue bands
-   this panel edits, matching HSL_RANGES and Lightroom Classic. The hex is
-   the value being shown, not chrome. */
 const CHANNELS: { key: BwChannel; label: string; swatch: string }[] = [
-  { key: 'red',     label: 'Red',     swatch: '#e74c3c' },
-  { key: 'orange',  label: 'Orange',  swatch: '#e67e22' },
-  { key: 'yellow',  label: 'Yellow',  swatch: '#f1c40f' },
-  { key: 'green',   label: 'Green',   swatch: '#27ae60' },
-  { key: 'aqua',    label: 'Aqua',    swatch: '#1abc9c' },
-  { key: 'blue',    label: 'Blue',    swatch: '#2980b9' },
-  { key: 'purple',  label: 'Purple',  swatch: '#8e44ad' },
-  { key: 'magenta', label: 'Magenta', swatch: '#d63384' },
+  { key: 'red',     label: 'Red',     swatch: HUE_SWATCHES.red },
+  { key: 'orange',  label: 'Orange',  swatch: HUE_SWATCHES.orange },
+  { key: 'yellow',  label: 'Yellow',  swatch: HUE_SWATCHES.yellow },
+  { key: 'green',   label: 'Green',   swatch: HUE_SWATCHES.green },
+  { key: 'aqua',    label: 'Aqua',    swatch: HUE_SWATCHES.aqua },
+  { key: 'blue',    label: 'Blue',    swatch: HUE_SWATCHES.blue },
+  { key: 'purple',  label: 'Purple',  swatch: HUE_SWATCHES.purple },
+  { key: 'magenta', label: 'Magenta', swatch: HUE_SWATCHES.magenta },
 ]
-/* eslint-enable no-restricted-syntax */
 
 export function BlackWhitePanel({ bw, onChange, onCompareChange }: BlackWhitePanelProps) {
   const patch = (fields: Partial<BlackAndWhite>) => onChange({ ...bw, ...fields })

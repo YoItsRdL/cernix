@@ -1,30 +1,95 @@
-import { app, BrowserWindow, Menu, protocol, net, session, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, protocol, net, screen, session, shell, nativeTheme } from 'electron'
 import { pathToFileURL } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
 import os from 'node:os'
 import { config } from 'dotenv'
-import { VolumeWatcher } from './services/volume-watcher'
+import { VolumeWatcher, type VolumeInfo } from './services/volume-watcher'
 import { FileSweeper } from './services/file-sweeper'
 import { GoogleAuthManager } from './services/google-auth'
 import { DriveUploadService } from './services/drive-upload'
-import { DriveClient } from './services/drive-client'
+import { DriveClient, isDriveFileId } from './services/drive-client'
 import { SyncDatabase } from './services/sync-db'
 import { DriveOrganizer } from './services/drive-organizer'
 import { MetadataExtractor } from './services/metadata-extractor'
 import { RatingStore } from './services/rating-store'
 import { EditCache } from './services/edit-cache'
 import { PresetStore } from './services/preset-store'
+import { UpdateService } from './services/updater'
+import { runningWork } from './services/work-in-progress'
+import { autoUpdater } from 'electron-updater'
 import { LogEntry } from '../shared/ipc-types'
-import { THEME_META_KEY, ZOOM_META_KEY, WINDOW_BACKGROUND, MAC_TRAFFIC_LIGHTS, MAC_TITLEBAR_BAND, type ThemeName } from './constants'
+import { THEME_META_KEY, ZOOM_META_KEY, WINDOW_META_KEY, UPDATE_META_KEY, WINDOW_BACKGROUND, MAC_TRAFFIC_LIGHTS, MAC_TITLEBAR_BAND, type ThemeName } from './constants'
 import { DEFAULT_ZOOM, bindsOwnZoomShortcuts, parseZoom, stepZoom, zoomIntent } from './services/zoom'
+import { restorableWindow, serialiseWindow, sizeDrift } from './services/window-bounds'
 import { getThumbnail, UnthumbnailableError } from './services/thumbnail-cache'
+import { readRawPreview } from './services/raw-preview'
+import { renderRawPreview } from './services/raw-render'
+import { isRawPath } from '../shared/media-types'
 import { registerDriveHandlers } from './ipc/drive-ipc'
 import { registerSystemHandlers } from './ipc/system-ipc'
 import { registerEditorHandlers } from './ipc/editor-ipc'
+import { registerUpdateHandlers } from './ipc/update-ipc'
 import { createPathGuard, type PathGuard } from './services/approved-paths'
 import { buildContentSecurityPolicy } from './services/csp'
+import { isOpenableExternal } from './services/external-links'
+import { carryUploadedRating } from './services/rating-carry'
+import { registerArchiveHandlers } from './ipc/archive-ipc'
+import { parsePreference, effectiveTheme } from './services/theme'
+import { attachPickStore } from './services/dialog-folders'
 import { messageOf } from '../shared/errors'
+
+// Two switches for development and testing, both ignored by a packaged
+// build. They come first because everything below reads userData.
+//
+// CERNIX_USER_DATA runs the app on a profile of its own, so testing can
+// be reset at will without touching the stores, presets and Drive
+// connection of the copy you use. CERNIX_REMOTE_DEBUG opens the
+// renderer to a devtools client on that port, which is how scripted
+// checks read the window and call the bridge.
+// The installed app takes no devtools port. Chromium honours
+// --remote-debugging-port on any build and no fuse stops it, and a script
+// can then call the whole bridge through that port (decision 12). A
+// launch that asks for one quits rather than carry on exposed.
+if (app.isPackaged && (app.commandLine.hasSwitch('remote-debugging-port') || app.commandLine.hasSwitch('remote-debugging-pipe'))) {
+  console.error('[Main] Refusing to start with a remote debugging port.')
+  app.exit(1)
+}
+
+if (!app.isPackaged) {
+  const profile = process.env['CERNIX_USER_DATA']
+  if (profile) app.setPath('userData', path.resolve(profile))
+  const port = process.env['CERNIX_REMOTE_DEBUG']
+  if (port && /^\d+$/.test(port)) {
+    app.commandLine.appendSwitch('remote-debugging-port', port)
+    // A window driven by a script usually sits behind the editor, and
+    // Chromium throttles a covered window's animation frames, so screens
+    // that wait on an exit animation never change (F-045). Not
+    // throttling keeps scripted checks seeing what a person in front of
+    // the window would; F-045 itself stays a bug to fix.
+    app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
+    app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+  }
+}
+
+/**
+ * CERNIX_QA_VOLUMES, the third development switch: a JSON file listing
+ * folders the volume watcher reports as inserted cards,
+ * `[{ "path": "...", "label": "QA_CARD" }]`. Re-read on every poll, so a
+ * test inserts or removes a card by editing it. The card flow is the
+ * product's main way in, and no other way lets a test reach it without a
+ * person and a card. Ignored by a packaged build.
+ */
+function simulatedVolumes(): (() => Promise<VolumeInfo[]>) | undefined {
+  const file = process.env['CERNIX_QA_VOLUMES']
+  if (app.isPackaged || !file) return undefined
+  return async () => {
+    const listed = JSON.parse(await fs.promises.readFile(file, 'utf8')) as { path: string; label?: string }[]
+    // An empty path would resolve to the working directory: skipped, not guessed at.
+    return listed.filter(v => typeof v.path === 'string' && v.path.trim() !== '')
+      .map(v => ({ path: path.resolve(v.path), label: v.label ?? 'QA_CARD', sizeBytes: 0, freeBytes: 0, fileSystem: 'QA' }))
+  }
+}
 
 // Fatal-error log, installed before anything else can throw. A packaged
 // Windows app is GUI-subsystem: it has no console, so a crash during
@@ -49,6 +114,10 @@ function recordFatal(kind: string, err: unknown): void {
 
 process.on('uncaughtException', (err) => recordFatal('Uncaught exception', err))
 process.on('unhandledRejection', (reason) => recordFatal('Unhandled rejection', reason))
+// The renderer's error screen: what it caught goes in the same file, so a
+// crash someone reports can be read afterwards. Capped: it is the
+// renderer's text.
+ipcMain.on('renderer:error', (_event, detail: unknown) => recordFatal('Renderer error', String(detail).slice(0, 8000)))
 
 // `config()` with no path resolves against `process.cwd()`, which is
 // wherever the app was launched from. Resolve against this file instead:
@@ -63,8 +132,15 @@ if (envResult.error) {
 
 // ── Protocol Registration ──
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'cernix-media', privileges: { secure: true, supportFetchAPI: true, bypassCSP: true, stream: true } }
+  // corsEnabled, with the header on local files below: a video tile draws
+  // a frame of the video to a canvas, and without CORS that canvas is
+  // tainted and cannot be read, so every video tile was a film icon.
+  { scheme: 'cernix-media', privileges: { secure: true, supportFetchAPI: true, bypassCSP: true, stream: true, corsEnabled: true } }
 ])
+
+function sameOrigin(a: string, b: string): boolean {
+  try { return new URL(a).origin === new URL(b).origin } catch { return false }
+}
 
 /** Owns the window, the services and the IPC registration. */
 class CernixApp {
@@ -86,6 +162,7 @@ class CernixApp {
   private ratingStore!: RatingStore
   private editCache!: EditCache
   private presetStore!: PresetStore
+  private updater!: UpdateService
 
   constructor() {
     this.setupErrorHandling()
@@ -96,10 +173,12 @@ class CernixApp {
     const dbPath = path.join(userDataPath, 'cernix-v1.db')
 
     this.syncDb = new SyncDatabase(dbPath)
+    attachPickStore(this.syncDb)
+    this.watchSystemTheme()
     this.ratingStore = new RatingStore(path.join(userDataPath, 'cernix-ratings.db'))
     this.presetStore = new PresetStore(userDataPath)
 
-    this.volumeWatcher = new VolumeWatcher({ intervalMs: 2000 })
+    this.volumeWatcher = new VolumeWatcher({ intervalMs: 2000, simulated: simulatedVolumes() })
     this.fileSweeper = new FileSweeper(this.syncDb)
     this.authManager = new GoogleAuthManager()
     const getToken = async () => this.authManager.getAccessToken() ?? null
@@ -116,11 +195,27 @@ class CernixApp {
     this.driveOrganizer.setDriveService(this.driveClient)
     this.metadataExtractor = new MetadataExtractor()
 
+    // electron-updater's own logger prints every request; the two lines
+    // worth keeping go to the terminal panel through `log` instead.
+    autoUpdater.logger = null
+    this.updater = new UpdateService({
+      engine: autoUpdater,
+      packaged: app.isPackaged,
+      platform: process.platform,
+      readEnabled: () => this.syncDb.getMeta(UPDATE_META_KEY) !== 'off',
+      writeEnabled: (enabled) => this.syncDb.setMeta(UPDATE_META_KEY, enabled ? 'on' : 'off'),
+      busy: () => this.workThatARestartWouldCut(),
+      send: (status) => this.sendToRenderer('update:status', status),
+      log: (message) => this.sendToRenderer('sys:log', { level: 'info', source: 'system', message }),
+    })
+
     this.registerIpcHandlers()
     this.registerServiceEvents()
     this.setupMediaProtocol()
     this.setupSecurityPolicy()
     this.setupLifecycle()
+
+    this.updater.start()
 
     try {
       await this.authManager.initialize()
@@ -147,13 +242,25 @@ class CernixApp {
   }
 
   /**
-   * The stored interface theme, defaulting to light.
+   * The theme to paint now: the stored choice (light, dark, or following the
+   * system, which is the default), resolved against the system's own.
    *
    * Read from the local app_meta store. It is a per-machine display
    * preference: it never goes near Drive and never leaves the device.
    */
   public getTheme(): ThemeName {
-    return this.syncDb?.getMeta(THEME_META_KEY) === 'dark' ? 'dark' : 'light'
+    return effectiveTheme(parsePreference(this.syncDb?.getMeta(THEME_META_KEY)), nativeTheme.shouldUseDarkColors)
+  }
+
+  /** Follow the system while the choice is "system": repaint when it changes. */
+  private watchSystemTheme(): void {
+    nativeTheme.themeSource = parsePreference(this.syncDb.getMeta(THEME_META_KEY))
+    nativeTheme.on('updated', () => {
+      if (parsePreference(this.syncDb.getMeta(THEME_META_KEY)) !== 'system') return
+      const now = this.getTheme()
+      this.window?.setBackgroundColor(WINDOW_BACKGROUND[now])
+      this.sendToRenderer('theme:changed', now)
+    })
   }
 
   /**
@@ -177,6 +284,11 @@ class CernixApp {
     const DIST = path.join(__dirname, '../dist')
     const theme = this.getTheme()
     const zoom = this.getZoom()
+    // Where it was when it closed, if that is still on a screen.
+    const saved = restorableWindow(
+      this.syncDb?.getMeta(WINDOW_META_KEY),
+      screen.getAllDisplays().map(d => d.workArea),
+    )
 
     // A packaged build takes its icon from the executable. In dev there
     // is no executable, so without this the window and taskbar show the
@@ -193,8 +305,13 @@ class CernixApp {
     )
 
     this.window = new BrowserWindow({
-      width: 1400,
-      height: 900,
+      ...(saved
+        ? { x: saved.x, y: saved.y, width: saved.width, height: saved.height }
+        : { width: 1400, height: 900 }),
+      // Below this the toolbars, the pager and the rail no longer fit
+      // and the layouts, none of which were drawn for it, fall apart.
+      minWidth: 800,
+      minHeight: 500,
       ...(app.isPackaged ? {} : { icon: devIcon }),
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
@@ -202,16 +319,12 @@ class CernixApp {
         contextIsolation: true,
         // Set here rather than with `setZoomFactor` after load, which
         // can only run once the frame exists and therefore cannot reach
-        // the initial layout — the same reason the theme travels as a
-        // launch argument instead of over IPC. Measured: a window opened
+        // the initial layout — the same reason the preload reads the
+        // theme synchronously rather than after load. Measured: a window opened
         // with this at 0.8 reports 1750x1089 CSS pixels where the
         // default reports 1400x871.
         zoomFactor: zoom,
-        // The theme has to reach the preload before the page runs, so
-        // the class is on <html> before first paint. An IPC round trip
-        // after load would show a frame of the wrong theme.
         additionalArguments: [
-          `--cernix-theme=${theme}`,
           // The band, computed once here. The renderer applies it as
           // `--titlebar-inset` before first paint rather than carrying
           // its own copy of the arithmetic.
@@ -265,8 +378,29 @@ class CernixApp {
       backgroundColor: WINDOW_BACKGROUND[theme],
     })
 
+    // What the platform added to the size asked for. On Windows at 150%
+    // with the caption hidden, 1000x650 opens as 1003x651, so saving what
+    // it reports grew the window a little every launch. Taken off again
+    // on save; measured rather than assumed, since it depends on the
+    // scale and the frame.
+    const drift = saved ? sizeDrift(saved, this.window.getBounds()) : { width: 0, height: 0 }
+
     this.window.on('ready-to-show', () => {
+      if (saved?.maximized) this.window?.maximize()
       this.window?.show()
+    })
+
+    // The normal bounds, so a maximised window comes back maximised and
+    // restores to the size it had before.
+    // Normal bounds are right even when the window is minimised.
+    this.window.on('close', () => {
+      const win = this.window
+      if (!win) return
+      const normal = win.getNormalBounds()
+      this.syncDb?.setMeta(WINDOW_META_KEY, serialiseWindow(
+        { ...normal, width: normal.width - drift.width, height: normal.height - drift.height },
+        win.isMaximized(),
+      ))
     })
 
     // The renderer draws the maximise button, so it has to hear about
@@ -329,9 +463,13 @@ class CernixApp {
     // whole electronAPI bridge handed to it: trash, Drive mutation,
     // exports. The dev server is the one origin allowed to navigate,
     // because Vite reloads through it.
-    const devOrigin = process.env['VITE_DEV_SERVER_URL']
+    // Read only when not packaged: set in the installed app's environment
+    // it loaded whatever origin it named, with the whole bridge (F-034).
+    const devOrigin = app.isPackaged ? undefined : process.env['VITE_DEV_SERVER_URL']
     this.window.webContents.on('will-navigate', (event, url) => {
-      if (devOrigin && url.startsWith(devOrigin)) return
+      // The origin, not a prefix: `http://localhost:5173.evil.test` starts
+      // with the dev server's address.
+      if (devOrigin && sameOrigin(url, devOrigin)) return
       event.preventDefault()
       console.warn('[window] Blocked navigation to', url)
     })
@@ -339,7 +477,7 @@ class CernixApp {
     // Links open in the user's browser rather than a second Electron
     // window that would inherit the same bridge.
     this.window.webContents.setWindowOpenHandler(({ url }) => {
-      if (/^https:/.test(url)) void shell.openExternal(url)
+      if (isOpenableExternal(url)) void shell.openExternal(url)
       return { action: 'deny' }
     })
 
@@ -354,6 +492,7 @@ class CernixApp {
     const isAllowed = this.pathGuard ?? (this.pathGuard = createPathGuard({
       approved: this.userApprovedPaths,
       volumeRoots: () => this.volumeWatcher.getVolumes().map(v => v.path),
+      archiveRoot: () => this.fileSweeper.getLibraryRoot(),
     }))
 
     protocol.handle('cernix-media', async (request) => {
@@ -382,8 +521,9 @@ class CernixApp {
               headers: {
                 'Content-Type': mime,
                 // Lets a tile re-render on scroll without another round
-                // trip. `mtime` keys the main-side cache, so a generous
-                // max-age cannot serve a stale thumbnail.
+                // trip. `mtime` keys the main-side cache, but the browser
+                // caches by URL, so the page puts the file's modified
+                // time in the URL (`&v=`): a replaced file is a new URL.
                 'Cache-Control': 'public, max-age=3600',
               },
             })
@@ -398,8 +538,33 @@ class CernixApp {
           }
         }
 
+        // A RAW file at full size is the picture inside it, as a JPEG: the
+        // file itself is no use to the page (F-046).
+        if (isRawPath(filePath)) {
+          try {
+            const preview = await readRawPreview(filePath)
+            if (!preview) return new Response('No preview in this file', { status: 404 })
+            const jpeg = renderRawPreview(preview, null, 92)
+            const body = new Uint8Array(jpeg.byteLength)
+            body.set(jpeg)
+            return new Response(body, {
+              headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600', 'Access-Control-Allow-Origin': '*' },
+            })
+          } catch (err) {
+            console.warn(`[Protocol] RAW preview failed for ${filePath}:`, messageOf(err))
+            return new Response('Preview failed', { status: 500 })
+          }
+        }
+
         try {
-          return net.fetch(pathToFileURL(filePath).toString())
+          // Only this app's own window can name this scheme, so allowing
+          // any origin opens nothing to the outside; it lets the page read
+          // back what it drew from a local video (the tile's frame).
+          return net.fetch(pathToFileURL(filePath).toString()).then((res) => {
+            const headers = new Headers(res.headers)
+            headers.set('Access-Control-Allow-Origin', '*')
+            return new Response(res.body, { status: res.status, headers })
+          })
         } catch {
           return new Response('File not found', { status: 404 })
         }
@@ -408,6 +573,8 @@ class CernixApp {
       // Handle Drive Files: cernix-media://drive/[FILE_ID]
       if (url.host === 'drive') {
         const fileId = url.pathname.slice(1)
+        // Put into a URL that carries the token: only an id's characters.
+        if (!isDriveFileId(fileId)) return new Response('Not a Drive file id', { status: 400 })
         const token = await this.authManager.getAccessToken()
         if (!token) return new Response('Unauthorized', { status: 401 })
 
@@ -419,7 +586,7 @@ class CernixApp {
           const rangeHeader = request.headers.get('range')
           if (rangeHeader) upstreamHeaders.Range = rangeHeader
 
-          const driveRes = await net.fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+          const driveRes = await net.fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, {
             headers: upstreamHeaders,
           })
 
@@ -438,10 +605,10 @@ class CernixApp {
     this.volumeWatcher.on('volume:detected', (vol) => this.sendToRenderer('volume:detected', vol))
     this.volumeWatcher.on('volume:removed', (vol) => this.sendToRenderer('volume:removed', vol))
     this.fileSweeper.on('sweep:started', (s) => {
-      this.sendToRenderer('sweep:started', s)
       this.sendToRenderer('sys:log', { level: 'info', source: 'sweep', message: `Session ${s.sessionId} started - ${s.totalFiles} files queued for staging.` })
     })
     this.fileSweeper.on('sweep:progress', (p) => this.sendToRenderer('sweep:progress', p))
+    this.fileSweeper.on('log', (entry: LogEntry) => this.sendToRenderer('sys:log', entry))
 
     // Local staging finishing is what starts the Drive upload; the two
     // halves of ingest are joined here and nowhere else.
@@ -450,8 +617,20 @@ class CernixApp {
       this.sendToRenderer('sweep:complete', session)
 
       // Only upload if files were actually copied and we're authenticated
-      if (session.status !== 'complete' || session.processedFiles === 0) {
-        console.log('[Main] Sweep complete but no files staged - skipping Drive upload.')
+      if (session.status !== 'complete') return
+      const failed = session.errors.length
+      const failedNote = failed > 0
+        ? ` ${failed} could not be copied (first: ${session.errors[0].file}, ${session.errors[0].error}); see the Output panel.`
+        : ''
+      if (session.processedFiles === 0) {
+        // Nothing to upload, and nothing else would tell the window: it sat
+        // on "Importing" at 0% for good.
+        if (session.totalFiles > 0) {
+          this.sendToRenderer('sweep:error', {
+            sessionId: session.sessionId,
+            error: `None of the ${session.totalFiles} files could be copied.${failedNote}`,
+          })
+        }
         return
       }
 
@@ -460,10 +639,10 @@ class CernixApp {
         // Auth missing or refresh failed. Without this branch no upload
         // event ever arrives and the renderer sits in `sweeping` on the
         // last percentage forever, so it goes out as a sweep:error.
-        const msg = 'Google Drive isn\'t connected: your files are staged locally. Reconnect Drive in Settings to upload.'
+        const msg = `Google Drive isn't connected: ${session.processedFiles} of ${session.totalFiles} files are in the archive on this computer, not on Drive.${failedNote} Reconnect Drive in Settings to upload.`
         console.log('[Main] No auth token - skipping Drive upload.')
         this.sendToRenderer('sys:log', { level: 'warn', source: 'upload', message: msg })
-        this.sendToRenderer('sweep:error', { sessionId: session.sessionId, error: msg })
+        this.sendToRenderer('sweep:error', { sessionId: session.sessionId, error: msg, kind: 'drive-disconnected' })
         return
       }
 
@@ -497,6 +676,23 @@ class CernixApp {
     this.driveUploader.on('upload:progress', (p) => this.sendToRenderer('upload:progress', p))
     this.driveUploader.on('upload:file-done', (job) => {
       this.syncDb.recordUpload(job.fileName, job.sizeBytes, job.driveFileId)
+      // What was decided on the card follows the photograph to Drive.
+      try {
+        const mtime = fs.statSync(job.filePath).mtime
+        carryUploadedRating(this.ratingStore, job, mtime)
+      } catch (err) {
+        console.warn('[Main] Could not carry a rating to Drive:', messageOf(err))
+      }
+    })
+    // Retries and failures were emitted and heard by no one: the window
+    // learned a count at the end and never which file or why. They go to
+    // the Output panel, named.
+    this.driveUploader.on('upload:error', (e) => {
+      // The end screen names the files that did not make it.
+      if (!e.willRetry) this.sendToRenderer('upload:error', e)
+      this.sendToRenderer('sys:log', e.willRetry
+      ? { level: 'warn', source: 'upload', message: `${e.file}: ${e.error}` }
+      : { level: 'error', source: 'upload', message: `Could not upload ${e.file}: ${e.error}` })
     })
     this.driveUploader.on('upload:complete', (s) => this.sendToRenderer('upload:complete', s))
     this.driveOrganizer.on('log', (entry: LogEntry) => this.sendToRenderer('sys:log', entry))
@@ -509,10 +705,13 @@ class CernixApp {
     this.pathGuard ??= createPathGuard({
       approved: this.userApprovedPaths,
       volumeRoots: () => this.volumeWatcher.getVolumes().map(v => v.path),
+      archiveRoot: () => this.fileSweeper.getLibraryRoot(),
     })
     registerSystemHandlers(this.window, this.volumeWatcher, this.authManager, this.fileSweeper, this.syncDb, this.driveClient, this.userApprovedPaths, this.pathGuard, this.sendToRenderer.bind(this))
+    registerArchiveHandlers(this.window, this.fileSweeper, this.driveUploader, this.sendToRenderer.bind(this))
     registerDriveHandlers(this.window, this.driveClient, this.driveOrganizer, this.sendToRenderer.bind(this))
     registerEditorHandlers(this.window, this.ratingStore, this.editCache, this.presetStore, this.driveClient, this.pathGuard, this.sendToRenderer.bind(this))
+    registerUpdateHandlers(this.updater)
 
     // Both run in the background at startup, and in this order: the
     // rename has to land before anything resolves the shared root by
@@ -574,11 +773,23 @@ class CernixApp {
     }
   }
 
+  /**
+   * What is running that a restart would cut short, in words, or null.
+   * Sweeps and uploads hold their own sessions; everything else that
+   * writes files or changes Drive is tracked around its IPC call.
+   */
+  private workThatARestartWouldCut(): string | null {
+    if (this.fileSweeper.getActiveSessions().length > 0) return 'copying from a card'
+    if (this.driveUploader.getSummary()?.status === 'uploading') return 'uploading to Drive'
+    return runningWork()
+  }
+
   private sendToRenderer(channel: string, ...args: unknown[]): void {
     this.window?.webContents.send(channel, ...args)
   }
 
   private destroy(): void {
+    this.updater?.stop()
     this.volumeWatcher?.stop()
     this.syncDb?.close()
   }
@@ -623,12 +834,30 @@ if (process.platform === 'linux') {
 // would take cut, copy and paste with it.
 if (process.platform !== 'darwin') Menu.setApplicationMenu(null)
 
-app.whenReady().then(async () => {
-  try {
-    const cernix = new CernixApp()
-    await cernix.initialize()
-    cernix.createWindow()
-  } catch (err) {
-    console.error('[Main] FATAL RECOVERY:', err)
-  }
-})
+// One Cernix per profile. A second launch started a second app on the
+// same stores: two writers on the ledger and ratings databases, two
+// volume watchers, sweeps that could run at once, and a clash on the
+// OAuth loopback port. Now it hands over to the first, which comes to
+// the front, and quits. The lock is per userData folder, so a run on a
+// profile of its own (CERNIX_USER_DATA, --user-data-dir) is not refused.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (!win) return
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
+  })
+
+  app.whenReady().then(async () => {
+    try {
+      const cernix = new CernixApp()
+      await cernix.initialize()
+      cernix.createWindow()
+    } catch (err) {
+      console.error('[Main] FATAL RECOVERY:', err)
+    }
+  })
+}

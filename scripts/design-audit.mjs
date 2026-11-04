@@ -12,13 +12,20 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 // Adding a new public-facing surface? Add it here.
 const SCAN_ROOTS = [
   { dir: path.resolve(REPO_ROOT, 'src/renderer'), exts: ['.tsx', '.ts', '.css'] },
-  { dir: path.resolve(REPO_ROOT, 'landing/src'),  exts: ['.html', '.css', '.js'] },
+  // The landing mockups are drawings of the product at fixed sizes
+  // (a 600px frame, 18px icons), so arbitrary sizes are their material,
+  // not a bypass of the spacing scale. Colours and the rest still apply.
+  { dir: path.resolve(REPO_ROOT, 'landing/src'),  exts: ['.html', '.css', '.js'], skip: ['arbitrarySpacing'] },
   // landing/*.html is build output now, assembled by scripts/landing-html.mjs
   // from landing/src/pages and landing/src/partials, both of which the root
   // above already covers. Scanning the generated copies as well reported
   // every divergence twice and pointed the fix at a file that gets
   // overwritten on the next build.
 ];
+
+// Files that hold values by design. The hue swatches are the colour of the
+// range each editor panel adjusts: content, not chrome, and one table.
+const ALLOWED_FILES = [path.resolve(REPO_ROOT, 'src/renderer/editor/utils/hue-swatches.ts')];
 
 // Regexes to catch design system divergence
 const REGEXES = {
@@ -72,6 +79,7 @@ const report = {};
 for (const root of SCAN_ROOTS) {
   walkDir(root.dir, (filePath) => {
     if (!root.exts.some(ext => filePath.endsWith(ext))) return;
+    if (ALLOWED_FILES.includes(filePath)) return;
 
     const content = fs.readFileSync(filePath, 'utf-8');
     const lines = content.split('\n');
@@ -81,6 +89,7 @@ for (const root of SCAN_ROOTS) {
       if (line.includes('design-allow')) return;
 
       for (const [ruleName, regex] of Object.entries(REGEXES)) {
+        if (root.skip?.includes(ruleName)) continue;
         const matches = line.match(regex);
         if (matches) {
           if (!report[filePath]) report[filePath] = [];
@@ -111,4 +120,8 @@ for (const [file, issues] of Object.entries(report)) {
 }
 
 console.log(`\nTotal divergent usages found: ${totalIssues}`);
-console.log('Note: This is a remediation list. Replace these with semantic roles from src/shared/tokens.css.');
+if (totalIssues > 0) {
+  console.log('Replace these with semantic roles from src/shared/tokens.css.');
+  // Zero is the baseline: anything new fails the audit.
+  process.exitCode = 1;
+}

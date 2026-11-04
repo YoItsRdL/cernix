@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Slider } from './Slider'
 import { cn } from '@/lib/utils'
+import { HUE_SWATCHES } from '../utils/hue-swatches'
 import type { Calibration, CalibrationPrimary, EditParams } from '@/../shared/edit-params'
 
 interface CalibrationPanelProps {
@@ -15,13 +16,11 @@ interface CalibrationPanelProps {
 
 type PrimaryKey = 'red' | 'green' | 'blue'
 
-/* eslint-disable no-restricted-syntax -- design-allow: the RGB primaries calibration operates on. */
 const PRIMARIES: { key: PrimaryKey; label: string; swatch: string }[] = [
-  { key: 'red',   label: 'Red',   swatch: '#e74c3c' },
-  { key: 'green', label: 'Green', swatch: '#27ae60' },
-  { key: 'blue',  label: 'Blue',  swatch: '#2980b9' },
+  { key: 'red',   label: 'Red',   swatch: HUE_SWATCHES.red },
+  { key: 'green', label: 'Green', swatch: HUE_SWATCHES.green },
+  { key: 'blue',  label: 'Blue',  swatch: HUE_SWATCHES.blue },
 ]
-/* eslint-enable no-restricted-syntax */
 
 /**
  * Camera Calibration panel. Three primary tabs, each with a Hue

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { type IngestState, type ScannedFile } from '@/types'
+import type { SweepDetail } from '@/lib/sweep-status'
 
 /**
  * How long the renderer waits for `sweep:scan` before giving up on it.
@@ -16,6 +17,10 @@ export function useIngest() {
   const [scannedFiles, setScannedFiles] = useState<ScannedFile[]>([])
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [progress, setProgress] = useState(0)
+  /** What the copy is on, for the progress screen. */
+  const [sweepDetail, setSweepDetail] = useState<SweepDetail | null>(null)
+  /** Set when the copy finished and only the upload could not start. */
+  const [errorKind, setErrorKind] = useState<'drive-disconnected' | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [currentSession, setCurrentSession] = useState<string | null>(null)
   const [driveFolderId, setDriveFolderId] = useState<string | null>(null)
@@ -35,6 +40,11 @@ export function useIngest() {
   // Refs for computing aggregate progress inside event callbacks
   const doneRef = useRef(0)
   const totalRef = useRef(0)
+  /** Files the sweep could not copy, added to the upload's failures at the end. */
+  const copyFailuresRef = useRef(0)
+  /** Which files, and why, for the end screen. Copy and upload failures both. */
+  const failuresRef = useRef<{ file: string; error: string }[]>([])
+  const [failureList, setFailureList] = useState<{ file: string; error: string }[]>([])
 
   // Mirror `state` in a ref so async actions (startScan / startSweep)
   // can read the *live* value without recreating the callback on every
@@ -50,6 +60,32 @@ export function useIngest() {
    * what it is working on, a slow scan and a hung one look identical.
    */
   const [scanningPath, setScanningPath] = useState<string | null>(null)
+
+  /**
+   * Whether the selection is still the one the scan made (every file not
+   * yet on Drive), rather than one the user made. Selected-for-import is
+   * not chosen-for-trash: while it is the scan's, the Local Archive offers
+   * no Trash, so its toolbar no longer opens on "Trash 678".
+   */
+  const [selectionIsPreset, setSelectionIsPreset] = useState(true)
+
+  /**
+   * The folder or card the review on screen came from, and so the only
+   * thing a sweep may copy.
+   *
+   * The sweep used to take its source from the caller, which passed
+   * "the imported folder, else the first card". With two cards in, the
+   * review showed the second card and the sweep copied the first, then
+   * said the files were staged: format the card you had just reviewed
+   * and its photographs were gone. The source now travels with the
+   * review instead of being worked out again at the moment of copying.
+   */
+  const [reviewPath, setReviewPath] = useState<string | null>(null)
+  const reviewPathRef = useRef<string | null>(null)
+  const setReviewSource = useCallback((p: string | null) => {
+    reviewPathRef.current = p
+    setReviewPath(p)
+  }, [])
 
   const stateRef = useRef<IngestState>('idle')
   useEffect(() => { stateRef.current = state }, [state])
@@ -115,12 +151,15 @@ export function useIngest() {
         toast.info('No supported media files found in this folder.')
         setScannedFiles([])
         setSelectedFiles(new Set())
+        setReviewSource(null)
         transition('idle')
         return
       }
+      setReviewSource(path)
       setScannedFiles(files)
-      // Only select files that haven't been imported yet
-      setSelectedFiles(new Set(files.filter(f => !f.isUploaded).map(f => f.relativePath)))
+      // Only select files that are neither on Drive nor already in the archive
+      setSelectedFiles(new Set(files.filter(f => !f.isUploaded && !f.isCopied && !f.damage).map(f => f.relativePath)))
+      setSelectionIsPreset(true)
       console.log('[useIngest] transition → review')
       transition('review')
     } catch (err) {
@@ -131,9 +170,10 @@ export function useIngest() {
       if (deadline !== undefined) clearTimeout(deadline)
       setScanningPath(null)
     }
-  }, [transition])
+  }, [transition, setReviewSource])
 
   const toggleFile = useCallback((relativePath: string) => {
+    setSelectionIsPreset(false)
     setSelectedFiles(prev => {
       const next = new Set(prev)
       if (next.has(relativePath)) next.delete(relativePath)
@@ -142,15 +182,9 @@ export function useIngest() {
     })
   }, [])
 
-  const toggleAll = useCallback(() => {
-    setSelectedFiles(prev => {
-      if (prev.size === scannedFiles.length) return new Set()
-      return new Set(scannedFiles.map(f => f.relativePath))
-    })
-  }, [scannedFiles])
-
   const setSelection = useCallback((paths: string[]) => {
     setSelectedFiles(new Set(paths))
+    setSelectionIsPreset(false)
   }, [])
 
   /** Remove files from the local review list: used after they've been
@@ -169,8 +203,9 @@ export function useIngest() {
     })
   }, [])
 
-  const startSweep = useCallback(async (sourcePath: string, customFolder?: string) => {
-    if (stateRef.current !== 'review') return
+  const startSweep = useCallback(async (customFolder?: string) => {
+    const sourcePath = reviewPathRef.current
+    if (stateRef.current !== 'review' || !sourcePath) return
 
     try {
       transition('sweeping')
@@ -188,14 +223,28 @@ export function useIngest() {
   useEffect(() => {
     const unsubProgress = window.electronAPI.onSweepProgress((p) => {
       setProgress(p.percentComplete)
+      setSweepDetail(prev => ({
+        file: p.file, current: p.current, total: p.total, bytesPerSecond: p.bytesPerSecond,
+        startedAt: prev?.startedAt ?? Date.now(),
+        at: Date.now(),
+      }))
     })
 
     const unsubComplete = window.electronAPI.onSweepComplete((s) => {
       setCurrentSession(s.sessionId)
+      // Files that never reached the archive never reach Drive either, so
+      // they count with the upload's failures on the end screen.
+      copyFailuresRef.current = s.errors?.length ?? 0
+      failuresRef.current = [...(s.errors ?? [])]
       // A cancelled sweep still emits `sweep:complete`. Re-entering
       // `sweeping` here is what made "Terminate Protocol" look dead.
       // The overlay came straight back. Land on `idle` instead.
       if (s?.status === 'cancelled') {
+        // What the stop left behind: files already copied stay in the
+        // archive, and nothing said so.
+        toast(s.processedFiles > 0
+          ? `Import stopped. ${s.processedFiles.toLocaleString()} of ${s.totalFiles.toLocaleString()} files were already in your archive and stay there.`
+          : 'Import stopped before anything was copied.')
         transition('idle')
         return
       }
@@ -209,6 +258,7 @@ export function useIngest() {
       // Reading only `.message` here surfaced `undefined`, which the
       // UI then replaced with a generic "Something went wrong".
       setErrorMessage(e.error ?? e.message ?? 'Ingest failed.')
+      setErrorKind(e.kind ?? null)
       transition('error')
     })
 
@@ -232,10 +282,15 @@ export function useIngest() {
       }
     })
 
+    const unsubUploadError = window.electronAPI.onUploadError((e) => {
+      failuresRef.current = [...failuresRef.current, e]
+    })
+
     const unsubUploadComplete = window.electronAPI.onUploadComplete((s) => {
+      setFailureList(failuresRef.current)
       setDriveFolderId(s.driveFolderId)
       setDriveFolderUrl(s.driveFolderUrl)
-      setUploadFailures(s.failedFiles ?? 0)
+      setUploadFailures((s.failedFiles ?? 0) + copyFailuresRef.current)
       // Only a session that delivered everything gets to show a full bar.
       setUploadProgress(s.failedFiles > 0 && s.totalFiles > 0
         ? Math.round((s.completedFiles / s.totalFiles) * 100)
@@ -249,6 +304,7 @@ export function useIngest() {
       unsubError()
       unsubUploadStarted()
       unsubUploadProgress()
+      unsubUploadError()
       unsubUploadComplete()
     }
   }, [transition])
@@ -257,33 +313,42 @@ export function useIngest() {
     setScannedFiles([])
     setSelectedFiles(new Set())
     setProgress(0)
+    setSweepDetail(null)
+    setErrorKind(null)
     setUploadProgress(0)
     setDriveFolderId(null)
     setDriveFolderUrl(null)
     setErrorMessage(null)
     setUploadFailures(0)
+    failuresRef.current = []
+    setFailureList([])
     // Clear the progress refs too, so a subsequent sweep doesn't
     // inherit the previous batch's done/total counters.
     doneRef.current = 0
     totalRef.current = 0
+    setReviewSource(null)
     transition('idle')
-  }, [transition])
+  }, [transition, setReviewSource])
 
   return {
     state,
     scanningPath,
+    reviewPath,
+    selectionIsPreset,
     scannedFiles,
     selectedFiles,
     progress,
+    sweepDetail,
+    errorKind,
     uploadProgress,
     currentSession,
     driveFolderId,
     driveFolderUrl,
     errorMessage,
     uploadFailures,
+    failureList,
     startScan,
     toggleFile,
-    toggleAll,
     setSelection,
     removeFiles,
     startSweep,

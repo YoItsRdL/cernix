@@ -18,12 +18,25 @@
  * Usage:  npm run icons
  */
 const { app, BrowserWindow } = require('electron')
-const { readFileSync, writeFileSync, mkdirSync, rmSync } = require('node:fs')
+const { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } = require('node:fs')
+const { createHash } = require('node:crypto')
 const path = require('node:path')
 
 const ROOT = path.resolve(__dirname, '..')
 const SRC = path.join(ROOT, 'build-resources', 'icon.svg')
 const OUT = path.join(ROOT, 'build-resources')
+
+/**
+ * The hash of the SVG the committed icons were drawn from.
+ *
+ * `npm run build` runs this so an exe is never stamped with an icon
+ * older than its source. But Chromium's antialiasing differs between
+ * machines and versions, so redrawing an unchanged SVG still changed
+ * a few thousand edge pixels, and every build left the tree dirty with
+ * icons nobody had changed. Now an unchanged SVG is not redrawn; a
+ * changed one is, and the stamp moves with it. `--force` redraws anyway.
+ */
+const STAMP = path.join(OUT, 'icon.svg.sha256')
 
 // 256 must be present: electron-builder rejects a Windows icon without it.
 const ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
@@ -63,9 +76,16 @@ function encodeIco(images) {
 }
 
 async function main() {
-  await app.whenReady()
-
   const svg = readFileSync(SRC, 'utf8')
+  const hash = createHash('sha256').update(svg).digest('hex')
+  const current = existsSync(STAMP) && readFileSync(STAMP, 'utf8').trim() === hash
+    && existsSync(path.join(OUT, 'icon.ico')) && existsSync(path.join(OUT, 'icon.png'))
+  if (current && !process.argv.includes('--force')) {
+    console.log('  icons already drawn from this icon.svg (--force to redraw)')
+    return
+  }
+
+  await app.whenReady()
   const win = new BrowserWindow({ show: false, width: 64, height: 64 })
 
   // A real file:// host page, not a data: URL. A data: document has an
@@ -113,6 +133,7 @@ async function main() {
   mkdirSync(OUT, { recursive: true })
   writeFileSync(path.join(OUT, 'icon.ico'), encodeIco(ICO_SIZES.map(size => ({ size, data: buf(size) }))))
   writeFileSync(path.join(OUT, 'icon.png'), buf(512))
+  writeFileSync(STAMP, hash + '\n')
 
   // Previews so the result can be eyeballed at the sizes that matter.
   for (const s of [256, 32, 16]) writeFileSync(path.join(OUT, `preview-${s}.png`), buf(s))

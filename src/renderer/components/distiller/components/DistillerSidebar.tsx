@@ -47,7 +47,7 @@ function SidebarAction({ icon, label, color, onClick, disabled, title }: Sidebar
 function SidebarSection({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="p-space-3 border-b border-border-subtle space-y-1">
-      <div className="px-space-2 pb-1.5 text-caption font-bold text-text-disabled">{label}</div>
+      <div className="px-space-2 pb-1.5 text-caption font-bold text-text-muted">{label}</div>
       {children}
     </div>
   )
@@ -135,7 +135,7 @@ export function DistillerSidebar({
     <aside className="w-52 bg-surface-panel border-r border-border-strong flex flex-col shrink-0 z-10 overflow-hidden">
       <div className="h-12 flex items-center px-space-4 border-b border-border-subtle bg-surface-raised shrink-0">
         <span className="text-caption font-bold text-text-muted flex items-center gap-space-2">
-          <FolderSync size={12} className="text-secondary" /> DISTILLER
+          <FolderSync size={12} className="text-secondary" /> WORKSTATION
         </span>
       </div>
 
@@ -171,7 +171,7 @@ export function DistillerSidebar({
           marked, and children hanging below it. */}
       <div className="flex-1 p-space-3 overflow-y-auto">
         {loading ? (
-          <div className="px-space-2 py-1.5 text-metadata text-text-disabled flex items-center gap-space-2">
+          <div className="px-space-2 py-1.5 text-metadata text-text-muted flex items-center gap-space-2">
             <RefreshCw size={12} className="animate-spin" /> Loading
           </div>
         ) : rows.length > 0 ? (
@@ -233,7 +233,7 @@ export function DistillerSidebar({
             })}
           </div>
         ) : (
-          <p className="px-space-2 py-1.5 text-metadata text-text-disabled">No folders</p>
+          <p className="px-space-2 py-1.5 text-metadata text-text-muted">No folders</p>
         )}
       </div>
     </aside>

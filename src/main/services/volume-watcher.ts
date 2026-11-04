@@ -45,6 +45,12 @@ export interface VolumeInfo {
   sizeBytes: number     // Total capacity
   freeBytes: number     // Free space
   fileSystem: string    // e.g. "FAT32", "exFAT"
+  /**
+   * Has a DCIM folder, which is what a camera card has (decision 19). Set by
+   * the watcher on every poll. Only such a volume is scanned on insert; any
+   * other removable drive waits to be asked.
+   */
+  hasDcim?: boolean
 }
 
 export type VolumeWatcherEvents = {
@@ -66,10 +72,13 @@ export class VolumeWatcher extends EventEmitter {
   private warnedNoLsblk = false
   /** macOS: whether a device can be ejected, which cannot change while it stays mounted. */
   private macRemovableCache = new Map<string, boolean>()
+  /** Extra volumes reported alongside the OS's, for testing (see index.ts). */
+  private simulated: (() => Promise<VolumeInfo[]>) | null
 
-  constructor(options?: { intervalMs?: number }) {
+  constructor(options?: { intervalMs?: number; simulated?: () => Promise<VolumeInfo[]> }) {
     super()
     this.intervalMs = options?.intervalMs ?? 2000
+    this.simulated = options?.simulated ?? null
   }
 
   // ── Public API ──
@@ -114,7 +123,14 @@ export class VolumeWatcher extends EventEmitter {
     this.isPolling = true
 
     try {
-      const currentVolumes = await this.scanRemovableVolumes()
+      const found = [
+        ...await this.scanRemovableVolumes(),
+        ...(this.simulated ? await this.simulated().catch(() => []) : []),
+      ]
+      const currentVolumes = await Promise.all(found.map(async v => ({
+        ...v,
+        hasDcim: await fsp.stat(path.join(v.path, 'DCIM')).then(s => s.isDirectory(), () => false),
+      })))
       const currentMap = new Map(currentVolumes.map(v => [v.path, v]))
 
       // Detect new volumes (present now, absent before)

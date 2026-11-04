@@ -92,7 +92,9 @@ if (entries.length === 0) {
 
 let unbacked = 0
 for (const entry of entries) {
-  const parts = entry.keys.split(/\s*\+\s*/).map(p => p.trim())
+  // As the sheet draws it: a "+" with spaces round it joins keys, so
+  // "mod + +" is mod and the plus key, not three parts.
+  const parts = entry.keys.split(/\s+\+\s+/).map(p => p.trim())
   const missing = []
   for (const part of parts) {
     const patterns = evidenceFor(part)

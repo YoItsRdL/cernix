@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import {
+  VolumeWatcher,
   parseLsblkTree,
   parseDiskutilList,
   isRemovableDisk,
@@ -329,6 +333,28 @@ describe('the macOS device identifier pattern', () => {
       '',
     ]) {
       expect(ok(id)).toBe(false)
+    }
+  })
+})
+
+describe('VolumeWatcher marks camera cards', () => {
+  it('sets hasDcim from a DCIM folder, and not for any other drive', async () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cernix-vol-'))
+    const card = path.join(base, 'card')
+    const stick = path.join(base, 'stick')
+    fs.mkdirSync(path.join(card, 'DCIM'), { recursive: true })
+    fs.mkdirSync(stick)
+    fs.writeFileSync(path.join(stick, 'DCIM'), 'a file called DCIM is not a folder')
+    const vol = (p: string, label: string) => ({ path: p, label, sizeBytes: 0, freeBytes: 0, fileSystem: 'test' })
+    try {
+      const watcher = new VolumeWatcher({ simulated: async () => [vol(card, 'CARD'), vol(stick, 'STICK')] })
+      ;(watcher as unknown as { scanRemovableVolumes: () => Promise<[]> }).scanRemovableVolumes = async () => []
+      const detected: Array<[string, boolean | undefined]> = []
+      watcher.on('volume:detected', v => detected.push([v.label, v.hasDcim]))
+      await (watcher as unknown as { poll: () => Promise<void> }).poll()
+      expect(detected).toEqual([['CARD', true], ['STICK', false]])
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true })
     }
   })
 })

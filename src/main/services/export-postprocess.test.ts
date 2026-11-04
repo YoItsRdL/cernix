@@ -88,13 +88,15 @@ beforeEach(() => {
     '-DateTimeOriginal=2026:05:01 10:00:00',
     '-Orientation#=6',
     '-ThumbnailImage<=' + thumb,
+    '-GPSLatitude=43.2627', '-GPSLatitudeRef=N', '-GPSLongitude=2.9253', '-GPSLongitudeRef=W',
+    '-XMP-exif:GPSLatitude=43.2627 N', '-XMP-exif:GPSLongitude=2.9253 W',
     source,
   ])
 })
 afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }) })
 
-async function exportOf(edited: Buffer): Promise<Record<string, unknown>> {
-  const { bytes } = await postprocessExport(new Uint8Array(edited), source)
+async function exportOf(edited: Buffer, keepLocation = false): Promise<Record<string, unknown>> {
+  const { bytes } = await postprocessExport(new Uint8Array(edited), source, { keepLocation })
   const out = path.join(dir, 'out.jpg')
   fs.writeFileSync(out, bytes)
   return tags(out)
@@ -106,6 +108,20 @@ describe('postprocessExport', () => {
     expect(tag(t, 'ThumbnailImage'), 'the test is meaningless without one').toBeTruthy()
     expect(tag(t, 'Make')).toBe('TestCam')
   })
+
+  /**
+   * Exports to Drive go to a folder anyone with its link can open, so a
+   * photograph's position does not travel unless the user asked for it,
+   * in EXIF or in its XMP copy.
+   */
+  it('leaves the GPS position behind unless asked to keep it', async () => {
+    expect(tag(tags(source), 'GPSLatitude'), 'the fixture must carry a position').toBeTruthy()
+    const stripped = await exportOf(BLUE)
+    expect(Object.keys(stripped).filter(k => /GPS/i.test(k))).toEqual([])
+    expect(tag(stripped, 'Make'), 'and nothing else goes with it').toBe('TestCam')
+    const kept = await exportOf(BLUE, true)
+    expect(tag(kept, 'GPSLatitude')).toBeTruthy()
+  }, EXIFTOOL_TIMEOUT)
 
   it('carries the camera identity and capture date onto the export', async () => {
     const t = await exportOf(BLUE)

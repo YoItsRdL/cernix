@@ -52,7 +52,17 @@ export default defineConfig(({ mode }) => {
             define: mainDefine,
             build: {
               rollupOptions: {
-                external: ['better-sqlite3'],
+                // Native, and loaded from node_modules: electron-updater
+                // reads its own package files at runtime and resolves
+                // its helpers dynamically, so it is not bundled either.
+                // exiftool-vendored finds its platform's ExifTool with a
+                // dynamic require; bundled, that require became rollup's
+                // "Could not dynamically require" stub, ExifTool never
+                // started, and every capture date fell back to the copy
+                // date, each read waiting out its timeout. From
+                // node_modules it finds the binary, which the build
+                // unpacks from the asar (`asarUnpack`).
+                external: ['better-sqlite3', 'electron-updater', 'exiftool-vendored'],
               },
             },
           },

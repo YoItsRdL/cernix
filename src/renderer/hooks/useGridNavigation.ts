@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Pagination } from './usePagination'
+import { topOverlay } from '@/lib/overlay'
 
 /**
  * Driving the grid from the keyboard.
@@ -20,6 +21,11 @@ import type { Pagination } from './usePagination'
  * replaces the selection, so holding an arrow walks the library one
  * picture at a time. Shift extends from where the run began, so a range
  * can be swept out without touching the mouse.
+ *
+ * Except with `moveOnly`: the Local Archive starts with everything
+ * selected, the import being what is selected, and one arrow press
+ * turned 678 files into 1 without a word. There, plain moves only move
+ * the focus; shift is the deliberate gesture that still selects a range.
  */
 export interface GridNavigationOptions {
   /** Length of the full list, not the page. */
@@ -31,10 +37,10 @@ export interface GridNavigationOptions {
   idAt: (index: number) => string | undefined
   /** Replace the selection. Called as focus moves. */
   onSelect: (ids: string[]) => void
-  /** Enter or Space on the focused item. */
-  onActivate?: (index: number) => void
   /** Off while a modal, a rename field or a pending move owns the keys. */
   enabled?: boolean
+  /** A plain move leaves the selection alone; shift still selects a range. */
+  moveOnly?: boolean
 }
 
 export interface GridNavigation {
@@ -44,7 +50,7 @@ export interface GridNavigation {
 }
 
 export function useGridNavigation({
-  total, columns, pagination, idAt, onSelect, onActivate, enabled = true,
+  total, columns, pagination, idAt, onSelect, enabled = true, moveOnly = false,
 }: GridNavigationOptions): GridNavigation {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
 
@@ -52,17 +58,28 @@ export function useGridNavigation({
   // page or column count does not tear down and rebuild the listener on
   // every render, and so a key pressed mid-render cannot act on a
   // stale page size.
-  const latest = useRef({ total, columns, pagination, idAt, onSelect, onActivate, focusedIndex })
+  const latest = useRef({ total, columns, pagination, idAt, onSelect, focusedIndex, moveOnly })
   // Synced in a layout effect, not during the render: the keydown
   // listener reads this, and a listener cannot fire between a commit and
   // the layout effect that follows it.
   useLayoutEffect(() => {
-    latest.current = { total, columns, pagination, idAt, onSelect, onActivate, focusedIndex }
+    latest.current = { total, columns, pagination, idAt, onSelect, focusedIndex, moveOnly }
   })
+
+  /**
+   * Where a shift run began. The range used to be taken from the
+   * previous focus, so each shift+arrow selected that tile and the new
+   * one, and a run never held more than two. Set by every plain move;
+   * a shift move extends from it and leaves it where it is.
+   */
+  const anchor = useRef<number | null>(null)
+
+  /** A key moved the focus: the tile itself should take DOM focus once it is on screen. */
+  const domFocusWanted = useRef(false)
 
   /** Move focus to `next`, bring its page up, and select it. */
   const focusTo = useCallback((next: number, extend: boolean) => {
-    const { total: n, idAt: at, onSelect: select, pagination: p, focusedIndex: from } = latest.current
+    const { total: n, idAt: at, onSelect: select, pagination: p, focusedIndex: from, moveOnly: onlyMove } = latest.current
     if (n === 0) return
     const clamped = Math.max(0, Math.min(n - 1, next))
 
@@ -72,9 +89,12 @@ export function useGridNavigation({
     if (wanted !== p.page) p.setPage(wanted)
 
     setFocusedIndex(clamped)
+    domFocusWanted.current = true
 
-    if (extend && from !== null) {
-      const [lo, hi] = from <= clamped ? [from, clamped] : [clamped, from]
+    const start = anchor.current ?? from
+    if (extend && start !== null) {
+      anchor.current = start
+      const [lo, hi] = start <= clamped ? [start, clamped] : [clamped, start]
       const ids: string[] = []
       for (let i = lo; i <= hi; i++) {
         const id = at(i)
@@ -84,6 +104,8 @@ export function useGridNavigation({
       return
     }
 
+    anchor.current = clamped
+    if (onlyMove) return
     const id = at(clamped)
     select(id === undefined ? [] : [id])
   }, [])
@@ -106,7 +128,16 @@ export function useGridNavigation({
       // to undo. Only Shift means anything here.
       if (e.metaKey || e.ctrlKey || e.altKey) return
 
-      const { columns: cols, total: n, pagination: p, focusedIndex: from, onActivate: activate } = latest.current
+      // A key someone else already handled is theirs, and so is one meant
+      // for a dialog, menu or the viewer on top: arrows in a menu moved
+      // the grid behind it.
+      if (e.defaultPrevented || topOverlay()) return
+
+      // Enter and Space are not handled here. They press whatever has
+      // focus, and a tile that has focus handles its own: Enter opens,
+      // Space ticks. This listener once took them from every button in
+      // the app and opened the viewer instead.
+      const { columns: cols, total: n, pagination: p, focusedIndex: from } = latest.current
       if (n === 0) return
 
       // Before the first arrow there is no focus, so the first press
@@ -136,13 +167,6 @@ export function useGridNavigation({
           break
         }
 
-        case 'Enter':
-        case ' ':
-          if (from === null || !activate) return
-          e.preventDefault()
-          activate(from)
-          break
-
         default:
       }
     }
@@ -150,6 +174,49 @@ export function useGridNavigation({
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [enabled, focusTo])
+
+  // DOM focus follows the arrows. They used to move only a drawn ring, so
+  // Enter or Space on a tile reached with Tab acted on a different
+  // photograph than the one in focus (F-070). Now there is one focus.
+  useEffect(() => {
+    if (!domFocusWanted.current || focusedIndex === null) return
+    const id = latest.current.idAt(focusedIndex)
+    if (id === undefined) return
+    const find = () => document.querySelector<HTMLElement>(`[data-grid-key="${CSS.escape(id)}"]`)
+    const el = find()
+    if (el) {
+      domFocusWanted.current = false
+      el.focus()
+      return
+    }
+    // The page that holds it may not have mounted yet.
+    const raf = requestAnimationFrame(() => {
+      domFocusWanted.current = false
+      find()?.focus()
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [focusedIndex, pagination.page])
+
+  // ...and the other way: a tile focused any other way (Tab, a click)
+  // is where the arrows continue from.
+  useEffect(() => {
+    if (!enabled) return
+    const onFocusIn = (e: FocusEvent) => {
+      const tile = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-grid-key]') : null
+      const key = tile?.dataset.gridKey
+      if (key === undefined) return
+      const { total: n, idAt: at } = latest.current
+      for (let i = 0; i < n; i++) {
+        if (at(i) === key) {
+          anchor.current = i
+          setFocusedIndex(i)
+          return
+        }
+      }
+    }
+    window.addEventListener('focusin', onFocusIn)
+    return () => window.removeEventListener('focusin', onFocusIn)
+  }, [enabled])
 
   // A focus ring pointing past the end of a list that has just been
   // filtered or refreshed is worse than none. Clamped on read rather

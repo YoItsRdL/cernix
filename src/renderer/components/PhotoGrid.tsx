@@ -1,14 +1,15 @@
 import React, { memo, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { GRID_GUTTER, SCROLL_GUTTER, thumbEdgeFor, usableWidth } from '@/lib/grid'
-import { autoColumnCount, CaptionHeight } from '@/lib/photo-grid'
+import { autoColumnCount } from '@/lib/photo-grid'
 import { FixedSizeGrid as Grid, areEqual } from 'react-window'
-import { type ScannedFile } from '@/types'
+import { type ScannedFile, type RatingStars, type RatingFlag } from '@/types'
 import { cn } from '@/lib/utils'
+import { formatBytes } from '@/lib/format-bytes'
 import { FileText, Film } from 'lucide-react'
 import { AssetTile } from './AssetTile'
 import { syncStateFor } from '@/lib/sync-state'
 import { VideoThumbnail } from './VideoThumbnail'
-import { isImagePath, isVideoPath } from '../../shared/media-types'
+import { isImagePath, isRawPath, isVideoPath } from '../../shared/media-types'
 
 interface PhotoGridProps {
   files: ScannedFile[]
@@ -25,6 +26,12 @@ interface PhotoGridProps {
   /** The tile the keyboard is on, if any. Drawn with a ring so the
    *  focus is visible without a caret to look for. */
   focusedPath?: string
+  ratingOf?: (path: string) => { userStars: RatingStars | null; flag: RatingFlag } | undefined
+  onSetStars?: (path: string, stars: RatingStars | null) => void
+  onSetFlag?: (path: string, flag: RatingFlag) => void
+  onContextMenuFile?: (path: string, e: React.MouseEvent) => void
+  /** True for a tile that stands for a RAW+JPEG pair. */
+  isPair?: (path: string) => boolean
 }
 
 // Sizing comes from lib/grid.ts, shared with Workstation. This file
@@ -155,12 +162,18 @@ type CellData = {
    *  Receives the event so it can read `metaKey`/`ctrlKey`/`shiftKey`. */
   onCellClick: (path: string, e: React.MouseEvent | React.KeyboardEvent) => void
   onDoubleClickFile?: (path: string) => void
+  /** The rating a file carries, or nothing. */
+  ratingOf?: (path: string) => { userStars: RatingStars | null; flag: RatingFlag } | undefined
+  onSetStars?: (path: string, stars: RatingStars | null) => void
+  onSetFlag?: (path: string, flag: RatingFlag) => void
+  onContextMenuFile?: (path: string, e: React.MouseEvent) => void
+  isPair?: (path: string) => boolean
 }
 
 const Cell = memo(({ columnIndex, rowIndex, style, data }: {
   columnIndex: number; rowIndex: number; style: React.CSSProperties; data: CellData
 }) => {
-  const { files, columnCount, thumbSize, selectionStore, focusedPath, onCellClick, onDoubleClickFile } = data
+  const { files, columnCount, thumbSize, selectionStore, focusedPath, onCellClick, onDoubleClickFile, ratingOf, onSetStars, onSetFlag, onContextMenuFile, isPair } = data
   const index = rowIndex * columnCount + columnIndex
   // Sentinel path for out-of-range cells (the trailing partial row of
   // an under-filled grid). We compute it before any hooks run so the
@@ -181,10 +194,15 @@ const Cell = memo(({ columnIndex, rowIndex, style, data }: {
   )
   if (!file) return null
 
-  const isImage = isImagePath(path)
+  // A RAW file is shown by the preview inside it (served by main), so it is
+  // asked for like any picture and falls back to its icon if it has none.
+  const isImage = isImagePath(path) || isRawPath(path)
   const isVideo = isVideoPath(path)
   const encodedPath = encodeURIComponent(file.absolutePath)
-  const mediaUrl = `cernix-media://local/${encodedPath}?thumb=${thumbSize}`
+  // The file's modified time in the URL: a thumbnail is cached for an hour
+  // by its URL, and a file replaced on the card under the same name and
+  // size kept showing the old picture.
+  const mediaUrl = `cernix-media://local/${encodedPath}?thumb=${thumbSize}&v=${new Date(file.mtime).getTime()}`
   /** Raw video file URL (no ?thumb). The renderer-side
    *  VideoThumbnail decodes one frame off this and caches the result:
    * Electron's nativeImage thumbnailer can't decode video formats. */
@@ -211,6 +229,12 @@ const Cell = memo(({ columnIndex, rowIndex, style, data }: {
         syncState={syncStateFor(file)}
         onClick={(e) => onCellClick(path, e)}
         onDoubleClick={() => onDoubleClickFile && onDoubleClickFile(path)}
+        onContextMenu={onContextMenuFile ? (e) => { e.preventDefault(); onContextMenuFile(path, e) } : undefined}
+        pair={isPair?.(path) ?? false}
+        userStars={ratingOf?.(path)?.userStars ?? null}
+        flag={ratingOf?.(path)?.flag ?? null}
+        onSetStars={onSetStars ? (s: RatingStars) => onSetStars(path, s) : undefined}
+        onSetFlag={onSetFlag ? (f: RatingFlag) => onSetFlag(path, f) : undefined}
         fallbackIcon={
           <div className="w-10 h-10 border border-overlay-hover flex items-center justify-center bg-surface-panel rounded-soft mb-2">
             {isVideo ? <Film size={18} className="text-text-disabled" /> : <FileText size={18} className="text-text-disabled" />}
@@ -253,13 +277,18 @@ export function PhotoGrid({
   height,
   columnCount: columnCountOverride,
   focusedPath,
+  ratingOf,
+  onSetStars,
+  onSetFlag,
+  onContextMenuFile,
+  isPair,
 }: PhotoGridProps) {
   // Pack columns into the width that is actually visible. The
   // container minus the scrollbar's reserved gutter.
   const usable = usableWidth(width)
   const columnCount = Math.max(1, columnCountOverride ?? autoColumnCount(width))
   const columnWidth = (usable / columnCount) - Gutter
-  const rowHeight = columnWidth + CaptionHeight
+  const rowHeight = columnWidth
   const rowCount = Math.ceil(files.length / columnCount)
 
   // Coarse-stepped thumbnail edge so adjacent column widths share
@@ -287,7 +316,12 @@ export function PhotoGrid({
     focusedPath,
     onCellClick: onSelectClick,
     onDoubleClickFile,
-  }), [files, columnCount, thumbSize, selectionStore, focusedPath, onSelectClick, onDoubleClickFile])
+    ratingOf,
+    onSetStars,
+    onSetFlag,
+    onContextMenuFile,
+    isPair,
+  }), [files, columnCount, thumbSize, selectionStore, focusedPath, onSelectClick, onDoubleClickFile, ratingOf, onSetStars, onSetFlag, onContextMenuFile, isPair])
 
   return (
     <Grid
@@ -306,10 +340,3 @@ export function PhotoGrid({
   )
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
-}

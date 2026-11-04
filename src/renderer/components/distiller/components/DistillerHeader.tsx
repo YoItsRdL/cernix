@@ -174,7 +174,7 @@ export function DistillerHeader({
           <ToolbarSeparator />
           {/* "N selected", not "N SEL". Local Archive already said it in
               words; the abbreviation existed only here. */}
-          <span className="text-code text-text-disabled mr-space-2 whitespace-nowrap">
+          <span className="text-code text-text-muted mr-space-2 whitespace-nowrap">
             {selectedCount} selected
           </span>
           {/* Escape clears the selection too, but a shortcut nobody can
@@ -187,14 +187,14 @@ export function DistillerHeader({
               aria-label="Clear selection"
               title="Clear selection (Esc)"
               onClick={actions.clearSelection}
-              className="h-6 w-6 rounded-nested text-text-disabled hover:text-text-muted"
+              className="h-6 w-6 rounded-nested text-text-muted hover:text-text-emphatic"
             />
             <IconButton
               icon={<Download size={12} strokeWidth={1.5} />}
               aria-label="Download Batch"
               title="Download"
               onClick={actions.handleDownloadBatch}
-              className="h-6 w-6 rounded-nested text-text-disabled hover:text-text-muted"
+              className="h-6 w-6 rounded-nested text-text-muted hover:text-text-emphatic"
             />
           </div>
 
@@ -239,24 +239,26 @@ export function DistillerHeader({
           icon={<GridIcon size={12} />}
           aria-label="Grid view"
           title="Grid view"
+          aria-pressed={viewMode === 'grid'}
           onClick={() => actions.setViewMode('grid')}
           className={cn(
             'h-6 w-6 rounded-nested',
             viewMode === 'grid'
               ? 'bg-overlay-active text-text-emphatic hover:bg-overlay-active'
-              : 'text-text-disabled hover:text-text-muted',
+              : 'text-text-muted hover:text-text-emphatic',
           )}
         />
         <IconButton
           icon={<ListIcon size={12} />}
           aria-label="List view"
           title="List view"
+          aria-pressed={viewMode === 'list'}
           onClick={() => actions.setViewMode('list')}
           className={cn(
             'h-6 w-6 rounded-nested',
             viewMode === 'list'
               ? 'bg-overlay-active text-text-emphatic hover:bg-overlay-active'
-              : 'text-text-disabled hover:text-text-muted',
+              : 'text-text-muted hover:text-text-emphatic',
           )}
         />
       </div>

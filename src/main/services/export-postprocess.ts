@@ -76,8 +76,18 @@ export interface PostprocessResult {
 export async function postprocessExport(
   outputBytes: Uint8Array,
   sourcePath: string | null,
-  onProgress?: (stage: string) => void,
+  options: {
+    /**
+     * Keep the source's GPS position. Off unless the user asks: exports
+     * to Drive land in "Cernix Shared", which anyone with its link can
+     * open, and a photograph's coordinates are where someone lives or
+     * was that day. The rest of the source's metadata still travels.
+     */
+    keepLocation?: boolean
+    onProgress?: (stage: string) => void
+  } = {},
 ): Promise<PostprocessResult> {
+  const { keepLocation = false, onProgress } = options
   if (!sourcePath || !fs.existsSync(sourcePath)) {
     return { bytes: outputBytes, warning: 'no source on disk: export has no EXIF/ICC' }
   }
@@ -105,6 +115,9 @@ export async function postprocessExport(
       `-ModifyDate=${formatExifDateTime(new Date())}`,
       '-ColorSpace=sRGB',
     ]
+    // After the copy, so it removes what `-all:all` just brought over:
+    // the EXIF GPS block and its XMP copies.
+    if (!keepLocation) args.push('-gps:all=', '-xmp:gps*=')
     if (iccPath) args.push(`-icc_profile<=${iccPath}`)
     args.push(tmpOut)
     await runExiftool(args, 15_000)

@@ -6,15 +6,18 @@
  * Why this exists rather than `python3 -m http.server`: two things the
  * built page depends on are behaviours of the host, not of the files.
  *
- * 1. **Pretty URLs.** The download CTAs link to `/download`, with no
- *    extension, because `cleanUrls` in vercel.json resolves that to
- *    `installation.html`. A
- *    plain static server returns 404 and the page looks broken when it
- *    is not.
+ * 1. **Pretty URLs.** The pages link to `/installation`, `/privacy` and
+ *    `/terms`, with no extension, because `cleanUrls` in vercel.json
+ *    resolves those to the `.html` files. A plain static server returns
+ *    404 and the site looks broken when it is not.
  * 2. **`fetch` needs an origin.** Opening `landing/index.html` over
  *    `file://` gives the document an opaque origin, so the CTA script's
  *    `fetch('binary.json')` is refused and every button silently keeps
  *    its fallback href. The one thing worth testing does not run.
+ *
+ * 3. **Byte ranges.** A video can only seek when the server answers a
+ *    Range request with 206, and the hero film seeks to keep its place
+ *    when the theme changes. Vercel does; this does too.
  *
  * Cache headers mirror vercel.json, so a stale `binary.json` cannot
  * fool a local check either.
@@ -48,13 +51,15 @@ const TYPES = {
   '.webp': 'image/webp',
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
+  '.webm': 'video/webm',
+  '.mp4': 'video/mp4',
   '.txt': 'text/plain; charset=utf-8',
   '.xml': 'application/xml',
 }
 
 /** vercel.json: hashed assets are immutable, everything else revalidates. */
 function cacheControl(urlPath) {
-  return urlPath.startsWith('/dist/')
+  return urlPath.startsWith('/dist/') || urlPath.startsWith('/reel/')
     ? 'public, max-age=31536000, immutable'
     : 'public, max-age=0, must-revalidate'
 }
@@ -97,10 +102,26 @@ const server = http.createServer((req, res) => {
     return
   }
 
-  res.writeHead(200, {
+  const headers = {
     'Content-Type': TYPES[path.extname(file)] ?? 'application/octet-stream',
     'Cache-Control': cacheControl(req.url),
-  })
+    'Accept-Ranges': 'bytes',
+  }
+  const size = fs.statSync(file).size
+  const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '')
+  if (range && (range[1] || range[2])) {
+    const start = range[1] ? Number(range[1]) : size - Number(range[2])
+    const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1
+    if (start > end || start >= size) {
+      res.writeHead(416, { 'Content-Range': `bytes */${size}` })
+      res.end()
+      return
+    }
+    res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': end - start + 1 })
+    fs.createReadStream(file, { start, end }).pipe(res)
+    return
+  }
+  res.writeHead(200, { ...headers, 'Content-Length': size })
   fs.createReadStream(file).pipe(res)
 })
 
@@ -113,8 +134,8 @@ server.listen(PORT, () => {
   console.log(`\n  landing/ on http://localhost:${PORT}`)
   console.log('  cleanUrls and vercel.json cache headers, as deployed')
   console.log('\n  /            the landing page')
-  console.log('  /download    every platform, and the CTAs\' fallback')
-  console.log('  /privacy     /terms')
+  console.log('  /installation  every platform, and the CTAs\' fallback')
+  console.log('  /privacy       /terms')
   console.log('\n  Ctrl+C to stop.\n')
 })
 

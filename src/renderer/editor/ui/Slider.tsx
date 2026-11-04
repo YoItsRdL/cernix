@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { Eye } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { nudgedValue } from '@/lib/editor-keys'
 
 interface SliderProps {
   label: string
@@ -64,9 +65,8 @@ export function Slider({ label, value, min, max, step = 0.01, onChange, onReset,
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    const nudge = e.shiftKey ? 0.1 : 0.01
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); onChange(clamp(roundToStep(value - nudge, step), min, max)) }
-    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); onChange(clamp(roundToStep(value + nudge, step), min, max)) }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); onChange(nudgedValue(value, -1, step, e.shiftKey, min, max)) }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); onChange(nudgedValue(value, 1, step, e.shiftKey, min, max)) }
     if (e.key === '0') { e.preventDefault(); onReset() }
   }
 
@@ -109,6 +109,7 @@ export function Slider({ label, value, min, max, step = 0.01, onChange, onReset,
         role="slider"
         aria-label={label}
         aria-valuenow={value}
+        aria-valuetext={display}
         aria-valuemin={min}
         aria-valuemax={max}
         onPointerDown={handlePointerDown}

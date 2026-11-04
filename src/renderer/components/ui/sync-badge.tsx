@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Cloud, HardDrive } from 'lucide-react'
+import { Cloud, HardDrive, FolderCheck, TriangleAlert } from 'lucide-react'
 import { Badge } from './badge'
 import type { SyncState } from '@/lib/sync-state'
 
@@ -15,7 +15,9 @@ import type { SyncState } from '@/lib/sync-state'
  */
 const STATE = {
   new: { tone: 'accent', label: 'NEW', Icon: HardDrive, title: 'On the card, not synced yet' },
+  copied: { tone: 'neutral', label: 'COPIED', Icon: FolderCheck, title: 'Already in the local archive, not on Drive' },
   synced: { tone: 'success', label: 'SYNCED', Icon: Cloud, title: 'On Drive' },
+  damaged: { tone: 'danger', label: 'DAMAGED', Icon: TriangleAlert, title: 'Empty or unreadable on the card, so not selected' },
 } as const
 
 export interface SyncBadgeProps {

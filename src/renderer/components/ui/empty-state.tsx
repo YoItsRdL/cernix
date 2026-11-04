@@ -31,7 +31,7 @@ export function EmptyState({ title, detail, action, icon, className }: EmptyStat
       <div className="space-y-space-1">
         <div className="text-caption font-bold text-text-muted uppercase tracking-widest">{title}</div>
         {detail && (
-          <div className="text-metadata text-text-disabled max-w-md mx-auto">{detail}</div>
+          <div className="text-metadata text-text-muted max-w-md mx-auto">{detail}</div>
         )}
       </div>
       {action && <div className="mt-space-2">{action}</div>}

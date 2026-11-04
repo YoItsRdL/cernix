@@ -1,10 +1,17 @@
 import { useState, useEffect } from 'react'
-import { Settings, Coffee, Keyboard, RefreshCw } from 'lucide-react'
+import { Settings, Coffee, Keyboard, RefreshCw, Download, RotateCw, LogOut, LogIn, FolderOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Modal } from '@/components/ui/modal'
+import { ArchiveMove } from './ArchiveMove'
+import { AppearanceChoice } from './AppearanceChoice'
+import { useUpdates } from '@/hooks/useUpdates'
+import type { AuthStatus, UpdateStatus } from '@/types'
 
 interface SettingsPanelProps {
+  /** The Drive connection, owned by the app shell; null until main has answered. */
+  authStatus: AuthStatus | null
   onClose: () => void
   /**
    * Swap Settings for the keyboard sheet.
@@ -26,7 +33,7 @@ interface SettingsPanelProps {
  * tokens live in main (`google-auth.ts`); everything here is local
  * housekeeping.
  */
-export function SettingsPanel({ onClose, onShowShortcuts }: SettingsPanelProps) {
+export function SettingsPanel({ authStatus, onClose, onShowShortcuts }: SettingsPanelProps) {
   /**
    * The running version, asked for once when the panel opens.
    *
@@ -43,16 +50,28 @@ export function SettingsPanel({ onClose, onShowShortcuts }: SettingsPanelProps) 
     return () => { live = false }
   }, [])
 
+  // ── Archive ──
+  const [archivePath, setArchivePath] = useState<string | null>(null)
+  const [archiveError, setArchiveError] = useState<string | null>(null)
+  useEffect(() => {
+    let live = true
+    window.electronAPI.archiveInfo().then(a => { if (live) setArchivePath(a.path) }).catch(() => {})
+    return () => { live = false }
+  }, [])
+
   // ── Drive ──
   const [checking, setChecking] = useState(false)
   /** How many the last check found, held briefly as the answer. */
   const [found, setFound] = useState<number | null>(null)
+  const [checkError, setCheckError] = useState<string | null>(null)
+  const [disconnecting, setDisconnecting] = useState(false)
+  const connected = authStatus?.connected ?? false
 
   return (
     <Modal
       open
       onOpenChange={(next) => { if (!next) onClose() }}
-      title="Configuration"
+      title="Settings"
       icon={<Settings size={14} className="text-text-muted" />}
     >
       <div className="space-y-space-6">
@@ -60,6 +79,21 @@ export function SettingsPanel({ onClose, onShowShortcuts }: SettingsPanelProps) 
             two sections above it. What it said about the support link
             is now beside that link, and what it said about where the
             link lives is out of date: the rail carries one too. */}
+        <div className="space-y-space-4">
+          <div className="flex items-center gap-space-3">
+            <div className="h-px flex-1 bg-border-subtle" />
+            <span className="text-caption text-text-muted px-space-2">Appearance</span>
+            <div className="h-px flex-1 bg-border-subtle" />
+          </div>
+
+          <div className="space-y-space-3">
+            <p className="text-metadata text-text-muted leading-relaxed">
+              Follow the system, or keep Cernix light or dark whatever the system does.
+            </p>
+            <AppearanceChoice />
+          </div>
+        </div>
+
         <div className="space-y-space-4">
           <div className="flex items-center gap-space-3">
             <div className="h-px flex-1 bg-border-subtle" />
@@ -112,6 +146,44 @@ export function SettingsPanel({ onClose, onShowShortcuts }: SettingsPanelProps) 
           </div>
         </div>
 
+        <div className="space-y-space-4">
+          <div className="flex items-center gap-space-3">
+            <div className="h-px flex-1 bg-border-subtle" />
+            <span className="text-caption text-text-muted px-space-2">Archive</span>
+            <div className="h-px flex-1 bg-border-subtle" />
+          </div>
+
+          {/* Said in one place: the privacy page tells people their
+              photographs are kept on this computer and to copy them out
+              before deleting the folder, and nothing showed which folder. */}
+          <div className="space-y-space-3">
+            <p className="text-metadata text-text-muted leading-relaxed">
+              Photographs Cernix copies from a card are kept here, on this
+              computer. Copy them elsewhere before deleting this folder or
+              uninstalling.
+            </p>
+            {archivePath && (
+              <p className="text-metadata font-mono text-text-default select-text break-all">{archivePath}</p>
+            )}
+            <Button
+              variant="neutral"
+              onClick={async () => {
+                setArchiveError(null)
+                const r = await window.electronAPI.archiveOpen().catch(() => ({ ok: false as const, reason: 'unknown' }))
+                if (!r.ok) setArchiveError('The folder could not be opened.')
+              }}
+              className="gap-space-2"
+            >
+              <FolderOpen size={12} />
+              Open folder
+            </Button>
+            {archiveError && (
+              <p className="text-metadata text-status-danger" role="alert">{archiveError}</p>
+            )}
+            <ArchiveMove onMoved={setArchivePath} />
+          </div>
+        </div>
+
         {/*
         Refresh, not empty. The ledger already heals itself: Drive is
         re-read at startup and whenever that reading is more than twelve
@@ -127,38 +199,85 @@ export function SettingsPanel({ onClose, onShowShortcuts }: SettingsPanelProps) 
             <div className="h-px flex-1 bg-border-subtle" />
           </div>
 
+          {/* The privacy page sends people here to disconnect, and
+              there was nothing here. Disconnecting revokes the grant at
+              Google and deletes the token Cernix stored; photographs
+              already in Drive stay there. */}
           <div className="space-y-space-3">
             <p className="text-metadata text-text-muted leading-relaxed">
-              Cernix keeps a list of what it has already put in Drive, so it never
-              offers to upload the same photograph twice. It refreshes that list
-              when the app starts. If you have added or removed things in Drive
-              from somewhere else, check again now.
+              {connected
+                ? <>Connected as <span className="text-text-default select-text">{authStatus?.email ?? 'your Google account'}</span>. Disconnecting removes Cernix&rsquo;s access and the sign-in it stored on this computer; what is already in Drive stays there.</>
+                : 'Not connected. Cernix works without Drive; connect it to upload and organise there.'}
             </p>
-            <Button
-              variant="neutral"
-              onClick={async () => {
-                setChecking(true)
-                try {
-                  const { count } = await window.electronAPI.authRebuildLedger()
-                  setFound(count)
-                  setTimeout(() => setFound(null), 5000)
-                } finally {
-                  setChecking(false)
-                }
-              }}
-              disabled={checking}
-              className={cn('gap-space-2', found !== null && 'text-status-success border-status-success/30')}
-            >
-              <RefreshCw size={12} className={cn(checking && 'animate-spin')} />
-              {checking
-                ? 'Checking…'
-                : found !== null
-                  ? `${found.toLocaleString()} in Drive`
-                  : 'Check Drive again'}
-            </Button>
+            {connected ? (
+              <Button
+                variant="neutral"
+                onClick={async () => {
+                  setDisconnecting(true)
+                  try { await window.electronAPI.authDisconnect() } finally { setDisconnecting(false) }
+                }}
+                disabled={disconnecting}
+                className="gap-space-2"
+              >
+                <LogOut size={12} />
+                {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+              </Button>
+            ) : (
+              <Button
+                variant="neutral"
+                onClick={() => { void window.electronAPI.authConnect() }}
+                className="gap-space-2"
+              >
+                <LogIn size={12} />
+                Connect Google Drive
+              </Button>
+            )}
           </div>
+
+          {/* Only while connected: signed out it failed with nothing
+              said, and the line above already offers Connect. */}
+          {connected && (
+            <div className="space-y-space-3">
+              <p className="text-metadata text-text-muted leading-relaxed">
+                Cernix keeps a list of what it has already put in Drive, so it never
+                offers to upload the same photograph twice. It refreshes that list
+                when the app starts. If you have added or removed things in Drive
+                from somewhere else, check again now.
+              </p>
+              <Button
+                variant="neutral"
+                onClick={async () => {
+                  setChecking(true)
+                  setCheckError(null)
+                  try {
+                    const { count } = await window.electronAPI.authRebuildLedger()
+                    setFound(count)
+                    setTimeout(() => setFound(null), 5000)
+                  } catch {
+                    setCheckError('Drive could not be reached. Check the connection and try again.')
+                  } finally {
+                    setChecking(false)
+                  }
+                }}
+                disabled={checking}
+                className={cn('gap-space-2', found !== null && 'text-status-success border-status-success/30')}
+              >
+                <RefreshCw size={12} className={cn(checking && 'animate-spin')} />
+                {checking
+                  ? 'Checking…'
+                  : found !== null
+                    ? `${found.toLocaleString()} in Drive`
+                    : 'Check Drive again'}
+              </Button>
+              {checkError && (
+                <p className="text-metadata text-status-danger" role="alert">{checkError}</p>
+              )}
+            </div>
+          )}
         </div>
 
+
+        <UpdatesSection />
 
         {/* Section: About. One line, and the only reason it exists is that
           a bug report is useless without a version. Selectable, because
@@ -181,5 +300,115 @@ export function SettingsPanel({ onClose, onShowShortcuts }: SettingsPanelProps) 
 
       </div>
     </Modal>
+  )
+}
+
+/** One line saying where the updater is. */
+function describeUpdate(status: UpdateStatus): string {
+  if (!status.supported) return 'Updates are checked by the installed app, not by a development build.'
+  if (!status.enabled) return 'Off. Cernix makes no update requests.'
+  const s = status.state
+  switch (s.kind) {
+    case 'idle': return 'On.'
+    case 'checking': return 'Checking…'
+    case 'current': return `Up to date: ${s.version} is the latest.`
+    case 'available': return `Cernix ${s.version} is out.`
+    case 'downloading': return `Downloading ${s.version}: ${s.percent}%`
+    case 'ready': return `Cernix ${s.version} is downloaded and installs when you restart.`
+    case 'error': return s.message
+  }
+}
+
+/**
+ * The one network request Cernix makes without being asked, so it is
+ * said in full here and can be switched off here. The same words are in
+ * the README and the privacy policy.
+ */
+function UpdatesSection() {
+  const status = useUpdates()
+  const [busy, setBusy] = useState(false)
+  const [refused, setRefused] = useState<string | null>(null)
+  if (!status) return null
+
+  const isMac = window.electronAPI.platform === 'darwin'
+  const state = status.state
+  const run = async (action: () => Promise<unknown>) => {
+    setBusy(true)
+    try { await action() } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="space-y-space-4">
+      <div className="flex items-center gap-space-3">
+        <div className="h-px flex-1 bg-border-subtle" />
+        <span className="text-caption text-text-muted px-space-2">Updates</span>
+        <div className="h-px flex-1 bg-border-subtle" />
+      </div>
+
+      <div className="space-y-space-3">
+        <p className="text-metadata text-text-muted leading-relaxed">
+          Cernix asks GitHub, where its releases are published, whether there is
+          a newer version: when it starts, and every few hours. GitHub sees your
+          address, this version and your system; nothing else is sent.{' '}
+          {isMac
+            ? 'On a Mac you download a new version yourself, from the link Cernix gives you.'
+            : 'A new version downloads in the background and installs when you restart.'}
+        </p>
+
+        {/* A label, so the words toggle it as well as the box. */}
+        <label className="flex items-center gap-space-2 cursor-pointer">
+          <Checkbox
+            checked={status.enabled}
+            onToggle={() => { void run(() => window.electronAPI.updateSetEnabled(!status.enabled)) }}
+            label="Check for updates"
+          />
+          <span className="text-metadata text-text-default">Check for updates</span>
+        </label>
+
+        <p className="text-metadata text-text-muted" aria-live="polite">
+          {refused ?? describeUpdate(status)}
+        </p>
+
+        {status.supported && status.enabled && (
+          <div className="flex flex-wrap gap-space-2">
+            {state.kind === 'ready' ? (
+              <Button
+                variant="neutral"
+                className="gap-space-2"
+                disabled={busy}
+                onClick={() => {
+                  void run(async () => {
+                    const result = await window.electronAPI.updateInstall()
+                    setRefused(result.ok ? null : result.reason)
+                  })
+                }}
+              >
+                <RotateCw size={12} />
+                Restart to update
+              </Button>
+            ) : state.kind === 'available' ? (
+              <Button
+                variant="neutral"
+                className="gap-space-2"
+                onClick={() => { void window.electronAPI.updateOpenRelease() }}
+              >
+                <Download size={12} />
+                Download {state.version}
+              </Button>
+            ) : (
+              <Button
+                variant="neutral"
+                className="gap-space-2"
+                disabled={busy || state.kind === 'checking' || state.kind === 'downloading'}
+                onClick={() => { setRefused(null); void run(() => window.electronAPI.updateCheck()) }}
+              >
+                <RefreshCw size={12} className={cn(state.kind === 'checking' && 'animate-spin')} />
+                Check now
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   )
 }

@@ -23,6 +23,8 @@ export interface UploadJob {
   resumeUri: string | null    // Google resumable upload URI
   retryCount: number
   error: string | null
+  /** The file's id on Drive, once it has uploaded: what the ledger and a carried rating are keyed by. */
+  driveFileId?: string | null
 }
 
 export interface UploadSessionConfig {
@@ -40,7 +42,7 @@ export type DriveUploadEvents = {
   'upload:progress':   [progress: UploadProgress]
   'upload:file-done':  [job: UploadJob]
   'upload:complete':   [summary: UploadSessionSummary]
-  'upload:error':      [error: { file: string; error: string; retryCount: number }]
+  'upload:error':      [error: { file: string; error: string; retryCount: number; willRetry: boolean }]
 }
 
 // ── MIME Type Map ──
@@ -89,6 +91,21 @@ const CHUNK_SIZE = 8 * 1024 * 1024            // 8 MB per chunk for resumable
 //   - Per-file progress tracking
 //
 
+/**
+ * The Drive id Google returns for a file it has just created. The upload
+ * code read the status and dropped the body, so `upload:file-done` carried
+ * no id: the ledger's drive_file_id column was never filled, and a rating
+ * made on the card had nothing to follow to Drive.
+ */
+async function idFrom(response: Response): Promise<string | null> {
+  try {
+    const created = await response.json() as { id?: unknown }
+    return typeof created.id === 'string' && created.id ? created.id : null
+  } catch {
+    return null
+  }
+}
+
 export class DriveUploadService extends EventEmitter {
   private getToken: () => Promise<string | null>
   private driveClient: import('./drive-client').DriveClient
@@ -96,6 +113,11 @@ export class DriveUploadService extends EventEmitter {
   private activeJobs: Map<string, UploadJob> = new Map()
   private isPaused = false
   private sessionSummary: UploadSessionSummary | null = null
+
+  /** True while files are still being sent to Drive. */
+  isBusy(): boolean {
+    return this.sessionSummary?.status === 'uploading'
+  }
 
   constructor(getToken: () => Promise<string | null>, driveClient: import('./drive-client').DriveClient) {
     super()
@@ -332,7 +354,7 @@ export class DriveUploadService extends EventEmitter {
         const delay = Math.pow(2, job.retryCount) * 1000 + (hasNet ? Math.random() * 1000 : 5000)
 
         console.log(`[DriveUpload] Resilience Triggered: Retry ${job.retryCount}/${MAX_RETRIES} for ${job.fileName} in ${Math.round(delay)}ms`)
-        this.emit('upload:error', { file: job.fileName, error: `Network Instability Detected. Retrying... (${job.retryCount}/${MAX_RETRIES})`, retryCount: job.retryCount })
+        this.emit('upload:error', { file: job.fileName, error: `Network Instability Detected. Retrying... (${job.retryCount}/${MAX_RETRIES})`, retryCount: job.retryCount, willRetry: true })
 
         await new Promise(resolve => setTimeout(resolve, delay))
         return
@@ -347,7 +369,7 @@ export class DriveUploadService extends EventEmitter {
       }
 
       console.error(`[DriveUpload] Failed: ${job.fileName}, ${errorMsg}`)
-      this.emit('upload:error', { file: job.fileName, error: errorMsg, retryCount: job.retryCount })
+      this.emit('upload:error', { file: job.fileName, error: errorMsg, retryCount: job.retryCount, willRetry: false })
     }
   }
 
@@ -388,6 +410,7 @@ export class DriveUploadService extends EventEmitter {
       const errorBody = await response.text()
       throw new Error(`Upload failed (${response.status}): ${errorBody}`)
     }
+    job.driveFileId = await idFrom(response)
 
     // Emit final progress
     this.emitProgress(job, job.sizeBytes)
@@ -464,6 +487,7 @@ export class DriveUploadService extends EventEmitter {
           this.emitProgress(job, offset)
         } else if (chunkResponse.ok) {
           // Upload complete
+          job.driveFileId = await idFrom(chunkResponse)
           offset = job.sizeBytes
           job.bytesUploaded = job.sizeBytes
           this.emitProgress(job, job.sizeBytes)

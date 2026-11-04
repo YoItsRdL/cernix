@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils'
  * uppercase readable; on sentence case it just holds the word apart.
  */
 const buttonVariants = cva(
-  'inline-flex items-center justify-center whitespace-nowrap rounded-soft text-body font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus disabled:pointer-events-none disabled:opacity-40 active:translate-y-px',
+  'inline-flex items-center justify-center whitespace-nowrap rounded-soft text-body font-bold transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus disabled:pointer-events-none disabled:opacity-40 active:translate-y-px',
   {
     variants: {
       variant: {

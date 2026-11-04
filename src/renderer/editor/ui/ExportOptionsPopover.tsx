@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Upload, HardDrive, Cloud } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 
 export type ExportFormat = 'image/jpeg' | 'image/png' | 'image/webp'
 export type ExportDestination = 'drive' | 'local'
@@ -10,9 +11,11 @@ export interface ExportOptions {
   quality: number      // 0.5..1.0 (ignored for PNG)
   maxLongEdge: number  // 0 = original size
   destination: ExportDestination
+  /** Keep the GPS position. Off by default: see postprocessExport. */
+  keepLocation: boolean
 }
 
-const DEFAULT_OPTIONS: ExportOptions = { format: 'image/jpeg', quality: 1, maxLongEdge: 0, destination: 'drive' }
+const DEFAULT_OPTIONS: ExportOptions = { format: 'image/jpeg', quality: 1, maxLongEdge: 0, destination: 'drive', keepLocation: false }
 const STORAGE_KEY = 'cernix.editor.exportOptions'
 
 interface ExportOptionsPopoverProps {
@@ -101,6 +104,14 @@ export function ExportOptionsPopover({ exporting, onCommit, localOnly = false }:
                   Local
                 </Button>
               </div>
+              {/* Said where the choice is made: "Drive" alone read as the
+                  user's private Drive, and every export lands in a folder
+                  anyone with its link can open. */}
+              {options.destination === 'drive' && (
+                <p className="mt-space-2 text-caption text-text-muted leading-relaxed">
+                  Goes to Cernix Shared, a public-link folder: anyone with its link can see it.
+                </p>
+              )}
             </div>
           )}
 
@@ -139,6 +150,16 @@ export function ExportOptionsPopover({ exporting, onCommit, localOnly = false }:
               />
             </div>
           )}
+
+          <div className="flex items-center gap-space-2">
+            <Checkbox
+              checked={options.keepLocation}
+              onToggle={() => setOptions(o => ({ ...o, keepLocation: !o.keepLocation }))}
+              label="Keep GPS location"
+              size="sm"
+            />
+            <span className="text-caption text-text-muted">Keep GPS location</span>
+          </div>
 
           <Button
             variant="primary"

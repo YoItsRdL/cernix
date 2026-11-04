@@ -3,6 +3,7 @@ import { MoreHorizontal, Star, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { IconButton } from './ui/icon-button'
 import { SyncBadge } from './ui/sync-badge'
+import { Badge } from './ui/badge'
 import type { SyncState } from '@/lib/sync-state'
 import { FrameGround } from './ui/frame-ground'
 import { Checkbox } from './ui/checkbox'
@@ -36,6 +37,8 @@ export interface AssetTileProps {
    *  omitted, the chip is purely decorative and the tile's own click
    *  is the toggle. */
   onToggleSelect?: (e: React.MouseEvent) => void
+  /** The tile stands for a RAW+JPEG pair: both files are selected, rated and trashed with it. */
+  pair?: boolean
   onSetStars?: (stars: RatingStars) => void
   onSetFlag?: (flag: RatingFlag) => void
   /** Trash this one. Sits beside the stars, so judging and discarding
@@ -73,6 +76,7 @@ export interface AssetTileProps {
  * the equivalent CSS opacity / transform transitions.
  */
 export function AssetTile({
+  id,
   name,
   sizeText,
   imageElement,
@@ -87,6 +91,7 @@ export function AssetTile({
   onContextMenu,
   onMenuClick,
   onToggleSelect,
+  pair = false,
   onSetStars,
   onSetFlag,
   onTrash,
@@ -106,8 +111,9 @@ export function AssetTile({
     <div
       role="button"
       tabIndex={0}
+      data-grid-key={id}
       aria-pressed={isSelected}
-      aria-label={`${name}${isSelected ? ' (selected)' : ''}`}
+      aria-label={name}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
@@ -118,9 +124,20 @@ export function AssetTile({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        // Keys from the stars, the menu and the trash button bubble up
+        // here; they press their own control and are not the tile's.
+        if (e.target !== e.currentTarget) return
+        // Enter opens, as a double click does; Space ticks, as a click
+        // does. The sheet lists them that way (F-070).
+        if (e.key === 'Enter') {
           e.preventDefault()
-          onClick(e as unknown as React.MouseEvent)
+          if (onDoubleClick) onDoubleClick(e as unknown as React.MouseEvent)
+          else onClick(e as unknown as React.MouseEvent)
+        } else if (e.key === ' ') {
+          e.preventDefault()
+          // Where the chip is the checkbox (Workstation) a plain click
+          // only focuses, so Space goes to the chip's action.
+          ;(onToggleSelect ?? onClick)(e as unknown as React.MouseEvent)
         }
       }}
       // `active:scale-[0.98]` replaces Framer's `whileTap`. Same
@@ -128,7 +145,13 @@ export function AssetTile({
       title={`${name} · ${extension} · ${sizeText}`}
       className={cn(
         'relative w-full h-full rounded-soft border overflow-hidden group transition-all shrink-0 bg-surface-workspace',
-        'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus',
+        // An outline drawn inside the tile (the grid cell clips anything
+        // outside it), in the one neutral that
+        // stands apart from the accent a selected tile already wears. The
+        // 1px ring it replaces was the selection ring's colour, so on a
+        // selected tile, which is most of them on a fresh card, focus
+        // could not be seen at all.
+        'focus-visible:outline-4 focus-visible:-outline-offset-4 focus-visible:outline-text-emphatic',
         'active:scale-[0.98]',
         // A tile is selected or it is not. There is no third state for
         // "being dragged". Dimming the items in flight read as a mode the
@@ -234,6 +257,19 @@ export function AssetTile({
           is the kind of thing the second caller gets wrong. */}
       {syncState && (
         <SyncBadge state={syncState} onMedia className="absolute top-2 right-2 z-20" />
+      )}
+
+      {/* One tile for a RAW and its JPEG (decision 25): this says so, so a
+          tile that stands for two files is not mistaken for one. */}
+      {pair && (
+        <Badge
+          ground="media"
+          tone="neutral"
+          title="A RAW and a JPEG of the same shot. Selecting, rating and trashing apply to both."
+          className="absolute bottom-2 right-2 z-20"
+        >
+          RAW+JPG
+        </Badge>
       )}
 
       {/* Rating row: stars + trash, both via IconButton so the a11y

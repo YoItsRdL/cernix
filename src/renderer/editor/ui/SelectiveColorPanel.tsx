@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Slider } from './Slider'
 import { cn } from '@/lib/utils'
+import { HUE_SWATCHES } from '../utils/hue-swatches'
 import type { EditParams, SelectiveColor, SelectiveColorRange, SelectiveColorBand } from '@/types'
 import { SC_RANGES, DEFAULT_PARAMS } from '../../../shared/edit-params'
 
@@ -12,17 +13,14 @@ interface SelectiveColorPanelProps {
   onCompareChange?: (fn: ((p: EditParams) => EditParams) | null) => void
 }
 
-/* eslint-disable no-restricted-syntax -- design-allow: the colour ranges
-   this panel edits. The hex is the value being shown, not chrome. */
 const SWATCHES: Record<SelectiveColorRange, string> = {
-  red:     '#e74c3c',
-  yellow:  '#f1c40f',
-  green:   '#27ae60',
-  cyan:    '#1abc9c',
-  blue:    '#2980b9',
-  magenta: '#c0398b',
+  red: HUE_SWATCHES.red,
+  yellow: HUE_SWATCHES.yellow,
+  green: HUE_SWATCHES.green,
+  cyan: HUE_SWATCHES.aqua,
+  blue: HUE_SWATCHES.blue,
+  magenta: HUE_SWATCHES.magenta,
 }
-/* eslint-enable no-restricted-syntax */
 
 export function SelectiveColorPanel({ value, onChange, onCompareChange }: SelectiveColorPanelProps) {
   const [active, setActive] = useState<SelectiveColorRange>('red')

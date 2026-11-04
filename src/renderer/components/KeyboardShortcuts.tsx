@@ -36,7 +36,7 @@ export function KeyboardShortcuts({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-space-6 items-start">
         {SHORTCUT_GROUPS.map(group => (
           <section key={group.title} className="mb-space-5 min-w-0">
-            <h3 className="text-caption font-bold text-text-disabled uppercase tracking-widest mb-space-2">
+            <h3 className="text-caption font-bold text-text-muted uppercase tracking-widest mb-space-2">
               {group.title}
             </h3>
             {group.note && (
@@ -72,7 +72,9 @@ function Row({ shortcut }: { shortcut: Shortcut }) {
  * press rather than as a sentence with a plus sign in it.
  */
 function Keys({ keys }: { keys: string }) {
-  const parts = keys.split(/\s*\+\s*/)
+  // Only a "+" with spaces round it joins keys: "mod + +" is mod and the
+  // plus key, and splitting on every "+" drew it as two empty keycaps.
+  const parts = keys.split(/\s+\+\s+/)
   return (
     <span className="flex items-center gap-1">
       {parts.map((part, i) => (

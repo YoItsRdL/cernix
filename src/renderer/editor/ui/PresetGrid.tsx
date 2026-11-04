@@ -541,7 +541,7 @@ function renderCard(p: Preset, h: CardHandlers) {
               {p.name}
             </span>
             {p.builtin && (
-              <span className="text-metadata font-mono text-text-disabled tracking-widest">
+              <span className="text-metadata font-mono text-text-muted tracking-widest">
                 BUILT-IN
               </span>
             )}

@@ -36,10 +36,13 @@ const FILES: ScannedFile[] = ['a', 'b', 'c', 'd'].map((id, i) => ({
 let refuse: string[] = []
 
 ;(window as unknown as { electronAPI: unknown }).electronAPI = {
+  mediaReveal: async () => {},
   mediaTrash: async (paths: string[]) => ({
     trashedPaths: paths.filter(p => !refuse.includes(p)),
-    failures: paths.filter(p => refuse.includes(p)).map(p => `forbidden:${p}`),
+    missingPaths: [] as string[],
+    failures: paths.filter(p => refuse.includes(p)).map(p => ({ path: p, reason: 'forbidden', message: 'it is outside the folders you chose in this session' })),
   }),
+  onTrashProgress: () => () => {},
   onSweepProgress: () => () => {},
   onSweepComplete: () => () => {},
   onSweepError: () => () => {},
@@ -64,7 +67,8 @@ function Harness() {
       <ReviewView
         scannedFiles={files}
         selectedFiles={selected}
-        onToggleAll={() => setSelected(new Set(files.map(f => f.relativePath)))}
+        // Every selection here is one the test made, never the scan's own.
+        selectionIsPreset={false}
         onSetSelection={paths => setSelected(new Set(paths))}
         onRemoveFiles={rel => {
           const drop = new Set(rel)

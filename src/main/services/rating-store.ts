@@ -154,13 +154,14 @@ export class RatingStore {
 
   // ── Reads ──
 
+  getRating(fileId: string): RatingRecord | null {
+    const row = this.db.prepare('SELECT * FROM ratings WHERE file_id = ?').get(fileId) as RatingRow | undefined
+    return row ? this.rowToRecord(row) : null
+  }
+
   getAllRatings(): RatingRecord[] {
     const rows = this.db.prepare('SELECT * FROM ratings').all() as RatingRow[]
     return rows.map(r => this.rowToRecord(r))
-  }
-
-  setUserPick(fileId: string, picked: boolean): void {
-    this.setFlag(fileId, picked ? 'pick' : null)
   }
 
   // ── Internals ──

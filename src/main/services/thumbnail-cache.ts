@@ -1,6 +1,8 @@
 import { nativeImage } from 'electron'
 import fsp from 'node:fs/promises'
-import { VIDEO_EXTS } from '../../shared/media-types'
+import { VIDEO_EXTS, isRawPath } from '../../shared/media-types'
+import { readRawPreview } from './raw-preview'
+import { renderRawPreview } from './raw-render'
 
 /**
  * Thumbnail cache for the photo-grid hot path.
@@ -85,6 +87,18 @@ export async function getThumbnail(
   const key = `${absolutePath}:${stat.mtimeMs}:${maxEdge}`
   const cached = touchLru(key)
   if (cached) return { buffer: cached, mime: 'image/jpeg' }
+
+  // A RAW file: the picture the camera put inside it. The OS thumbnailer has
+  // no codec for most of them, and the raw bytes are no use to a browser, so
+  // this is the only way a tile gets a photograph (F-046). A file with no
+  // JPEG in it gets no thumbnail, and the tile keeps its icon.
+  if (isRawPath(absolutePath)) {
+    const preview = await readRawPreview(absolutePath)
+    if (!preview) throw new UnthumbnailableError(ext)
+    const jpeg = renderRawPreview(preview, maxEdge, 80)
+    setLru(key, jpeg)
+    return { buffer: jpeg, mime: 'image/jpeg' }
+  }
 
   // Serve the raw file when the OS thumbnailer can't help. The
   // browser's scaler is the safety net. Not cached: THUMB_CACHE_MAX

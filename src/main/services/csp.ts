@@ -10,48 +10,44 @@
  * inspected, in particular the one that ships.
  */
 
-/**
- * Every host the app may reach. The only network peer is the user's own
- * Google Drive, plus the typeface.
- */
-const GOOGLE_HOSTS = [
-  'https://*.googleapis.com',
-  'https://oauth2.googleapis.com',
-  'https://accounts.google.com',
-  'https://*.googleusercontent.com',
-].join(' ')
-
 export function buildContentSecurityPolicy(isPackaged: boolean): string {
-  // `unsafe-eval` is Vite's dev transform. The built bundle does not
-  // need it, and keeping it in production widens any future XSS.
+  // `unsafe-eval` is Vite's dev transform, and `unsafe-inline` is the dev
+  // server's React-refresh preamble. The built page loads one external
+  // module script and has no inline script, so neither is needed in the
+  // package, and either would widen any future XSS.
   const scriptSrc = isPackaged
-    ? 'script-src \'self\' \'unsafe-inline\'; '
+    ? 'script-src \'self\'; '
     : 'script-src \'self\' \'unsafe-inline\' \'unsafe-eval\'; '
 
+  // No Google host appears anywhere. The renderer never fetches from
+  // Google: Drive thumbnails and video arrive through main (`drive:get-
+  // thumbnail`, `cernix-media://drive`), as data URLs and as a custom
+  // scheme that bypasses this policy. The allowlist was a way for a
+  // compromised renderer to talk to Google with a token it should not
+  // hold, for access the app never uses (F-036, decision 16).
+  //
   // `cernix-media:` is in connect-src, not only img-src: EditorCanvas
   // fetch()es the source through it to get an ImageBitmap, and fetch
-  // is governed by connect-src. Scoping this list without it left the
-  // editor unable to load a photograph at all.
+  // is governed by connect-src.
   //
-  // The wildcard was added for the dev server's HMR heartbeat and
-  // carried into the packaged policy, where it meant any host at all.
-  // That is what turns a token reaching the renderer into a token
-  // reaching a stranger, so the relaxation is gated on not being
-  // packaged.
+  // The dev server's HMR heartbeat needs ws and localhost, gated on not
+  // being packaged; carried into the package it meant any host at all.
   const connectSrc = isPackaged
-    ? `connect-src 'self' cernix-media: blob: ${GOOGLE_HOSTS};`
-    : `connect-src 'self' cernix-media: blob: ${GOOGLE_HOSTS} ws: http://localhost:*;`
+    ? 'connect-src \'self\' cernix-media: blob:;'
+    : 'connect-src \'self\' cernix-media: blob: ws: http://localhost:*;'
 
   return (
-    'default-src \'self\' \'unsafe-inline\'; ' +
+    'default-src \'self\'; ' +
     scriptSrc +
-    'style-src \'self\' \'unsafe-inline\' https://fonts.googleapis.com; ' +
+    'style-src \'self\' \'unsafe-inline\'; ' +
     // blob: is required for renderer-generated images, such as preset
     // thumbnails from `URL.createObjectURL`. Same-origin object URLs,
     // no external risk.
-    'img-src \'self\' blob: data: cernix-media: https://*.googleusercontent.com https://*.googleapis.com; ' +
-    'media-src \'self\' https://*.googleapis.com; ' +
-    'font-src \'self\' data: https://fonts.gstatic.com; ' +
+    'img-src \'self\' blob: data: cernix-media:; ' +
+    'media-src \'self\' cernix-media: blob:; ' +
+    // The typefaces are bundled (src/shared/fonts.css); nothing is fetched.
+    'font-src \'self\' data:; ' +
+    'object-src \'none\'; base-uri \'none\'; form-action \'none\'; ' +
     connectSrc
   )
 }

@@ -48,7 +48,7 @@ export function LoadingState({ label, done, total, unit, icon, className }: Load
               style={{ width: `${pct}%` }}
             />
           </div>
-          <div className="text-metadata text-text-disabled text-center">
+          <div className="text-metadata text-text-muted text-center">
             {fmt(done!)}{unit ? ` ${unit}` : ''} / {fmt(total!)}{unit ? ` ${unit}` : ''}
           </div>
         </div>

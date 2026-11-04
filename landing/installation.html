@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Download Cernix. A Windows installer, and source instructions for Linux and macOS. Free, MIT licensed, no account." />
+  <meta name="description" content="Download Cernix for Windows, macOS or Linux, or build it from source. Free, MIT licensed, no account." />
   <title>Installation: Cernix</title>
 
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="Cernix" />
   <meta property="og:title" content="Download Cernix" />
-  <meta property="og:description" content="Every way to get Cernix: the Windows installer, and building from source on Linux and macOS." />
+  <meta property="og:description" content="Every way to get Cernix: the installers for Windows, macOS and Linux, and building it from source." />
   <meta property="og:image" content="https://cernix.app/og.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Download Cernix" />
-  <meta name="twitter:description" content="Every way to get Cernix: the Windows installer, and building from source on Linux and macOS." />
+  <meta name="twitter:description" content="Every way to get Cernix: the installers for Windows, macOS and Linux, and building it from source." />
   <meta name="twitter:image" content="https://cernix.app/og.png" />
 
   <meta name="theme-color" content="#171717" /> <!-- design-allow: theme-color must be a literal colour; mirrors --surface-workspace (HSL 0 0% 9%). -->
@@ -23,27 +23,32 @@
   <!-- The header's brand tile, at tab size. SVG so it stays sharp at any
        scale and can answer prefers-color-scheme; the PNG is for iOS, which
        wants a square it can mask itself and does not read SVG here. -->
+  <!-- One address per page: the apex serves and www redirects, so a
+       crawler or a shared link otherwise sees two. -->
+  <link rel="canonical" href="https://cernix.app/installation">
+  <meta property="og:url" content="https://cernix.app/installation">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Theme, resolved before the first paint. A stored choice wins;
        otherwise the OS preference decides. Inline and synchronous on
        purpose: deferring it shows a frame of the wrong palette. -->
   <script>
     (function () {
+      // Read apart: localStorage throws in private mode, and that must not
+      // also discard the OS preference.
+      var saved = null
+      try { saved = localStorage.getItem('cernix-theme') } catch (e) { /* private mode */ }
+      var dark = false
       try {
-        var saved = localStorage.getItem('cernix-theme')
-        var dark = saved ? saved === 'dark'
+        dark = saved ? saved === 'dark'
           : window.matchMedia('(prefers-color-scheme: dark)').matches
-        if (dark) document.documentElement.classList.add('dark')
-      } catch (e) { /* private mode: stay light */ }
+      } catch (e) { /* no matchMedia: stay light */ }
+      if (dark) document.documentElement.classList.add('dark')
     })()
   </script>
 
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="dist/style.css?v=afb42194" />
+  <link rel="stylesheet" href="dist/style.css?v=99e49885" />
 </head>
 <body>
 
@@ -226,10 +231,13 @@
               </a>
             </li>
 
-            <!-- macOS. Published since 1.1.1, both architectures.
-                 binary.json names the arm64 dmg; someone on Intel takes
-                 theirs from the releases listing, which is what the
-                 static href already points at. -->
+            <!-- macOS. Published since 1.1.1, both architectures, and
+                 each has its own button. One "Download" used to give
+                 every Mac the Apple Silicon dmg, which does not run on
+                 an Intel Mac, while the line above it promised both.
+                 A browser cannot reliably say which a Mac is (Safari
+                 does not tell), so the visitor chooses, and the line
+                 says where to look. -->
             <li id="macos" data-platform-row="macos" class="scroll-mt-24 mt-16 pt-16 border-t border-border-subtle flex flex-col sm:flex-row sm:items-center gap-space-5">
               <div class="min-w-0 flex-1">
                 <h2 class="flex flex-wrap items-center gap-space-2 text-landing-sub font-semibold text-text-emphatic tracking-tight">
@@ -237,7 +245,9 @@
                   <span data-platform-you class="hidden px-space-2 py-px rounded-pill bg-accent-primary/10 text-accent-primary text-landing-meta font-medium tracking-widest uppercase">Your system</span>
                 </h2>
                 <p class="mt-space-2 text-landing-body text-text-muted">
-                  Disk image, Apple Silicon and Intel. Not signed, so
+                  Disk image for macOS 13 Ventura or later. Apple
+                  Silicon (M1 and later) or Intel: Apple menu &rsaquo;
+                  About This Mac says which yours is. Not signed, so
                   after dragging it to Applications, run this once:
                 </p>
                 <!-- The command, not "right-click → Open". That is the
@@ -249,13 +259,22 @@
                      always works, so it is what the page says. -->
                 <code class="mt-space-3 block w-full overflow-x-auto rounded-soft border border-border-subtle bg-surface-raised px-space-3 py-space-2 text-landing-meta text-text-emphatic">xattr -dr com.apple.quarantine /Applications/Cernix.app</code>
               </div>
-              <a
-                data-platform-download="macos"
-                href="https://github.com/YoItsRdL/cernix/releases"
-                class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-transparent border border-border-strong text-text-emphatic text-landing-nav font-medium hover:bg-overlay-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
-              >
-                Download
-              </a>
+              <div class="shrink-0 flex flex-col gap-space-2">
+                <a
+                  data-platform-download="macos"
+                  href="https://github.com/YoItsRdL/cernix/releases"
+                  class="inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-transparent border border-border-strong text-text-emphatic text-landing-nav font-medium hover:bg-overlay-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+                >
+                  Apple Silicon
+                </a>
+                <a
+                  data-platform-download="macos-x64"
+                  href="https://github.com/YoItsRdL/cernix/releases"
+                  class="inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-transparent border border-border-strong text-text-emphatic text-landing-nav font-medium hover:bg-overlay-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+                >
+                  Intel
+                </a>
+              </div>
             </li>
           </ul>
 
@@ -279,9 +298,8 @@
               <pre class="p-space-6 text-landing-caption leading-relaxed text-text-default"><code translate="no">git clone https://github.com/YoItsRdL/cernix.git
 cd cernix
 npm ci
-npx electron-builder install-app-deps
 
-npm run release          # this platform
+npm run release          # Windows installer
 npm run release:linux    # AppImage
 npm run release:mac      # dmg and zip</code></pre>
             </div>
@@ -372,7 +390,7 @@ npm run release:mac      # dmg and zip</code></pre>
           <ul class="space-y-2.5">
             <li><a href="https://github.com/YoItsRdL/cernix" target="_blank" rel="noopener" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">GitHub</a></li>
             <li><a href="https://github.com/YoItsRdL/cernix#readme" target="_blank" rel="noopener" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">Read me</a></li>
-            <li><a href="https://github.com/YoItsRdL/cernix#first-launch" target="_blank" rel="noopener" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">SmartScreen note</a></li>
+            <li><a href="https://github.com/YoItsRdL/cernix#unsigned-builds" target="_blank" rel="noopener" class="text-landing-caption text-text-muted hover:text-text-emphatic transition-colors">SmartScreen note</a></li>
             <!-- The same ask the spill in the corner makes, for anyone who
                  scrolled past it or never had a pointer to hover with. -->
             <li><a href="https://buymeacoffee.com/ibonescalap" target="_blank" rel="noopener" class="inline-flex items-center gap-space-2 text-landing-caption text-text-muted hover:text-text-emphatic transition-colors"><svg class="w-3.5 h-3.5 text-accent-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2v2"/><path d="M14 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/><path d="M6 2v2"/></svg>Buy us a coffee</a></li>
@@ -448,13 +466,32 @@ npm run release:mac      # dmg and zip</code></pre>
         ACCENT.forEach(function (c) { link.classList.add(c) })
       }
 
+      /**
+       * Which Mac this is, when the browser will say: Chromium answers
+       * through client hints, Safari and Firefox do not. Unknown means
+       * neither button is singled out, rather than a guess.
+       */
+      function macArchitecture() {
+        var d = navigator.userAgentData
+        if (!d || !d.getHighEntropyValues) return Promise.resolve(null)
+        return d.getHighEntropyValues(['architecture'])
+          .then(function (v) { return v.architecture === 'arm' ? 'macos' : v.architecture === 'x86' ? 'macos-x64' : null })
+          .catch(function () { return null })
+      }
+
       function apply() {
         var mine = detect()
         if (mine) {
           var row = document.querySelector('[data-platform-row="' + mine + '"]')
           var tag = row && row.querySelector('[data-platform-you]')
           if (tag) tag.classList.remove('hidden')
-          emphasise(document.querySelector('[data-platform-download="' + mine + '"]'))
+          if (mine === 'macos') {
+            macArchitecture().then(function (which) {
+              if (which) emphasise(document.querySelector('[data-platform-download="' + which + '"]'))
+            })
+          } else {
+            emphasise(document.querySelector('[data-platform-download="' + mine + '"]'))
+          }
         }
         if (!info || !info.platforms) return
         var version = document.querySelector('[data-binary-version]')
@@ -475,20 +512,38 @@ npm run release:mac      # dmg and zip</code></pre>
   </script>
 
   <!-- Theme toggle. Writes the same cernix-theme key the pre-paint
-       script above reads, so the choice travels with the visitor. -->
+       script above reads, so the choice travels with the visitor.
+
+       The change runs inside a view transition where the browser has one
+       (see "Theme crossfade" in style.css). Its new picture is taken once
+       the page is ready to be seen in the new theme: anything that needs a
+       moment (the hero film's other cut) registers a promise on
+       window.cernixThemeReady, and the toggle waits for it, at most 150 ms. -->
   <script>
     (function () {
       var toggle = document.getElementById('theme-toggle')
       if (!toggle) return
+      var root = document.documentElement
       var sync = function () {
-        var dark = document.documentElement.classList.contains('dark')
+        var dark = root.classList.contains('dark')
         toggle.setAttribute('aria-label', dark ? 'Light mode' : 'Dark mode')
       }
       sync()
-      toggle.addEventListener('click', function () {
-        var dark = document.documentElement.classList.toggle('dark')
+      var flip = function () {
+        var dark = root.classList.toggle('dark')
         try { localStorage.setItem('cernix-theme', dark ? 'dark' : 'light') } catch (e) {}
         sync()
+        // Told synchronously, so a listener can register what to wait for.
+        root.dispatchEvent(new Event('cernix:theme'))
+        var ready = window.cernixThemeReady
+        window.cernixThemeReady = null
+        return ready ? Promise.race([ready, new Promise(function (r) { setTimeout(r, 150) })]) : null
+      }
+      var still = false
+      try { still = window.matchMedia('(prefers-reduced-motion: reduce)').matches } catch (e) { /* no matchMedia */ }
+      toggle.addEventListener('click', function () {
+        if (document.startViewTransition && !still) document.startViewTransition(flip)
+        else flip()
       })
     })()
   </script>

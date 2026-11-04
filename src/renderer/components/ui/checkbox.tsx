@@ -83,11 +83,12 @@ export function Checkbox({ checked, size = 'md', onToggle, label, className }: C
   return (
     <button
       type="button"
+      role="checkbox"
+      aria-checked={checked}
       aria-label={label}
-      aria-pressed={checked}
       title={label}
       onClick={(e) => { e.stopPropagation(); onToggle(e) }}
-      className="p-1 -m-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+      className="p-1 -m-1 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-border-focus"
     >
       {box}
     </button>

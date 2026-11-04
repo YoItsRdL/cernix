@@ -16,6 +16,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Terminal, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { onActivity } from '@/lib/activity-log'
+import { IconButton } from '@/components/ui/icon-button'
 
 export interface LogEntry {
   timestamp: Date
@@ -52,17 +53,22 @@ interface TerminalPanelProps {
   onToggle: () => void
 }
 
+/**
+ * The history, held outside the component. The error screen's "Reload
+ * view" remounts the whole tree, and the panel's own state went with it:
+ * the lines that explained what had just happened were the ones lost.
+ */
+let retained: LogEntry[] = []
+
 export function TerminalPanel({ isOpen, onToggle }: TerminalPanelProps) {
-  const [logs, setLogs] = useState<LogEntry[]>([])
+  const [logs, setLogs] = useState<LogEntry[]>(retained)
   const scrollRef = useRef<HTMLDivElement>(null)
   const autoScrollRef = useRef(true)
 
   const addLog = useCallback((level: LogEntry['level'], source: string, message: string) => {
-    setLogs(prev => {
-      const next = [...prev, { timestamp: new Date(), level, source, message }]
-      // Keep last 500 entries
-      return next.length > 500 ? next.slice(-500) : next
-    })
+    // Keep last 500 entries
+    retained = [...retained, { timestamp: new Date(), level, source, message }].slice(-500)
+    setLogs(retained)
   }, [])
 
   // Auto-scroll to bottom when new logs arrive
@@ -106,7 +112,12 @@ export function TerminalPanel({ isOpen, onToggle }: TerminalPanelProps) {
     })
 
     const unsubUploadComplete = window.electronAPI.onUploadComplete((s) => {
-      addLog('success', 'upload', `Cloud sync complete. Drive folder: ${s.driveFolderUrl || s.driveFolderId || 'linked'}`)
+      // "Complete" at success level read as good news after files failed.
+      if (s.failedFiles > 0) {
+        addLog('warn', 'upload', `Cloud sync finished: ${s.completedFiles} uploaded, ${s.failedFiles} could not be uploaded (named above).`)
+      } else {
+        addLog('success', 'upload', `Cloud sync complete. Drive folder: ${s.driveFolderUrl || s.driveFolderId || 'linked'}`)
+      }
     })
 
     const unsubSysLog = window.electronAPI.onSysLog((entry) => {
@@ -131,6 +142,7 @@ export function TerminalPanel({ isOpen, onToggle }: TerminalPanelProps) {
   }, [addLog])
 
   const clearLogs = () => {
+    retained = []
     setLogs([])
     addLog('info', 'system', 'Terminal cleared.')
   }
@@ -140,34 +152,39 @@ export function TerminalPanel({ isOpen, onToggle }: TerminalPanelProps) {
       'flex flex-col bg-surface-panel border-t border-border-strong transition-all duration-200',
       isOpen ? 'h-terminal' : 'h-terminal-bar'
     )}>
-      {/* Title Bar */}
+      {/* Title bar. A row holding two sibling controls, the toggle and
+          Clear: Clear used to be a div inside the toggle button, with no
+          name, out of reach of the keyboard, and interactive inside
+          interactive. */}
+      <div className="h-terminal-bar shrink-0 flex items-center bg-surface-raised border-b border-border-subtle">
       <button /* eslint-disable-line no-restricted-syntax -- design-allow: the panel title bar is itself the toggle */
         onClick={onToggle}
-        className="h-terminal-bar shrink-0 flex items-center justify-between px-3 bg-surface-raised hover:bg-surface-raised transition-colors cursor-pointer border-b border-border-subtle"
+        aria-expanded={isOpen}
+        className="h-full flex-1 min-w-0 flex items-center justify-between px-3 hover:bg-overlay-hover transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-2">
           <Terminal size={11} className="text-text-disabled" />
           <span className="text-caption font-bold uppercase tracking-[0.15em] text-text-muted">Output</span>
           {logs.length > 0 && (
-            <span className="text-metadata text-text-disabled tabular-nums">{logs.length}</span>
+            <span className="text-metadata text-text-muted tabular-nums">{logs.length}</span>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          {isOpen && (
-            <div
-              onClick={(e) => { e.stopPropagation(); clearLogs() }}
-              className="p-0.5 hover:bg-overlay-active rounded-sm transition-colors cursor-pointer"
-            >
-              <Trash2 size={10} className="text-text-disabled hover:text-text-muted" />
-            </div>
-          )}
-          {isOpen ? (
-            <ChevronDown size={12} className="text-text-disabled" />
-          ) : (
-            <ChevronUp size={12} className="text-text-disabled" />
-          )}
-        </div>
+        {isOpen ? (
+          <ChevronDown size={12} className="text-text-muted" />
+        ) : (
+          <ChevronUp size={12} className="text-text-muted" />
+        )}
       </button>
+      {isOpen && (
+        <IconButton
+          icon={<Trash2 size={10} />}
+          aria-label="Clear output"
+          title="Clear output"
+          onClick={clearLogs}
+          className="h-full w-8 shrink-0 rounded-none"
+        />
+      )}
+      </div>
 
       {/* Log Output */}
       {isOpen && (
@@ -184,7 +201,7 @@ export function TerminalPanel({ isOpen, onToggle }: TerminalPanelProps) {
         >
           {logs.map((entry, i) => (
             <div key={i} className="flex gap-2 hover:bg-overlay-hover px-1">
-              <span className="text-text-disabled shrink-0 tabular-nums">{formatTime(entry.timestamp)}</span>
+              <span className="text-text-muted shrink-0 tabular-nums">{formatTime(entry.timestamp)}</span>
               <span className={cn('shrink-0 w-log-source text-right uppercase text-caption', SOURCE_COLORS[entry.source] || 'text-text-disabled')}>
                 {entry.source}
               </span>

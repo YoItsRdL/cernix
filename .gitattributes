@@ -1,0 +1,5 @@
+# Scripts run by Node check out with LF on every platform. A `#!` line
+# ending in \r is a syntax error to the test runner, so on a Windows
+# checkout with core.autocrlf the suite importing release-notes.mjs
+# failed to load while CI on Linux never saw it.
+scripts/** text eol=lf

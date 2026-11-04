@@ -1,5 +1,6 @@
 import React from 'react'
 import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 
 // ── Video thumbnails ──
 //
@@ -71,6 +72,8 @@ export function VideoThumbnail({
   const [isVisible, setIsVisible] = React.useState(false)
   const [blobUrl, setBlobUrl] = React.useState<string | null>(() => VIDEO_THUMB_CACHE.get(cacheKey) ?? null)
   const [hasError, setHasError] = React.useState(false)
+  /** Seconds, read with the frame; a tile said nothing about how long a clip runs. */
+  const [duration, setDuration] = React.useState<number | null>(() => VIDEO_DURATIONS.get(cacheKey) ?? null)
   const ref = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
@@ -96,6 +99,9 @@ export function VideoThumbnail({
     let cancelled = false
     const video = document.createElement('video')
     video.muted = true
+    // Anonymous CORS, so the canvas the frame is drawn to stays readable
+    // (cernix-media answers with Access-Control-Allow-Origin for this).
+    video.crossOrigin = 'anonymous'
     video.preload = 'metadata'
     video.playsInline = true
     video.src = videoUrl
@@ -109,6 +115,10 @@ export function VideoThumbnail({
     }
     const onMeta = () => {
       if (cancelled) return
+      if (isFinite(video.duration)) {
+        VIDEO_DURATIONS.set(cacheKey, video.duration)
+        setDuration(video.duration)
+      }
       // 1s in or 10% of duration, whichever is smaller. Far enough
       // past leader frames / black intros to land on real content.
       const t = Math.min(1, (video.duration || 0) * 0.1)
@@ -154,7 +164,7 @@ export function VideoThumbnail({
   }, [isVisible, blobUrl, hasError, videoUrl, cacheKey, thumbSize])
 
   return (
-    <div ref={ref} className="w-full h-full bg-surface-panel">
+    <div ref={ref} className="relative w-full h-full bg-surface-panel">
       {blobUrl && !hasError && (
         <img
           src={blobUrl}
@@ -171,6 +181,23 @@ export function VideoThumbnail({
           {fallback}
         </div>
       )}
+      {duration !== null && (
+        <Badge ground="media" className="absolute bottom-1.5 right-1.5">
+          {formatDuration(duration)}
+        </Badge>
+      )}
     </div>
   )
+}
+
+/** Durations read alongside the frames, so a tile scrolled back in keeps its badge. */
+const VIDEO_DURATIONS = new Map<string, number>()
+
+/** 0:07, 1:05, 1:02:03. */
+function formatDuration(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds))
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = String(total % 60).padStart(2, '0')
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`
 }

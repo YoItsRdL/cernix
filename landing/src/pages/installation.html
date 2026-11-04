@@ -1,22 +1,22 @@
-<!-- {"out":"installation.html","base":"/","cta":"","privacyInk":"text-text-muted","termsInk":"text-text-muted","installInk":"text-text-emphatic"} -->
+<!-- {"canonical":"https://cernix.app/installation","out":"installation.html","base":"/","cta":"","privacyInk":"text-text-muted","termsInk":"text-text-muted","installInk":"text-text-emphatic"} -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Download Cernix. A Windows installer, and source instructions for Linux and macOS. Free, MIT licensed, no account." />
+  <meta name="description" content="Download Cernix for Windows, macOS or Linux, or build it from source. Free, MIT licensed, no account." />
   <title>Installation: Cernix</title>
 
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="Cernix" />
   <meta property="og:title" content="Download Cernix" />
-  <meta property="og:description" content="Every way to get Cernix: the Windows installer, and building from source on Linux and macOS." />
+  <meta property="og:description" content="Every way to get Cernix: the installers for Windows, macOS and Linux, and building it from source." />
   <meta property="og:image" content="https://cernix.app/og.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Download Cernix" />
-  <meta name="twitter:description" content="Every way to get Cernix: the Windows installer, and building from source on Linux and macOS." />
+  <meta name="twitter:description" content="Every way to get Cernix: the installers for Windows, macOS and Linux, and building it from source." />
   <meta name="twitter:image" content="https://cernix.app/og.png" />
 
   {{> head-assets }}
@@ -133,10 +133,13 @@
               </a>
             </li>
 
-            <!-- macOS. Published since 1.1.1, both architectures.
-                 binary.json names the arm64 dmg; someone on Intel takes
-                 theirs from the releases listing, which is what the
-                 static href already points at. -->
+            <!-- macOS. Published since 1.1.1, both architectures, and
+                 each has its own button. One "Download" used to give
+                 every Mac the Apple Silicon dmg, which does not run on
+                 an Intel Mac, while the line above it promised both.
+                 A browser cannot reliably say which a Mac is (Safari
+                 does not tell), so the visitor chooses, and the line
+                 says where to look. -->
             <li id="macos" data-platform-row="macos" class="scroll-mt-24 mt-16 pt-16 border-t border-border-subtle flex flex-col sm:flex-row sm:items-center gap-space-5">
               <div class="min-w-0 flex-1">
                 <h2 class="flex flex-wrap items-center gap-space-2 text-landing-sub font-semibold text-text-emphatic tracking-tight">
@@ -144,7 +147,9 @@
                   <span data-platform-you class="hidden px-space-2 py-px rounded-pill bg-accent-primary/10 text-accent-primary text-landing-meta font-medium tracking-widest uppercase">Your system</span>
                 </h2>
                 <p class="mt-space-2 text-landing-body text-text-muted">
-                  Disk image, Apple Silicon and Intel. Not signed, so
+                  Disk image for macOS 13 Ventura or later. Apple
+                  Silicon (M1 and later) or Intel: Apple menu &rsaquo;
+                  About This Mac says which yours is. Not signed, so
                   after dragging it to Applications, run this once:
                 </p>
                 <!-- The command, not "right-click → Open". That is the
@@ -156,13 +161,22 @@
                      always works, so it is what the page says. -->
                 <code class="mt-space-3 block w-full overflow-x-auto rounded-soft border border-border-subtle bg-surface-raised px-space-3 py-space-2 text-landing-meta text-text-emphatic">xattr -dr com.apple.quarantine /Applications/Cernix.app</code>
               </div>
-              <a
-                data-platform-download="macos"
-                href="https://github.com/YoItsRdL/cernix/releases"
-                class="shrink-0 inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-transparent border border-border-strong text-text-emphatic text-landing-nav font-medium hover:bg-overlay-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
-              >
-                Download
-              </a>
+              <div class="shrink-0 flex flex-col gap-space-2">
+                <a
+                  data-platform-download="macos"
+                  href="https://github.com/YoItsRdL/cernix/releases"
+                  class="inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-transparent border border-border-strong text-text-emphatic text-landing-nav font-medium hover:bg-overlay-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+                >
+                  Apple Silicon
+                </a>
+                <a
+                  data-platform-download="macos-x64"
+                  href="https://github.com/YoItsRdL/cernix/releases"
+                  class="inline-flex items-center justify-center whitespace-nowrap h-11 px-space-6 rounded-pill bg-transparent border border-border-strong text-text-emphatic text-landing-nav font-medium hover:bg-overlay-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+                >
+                  Intel
+                </a>
+              </div>
             </li>
           </ul>
 
@@ -186,9 +200,8 @@
               <pre class="p-space-6 text-landing-caption leading-relaxed text-text-default"><code translate="no">git clone https://github.com/YoItsRdL/cernix.git
 cd cernix
 npm ci
-npx electron-builder install-app-deps
 
-npm run release          # this platform
+npm run release          # Windows installer
 npm run release:linux    # AppImage
 npm run release:mac      # dmg and zip</code></pre>
             </div>
@@ -278,13 +291,32 @@ npm run release:mac      # dmg and zip</code></pre>
         ACCENT.forEach(function (c) { link.classList.add(c) })
       }
 
+      /**
+       * Which Mac this is, when the browser will say: Chromium answers
+       * through client hints, Safari and Firefox do not. Unknown means
+       * neither button is singled out, rather than a guess.
+       */
+      function macArchitecture() {
+        var d = navigator.userAgentData
+        if (!d || !d.getHighEntropyValues) return Promise.resolve(null)
+        return d.getHighEntropyValues(['architecture'])
+          .then(function (v) { return v.architecture === 'arm' ? 'macos' : v.architecture === 'x86' ? 'macos-x64' : null })
+          .catch(function () { return null })
+      }
+
       function apply() {
         var mine = detect()
         if (mine) {
           var row = document.querySelector('[data-platform-row="' + mine + '"]')
           var tag = row && row.querySelector('[data-platform-you]')
           if (tag) tag.classList.remove('hidden')
-          emphasise(document.querySelector('[data-platform-download="' + mine + '"]'))
+          if (mine === 'macos') {
+            macArchitecture().then(function (which) {
+              if (which) emphasise(document.querySelector('[data-platform-download="' + which + '"]'))
+            })
+          } else {
+            emphasise(document.querySelector('[data-platform-download="' + mine + '"]'))
+          }
         }
         if (!info || !info.platforms) return
         var version = document.querySelector('[data-binary-version]')

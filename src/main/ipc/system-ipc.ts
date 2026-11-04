@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow, shell, app } from 'electron'
+import { ipcMain, dialog, BrowserWindow, shell, app, nativeTheme } from 'electron'
 import nodePath from 'node:path'
 import nodeFs from 'node:fs/promises'
 import { VolumeWatcher } from '../services/volume-watcher'
@@ -8,7 +8,11 @@ import { SyncDatabase } from '../services/sync-db'
 import { DriveClient } from '../services/drive-client'
 import { SCAN_TIMEOUT_MS, SUPPORT_URL, THEME_META_KEY, WINDOW_BACKGROUND, type ThemeName } from '../constants'
 import { messageOf } from '../../shared/errors'
-import type { PathGuard } from '../services/approved-paths'
+import { tooBroadToApprove, type PathGuard } from '../services/approved-paths'
+import { classifyTrashError, forbiddenTrash, type TrashFailure } from '../../shared/trash-report'
+import { startPath, rememberPick } from '../services/dialog-folders'
+import { pathListArg } from './args'
+import { parsePreference, effectiveTheme } from '../services/theme'
 
 export function registerSystemHandlers(
   window: BrowserWindow | null,
@@ -53,11 +57,30 @@ export function registerSystemHandlers(
     const opts = {
       properties: ['openDirectory' as const],
       title: 'Select folder to import',
+      defaultPath: startPath('import-folder'),
     }
     const result = parent
       ? await dialog.showOpenDialog(parent, opts)
       : await dialog.showOpenDialog(opts)
-    return result.canceled ? null : result.filePaths[0]
+    if (result.canceled || result.filePaths.length === 0) return null
+    // Approving a folder approves everything under it, trash included, so
+    // the system drive and the profile are not offered as a source.
+    if (tooBroadToApprove(result.filePaths[0], app.getPath('home'), nodePath.parse(app.getPath('userData')).root)) {
+      const notice = {
+        type: 'info' as const,
+        message: 'That folder is too broad to import from.',
+        detail: 'It holds most of what is on this computer. Choose the folder with the photographs in it, or a card.',
+      }
+      if (parent) await dialog.showMessageBox(parent, notice)
+      else await dialog.showMessageBox(notice)
+      return null
+    }
+    rememberPick('import-folder', result.filePaths[0])
+    // The pick is the consent the sweep gate asks for. Without this the
+    // gate refused every folder imported through this very dialog, and
+    // the user was told it held no media.
+    userApprovedPaths.add(nodePath.resolve(result.filePaths[0]))
+    return result.filePaths[0]
   })
 
   // Open a single image file from disk for direct editing. Bypasses
@@ -74,6 +97,7 @@ export function registerSystemHandlers(
     const opts = {
       properties: ['openFile' as const],
       title: 'Open image for editing',
+      defaultPath: startPath('open-image'),
       filters: [
         { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'tif', 'tiff', 'heic'] },
       ],
@@ -83,6 +107,7 @@ export function registerSystemHandlers(
       : await dialog.showOpenDialog(opts)
     if (result.canceled || result.filePaths.length === 0) return null
     const path = result.filePaths[0]
+    rememberPick('open-image', path)
     // Approve this path for the cernix-media://local protocol.
     // The static allowlist (edit-cache / staging / removable volumes)
     // doesn't cover arbitrary user picks; this Set is the per-session
@@ -151,35 +176,70 @@ export function registerSystemHandlers(
   // handling, re-derived. That is the duplication `createPathGuard` was
   // extracted to end, and a second copy is a second thing to forget to
   // fix. It now asks the same guard every other handler asks.
-  ipcMain.handle('media:trash', async (_, paths: string[]) => {
+  // Shows one file in the system file manager. Only for a path the guard
+  // admits, and only a real file: the manager opens on whatever it is given.
+  ipcMain.handle('media:reveal', async (_, raw: unknown) => {
+    if (typeof raw !== 'string' || !isAllowedPath(raw)) throw new Error('Cernix may not show that file.')
+    const st = await nodeFs.lstat(raw).catch(() => null)
+    if (!st?.isFile()) throw new Error('That file is no longer there.')
+    shell.showItemInFolder(raw)
+  })
+
+  ipcMain.handle('media:trash', async (_, rawPaths: unknown) => {
+    // A string here was iterated character by character.
+    const paths = pathListArg(rawPaths)
     const trashedPaths: string[] = []
-    const failures: string[] = []
+    const missingPaths: string[] = []
+    const failures: TrashFailure[] = []
     // Sequential: parallel `shell.trashItem` calls have hit
     // intermittent COM failures on Windows when many files dispatch
     // at once. Sequential is slower but reliable, and the user is
     // already past a destructive-confirmation gate by this point.
     for (const p of paths) {
       if (!isAllowedPath(p)) {
-        failures.push(`forbidden:${p}`)
-        continue
+        failures.push(forbiddenTrash(p))
+      } else {
+        try {
+          // Files only. The guard admits a root itself, and trashItem on
+          // a directory recycles all of it: one call could take the
+          // whole Local Archive or a card. A path that is already gone
+          // has no stat and falls through to be counted as such.
+          const st = await nodeFs.lstat(p).catch(() => null)
+          if (st && !st.isFile()) {
+            failures.push(forbiddenTrash(p))
+          } else {
+            await shell.trashItem(p)
+            trashedPaths.push(p)
+          }
+        } catch (err) {
+          // The platform's message names nothing; whether the file is
+          // still there is what tells "already gone" from "refused".
+          const stillExists = await nodeFs.access(p).then(() => true, () => false)
+          const verdict = classifyTrashError(p, stillExists)
+          if (verdict.missing) missingPaths.push(p)
+          else {
+            failures.push(verdict.failure)
+            sendToRenderer('sys:log', { level: 'warn', source: 'system', message: `Trash refused ${p}: ${messageOf(err) ?? 'no reason given'}` })
+          }
+        }
       }
-      try {
-        await shell.trashItem(p)
-        trashedPaths.push(p)
-      } catch (err) {
-        failures.push(`${p}: ${messageOf(err) ?? 'trash failed'}`)
-      }
+      sendToRenderer('trash:progress', {
+        done: trashedPaths.length + missingPaths.length, total: paths.length, failed: failures.length,
+      })
     }
     sendToRenderer('sys:log', {
       level: failures.length > 0 ? 'warn' : 'info',
       source: 'system',
-      message: `Trash: ${trashedPaths.length} moved${failures.length > 0 ? `, ${failures.length} failed` : ''}`,
+      message: `Trash: ${trashedPaths.length} moved${missingPaths.length > 0 ? `, ${missingPaths.length} already gone` : ''}${failures.length > 0 ? `, ${failures.length} failed` : ''}`,
     })
-    return { trashedPaths, failures }
+    return { trashedPaths, missingPaths, failures }
   })
 
   ipcMain.handle('auth:connect', () => authManager.connect())
   ipcMain.handle('auth:status', () => authManager.getStatus())
+  // Revokes the grant at Google and deletes the token file. Revoking at
+  // Google alone left the file on disk.
+  ipcMain.handle('auth:disconnect', () => authManager.disconnect())
 
   /**
    * Persist the interface theme and recolour the window frame.
@@ -192,11 +252,22 @@ export function registerSystemHandlers(
    * called. Preload does that synchronously so the switch is
    * instant. This only writes it down and fixes the frame.
    */
-  ipcMain.handle('theme:set', (event, theme: 'light' | 'dark') => {
-    const next: ThemeName = theme === 'dark' ? 'dark' : 'light'
-    syncDb.setMeta(THEME_META_KEY, next)
-    BrowserWindow.fromWebContents(event.sender)?.setBackgroundColor(WINDOW_BACKGROUND[next])
-    return { ok: true as const }
+  // Synchronous: the preload needs it before the page's first paint.
+  ipcMain.on('theme:get', (event) => {
+    event.returnValue = effectiveTheme(parsePreference(syncDb.getMeta(THEME_META_KEY)), nativeTheme.shouldUseDarkColors)
+  })
+
+  ipcMain.handle('theme:preference', () => parsePreference(syncDb.getMeta(THEME_META_KEY)))
+
+  ipcMain.handle('theme:set', (event, theme: unknown) => {
+    const choice = parsePreference(typeof theme === 'string' ? theme : null)
+    syncDb.setMeta(THEME_META_KEY, choice)
+    // The system is asked from here on in terms of the choice, so
+    // `shouldUseDarkColors` and the native widgets follow it.
+    nativeTheme.themeSource = choice
+    const effective: ThemeName = effectiveTheme(choice, nativeTheme.shouldUseDarkColors)
+    BrowserWindow.fromWebContents(event.sender)?.setBackgroundColor(WINDOW_BACKGROUND[effective])
+    return { ok: true as const, effective }
   })
 
   /**
@@ -253,6 +324,18 @@ export function registerSystemHandlers(
    * workaround for the app not saying.
    */
   ipcMain.handle('system:version', () => app.getVersion())
+
+  // Where the photographs Cernix has copied live. Settings never said:
+  // the privacy page told people to copy them out before deleting the
+  // folder, and nothing showed which folder. Main names the path, so the
+  // renderer cannot ask for any other to be opened.
+  ipcMain.handle('archive:info', () => ({ path: fileSweeper.getLibraryRoot() }))
+  ipcMain.handle('archive:open', async () => {
+    const root = fileSweeper.getLibraryRoot()
+    await nodeFs.mkdir(root, { recursive: true })
+    const failure = await shell.openPath(root)
+    return failure ? { ok: false as const, reason: failure } : { ok: true as const }
+  })
 
   ipcMain.handle('support:open', async () => {
     await shell.openExternal(SUPPORT_URL)

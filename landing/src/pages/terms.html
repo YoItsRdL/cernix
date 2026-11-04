@@ -1,10 +1,10 @@
-<!-- {"out":"terms.html","base":"/","cta":"","privacyInk":"text-text-muted","termsInk":"text-text-emphatic","installInk":"text-text-muted"} -->
+<!-- {"canonical":"https://cernix.app/terms","out":"terms.html","base":"/","cta":"","privacyInk":"text-text-muted","termsInk":"text-text-emphatic","installInk":"text-text-muted"} -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Cernix Terms of Use. Free, as-is, no warranty. Your data stays yours. Google Drive is the only third-party service, and is subject to its own terms." />
+  <meta name="description" content="Cernix Terms of Use. Free, as-is, no warranty. Your data stays yours. Google Drive, which you opt into, is the only third-party service you connect, and is subject to its own terms. Cernix also checks GitHub for updates, which you can turn off." />
   <title>Terms of Use: Cernix</title>
 
   <meta property="og:type" content="article" />
@@ -71,7 +71,7 @@
               Terms of Use
             </h1>
             <p class="text-landing-nav font-mono text-text-disabled tracking-widest uppercase">
-              Last updated · 2026-05-24
+              Last updated · 2026-11-03
             </p>
           </header>
 
@@ -79,14 +79,15 @@
           <!-- ─── Scope ────────────────────────────────────────── -->
           <section class="mb-16">
             <p class="text-landing-sub text-text-emphatic mb-space-4">
-              These terms cover your use of Cernix: the Windows desktop
-              application and this website.
+              These terms cover your use of Cernix: the desktop application
+              for Windows, macOS and Linux, and this website.
             </p>
             <p class="text-landing-body text-text-muted">
               By downloading, installing, or using Cernix, you agree to the
               terms below. If you don't agree, please don't use the app, and
-              if you have already installed it, uninstall and delete
-              <span translate="no" class="font-mono text-text-emphatic">%APPDATA%\Cernix</span>.
+              if you have already installed it, copy your photographs out of
+              <span translate="no" class="font-mono text-text-emphatic">staging/library</span> in its data folder, then uninstall it and delete that
+              folder (see <a class="text-accent-primary hover:underline" href="#stopping">Stopping</a>).
             </p>
           </section>
 
@@ -189,7 +190,7 @@
               Third-party services
             </h2>
             <p class="text-landing-body text-text-muted mb-space-4">
-              Cernix optionally talks to one Google service:
+              Cernix talks to two outside services, one of them only if you connect it:
             </p>
             <ul class="space-y-space-3 text-landing-body text-text-muted mb-space-4">
               <li class="flex gap-space-3">
@@ -197,6 +198,11 @@
                 <span class="min-w-0"><span class="text-text-emphatic">Google Drive</span>: when you connect your Google account. Your use is governed by the
                   <a class="text-accent-primary hover:underline" href="https://policies.google.com/terms" target="_blank" rel="noopener">Google Terms of Service</a> and
                   <a class="text-accent-primary hover:underline" href="https://policies.google.com/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+              </li>
+              <li class="flex gap-space-3">
+                <span class="text-text-disabled font-mono shrink-0">·</span>
+                <span class="min-w-0"><span class="text-text-emphatic">GitHub</span>: to check for a newer version when Cernix starts and every few hours, and to download an update. It sees your IP address, the version you run and your operating system. You can turn the check off in Settings under Updates. Its use is governed by
+                  <a class="text-accent-primary hover:underline" href="https://docs.github.com/site-policy/github-terms/github-terms-of-service" target="_blank" rel="noopener">GitHub's Terms of Service</a>.</span>
               </li>
             </ul>
             <p class="text-landing-body text-text-muted">
@@ -262,9 +268,11 @@
               Stopping
             </h2>
             <p class="text-landing-body text-text-muted">
-              You can stop using Cernix at any time. Uninstall the app and
-              delete <span translate="no" class="font-mono text-text-emphatic">%APPDATA%\Cernix</span> to remove
-              all local data. Files you have uploaded to your own Google Drive
+              You can stop using Cernix at any time. Its data folder is
+              <span translate="no" class="font-mono text-text-emphatic">%APPDATA%\Cernix</span> on Windows, <span translate="no" class="font-mono text-text-emphatic">~/Library/Application Support/Cernix</span> on a Mac, <span translate="no" class="font-mono text-text-emphatic">~/.config/Cernix</span> on Linux. It holds the photographs you swept off
+              your cards, in <span translate="no" class="font-mono text-text-emphatic">staging/library</span>, and they may be the only copy:
+              copy them somewhere else first. Then uninstall the app and
+              delete the data folder to remove all local data. Files you have uploaded to your own Google Drive
               remain yours and stay where they are until you delete them in Drive.
             </p>
           </section>

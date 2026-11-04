@@ -1,22 +1,22 @@
-<!-- {"out":"index.html","base":"","cta":"cta-download ","privacyInk":"text-text-muted","termsInk":"text-text-muted","installInk":"text-text-muted"} -->
+<!-- {"canonical":"https://cernix.app/","out":"index.html","base":"","cta":"cta-download ","privacyInk":"text-text-muted","termsInk":"text-text-muted","installInk":"text-text-muted"} -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Ingest a card, cull it, edit the keepers and send them to your own Google Drive. No catalog, no account, no subscription. Free, MIT-licensed, Windows." />
+  <meta name="description" content="Ingest a card, cull it, edit the keepers and send them to your own Google Drive. No catalog, no account, no subscription. Free, MIT-licensed. Windows, macOS and Linux." />
   <title>Cernix - cull, edit and deliver from your own Drive</title>
 
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Cernix" />
   <meta property="og:title" content="Cernix - cull, edit and deliver from your own Drive" />
-  <meta property="og:description" content="Ingest a card, cull it, edit the keepers and send them to your own Google Drive. No catalog, no account, no subscription. Free, MIT-licensed, Windows." />
+  <meta property="og:description" content="Ingest a card, cull it, edit the keepers and send them to your own Google Drive. No catalog, no account, no subscription. Free, MIT-licensed. Windows, macOS and Linux." />
   <meta property="og:image" content="https://cernix.app/og.png" /> <!-- og.png is generated from landing/og.html, see landing/README.md. -->
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Cernix - cull, edit and deliver from your own Drive" />
-  <meta name="twitter:description" content="Ingest a card, cull it, edit the keepers and send them to your own Google Drive. No catalog, no account, no subscription. Free, MIT-licensed, Windows." />
+  <meta name="twitter:description" content="Ingest a card, cull it, edit the keepers and send them to your own Google Drive. No catalog, no account, no subscription. Free, MIT-licensed. Windows, macOS and Linux." />
   <meta name="twitter:image" content="https://cernix.app/og.png" />
 
   {{> head-assets }}
@@ -115,7 +115,10 @@
     + divider + logo cloud.
   -->
   <main id="main">
-  <section id="top" class="pt-16 pb-20 lg:pt-24 lg:pb-32">
+  <!-- `scroll-mt-14` is the sticky header's h-14: #top lies under the
+       header in the document, so without it the logo's link stopped
+       56px short of the top of the page. -->
+  <section id="top" class="scroll-mt-14 pt-16 pb-20 lg:pt-24 lg:pb-32">
     <div class="max-w-7xl mx-auto px-space-6">
 
       <div class="text-center mb-12">
@@ -172,7 +175,7 @@
           to a link for your client
         </h1>
 
-        <p class="text-landing-sub text-text-muted max-w-2xl mx-auto opacity-0 reveal-stagger-1">
+        <p class="text-landing-sub text-text-muted max-w-2xl mx-auto reveal-stagger-1">
           Ingest a card, cull it, edit the keepers, and send them to your own Google Drive. Free and open source, with no account to sign up for and nothing to maintain after. <span class="emoji" aria-hidden="true">📸</span>
         </p>
 
@@ -195,7 +198,7 @@
              in the sticky header or scroll to the foot of the page.
              Carries `cta-download`, so the script that rewrites the
              closing CTA from binary.json rewrites this one too. -->
-        <div class="mt-8 flex flex-wrap items-center justify-center gap-space-2 opacity-0 reveal-stagger-2">
+        <div class="mt-8 flex flex-wrap items-center justify-center gap-space-2 reveal-stagger-2">
           <a href="/installation" class="cta-download inline-flex items-center justify-center h-12 px-8 rounded-pill bg-accent-primary text-primary-foreground text-landing-body font-medium hover:bg-accent-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus">
             Download Cernix
           </a>
@@ -219,288 +222,122 @@
       </div>
 
       <!--
-        App mockup: Local Archive, as the app actually draws it.
+        The film: Cernix itself in one unbroken take, a card imported and
+        culled, sent to Drive and a photograph edited. It replaced a drawing
+        of the Local Archive here; the app now speaks for itself.
 
-        Drawn at three columns, not five. The window used to be capped at
-        max-w-6xl while every other section runs to max-w-7xl, so the app
-        was narrower than the page around it; and at 1440x900 the header,
-        the headline, the standfirst and the pill take 534px, which left
-        the panel 370. It was sized to fit above the fold, and a tile came
-        out at 126x84: smaller than the rail item beside it, and under two
-        cap heights of the headline above it. That reads as a diagram of
-        an app rather than an app.
+        Made by scripts/landing-reel (record.mjs records the app,
+        film.html is the composition, render.cjs renders and encodes).
+        The file names carry a version so the CDN can cache them forever;
+        a new cut gets a new name.
 
-        Three columns crop into the surface instead of shrinking it. A tile
-        is 241x162, so the checkbox, the selection ring and the star chip
-        are legible at the size the app actually draws them. The cost is
-        volume: nine frames does not look like a card holding 142 of them,
-        and that job now rests entirely on the Cull beat, which is built
-        on exactly that number.
-
-        Three real surfaces side by side, each copied from its
-        component rather than described:
-
-          • The rail, from Sidebar.tsx. Brand tile carrying --primary
-            with the mark in primary-foreground, then two workspace
-            items, a divider, then the utility group. The ACTIVE item
-            wears a --secondary pill inset 4px from the rail edges,
-            which is the component's own rule: primary means "the app"
-            and is the tile's, secondary means "where you are". The
-            glyphs are the real ones: HardDrive, FolderTree, User,
-            Settings, and the theme toggle showing the mode it moves to.
-          • The grid, from AssetTile.tsx. Square 16px checkbox with
-            rounded-none, accent selection ring, status-warn filled
-            stars in a floating chip. No sync badge: see the note
-            on the Cull grid for why a mockup tile carries none.
-          • The right aside, from ReviewView.tsx. This used to read
-            "Quick Adjustments" over four sliders, which is a panel the
-            app has never had. The real aside is the Summary inspector,
-            and its rows are the real ones: Total, Not synced,
-            Synced, Selected, Transfer size.
+        Muted, looping and inline so it may play on its own. AV1 first,
+        H.264 for browsers without it. Nothing loads until the page has:
+        the poster stands in until then, and with reduced motion it
+        stands in for good.
       -->
-      <div class="relative w-full max-w-7xl mx-auto">
-        <!-- Below lg this drawing keeps its true width and the reader
-             moves it, rather than being re-laid-out into a list the
-             app does not have. See .mockup-scroll in style.css. -->
-        <div aria-hidden="true" translate="no" class="beat-step mockup-scroll" style="--i:1;--mockup-w:900px">
-          <div class="bg-surface-panel rounded-xl border border-border-subtle overflow-hidden shadow-2xl">
-            <!-- App header: centred title, no traffic lights, Windows app -->
-            <div class="h-9 flex items-center justify-center px-space-4 border-b border-border-subtle bg-surface-raised">
-              <span class="text-landing-micro text-text-disabled">Cernix · Wedding Collection</span>
-            </div>
-
-            <!-- 600, which with the 38px caption strip makes a 638px
-                 window. The Edit beat's height, and now the page's one
-                 standard for all three. It used to be whatever nine
-                 tiles happened to add up to, which is not a decision,
-                 it is an accident of tile count.
-
-                 A flat height rather than a ratio, because the Edit
-                 window has one and three windows the same height reads
-                 as one application; a ratio would have made this and
-                 Cull agree with each other and disagree with Edit.
-
-                 The grid column clips rather than growing, so the last
-                 row is cut by the window's lower edge. That is what the
-                 real grid does: rows continue past the fold and the
-                 pager stays pinned under them. -->
-            <div class="flex h-[600px]">
-
-              <!-- ── The rail ── Rows are h-12, matching Sidebar.tsx and the
-                   h-12 panel headers beside them. The brand tile is 40x40
-                   because that is what the active pill leaves at inset-1 in
-                   an h-12 row; if the row height moves again, the tile and
-                   the mark inside it have to move with it. -->
-              <div class="w-58 border-r border-border-subtle px-space-2 py-space-2 flex flex-col shrink-0">
-                <!-- Brand tile, as in the rail: 36 high, 40 wide, soft radius. -->
-                <!-- The rail is padded like its own header row, so nothing inside
-                     it reaches the panel edge: the selected pill insets from that
-                     padding rather than from the rail itself, which is what made
-                     it look like it was leaking off the left.
-
-                     Everything else is Sidebar.tsx as it stands. The tile is w-10
-                     h-9 because that is what inset-1 leaves behind in a w-rail x
-                     h-11 row, so the brand tile occupies exactly the footprint the
-                     selected pill does and their left edges are one line. Centring
-                     it in the same w-12 column the nav icons ride keeps every mark
-                     on one x.
-
-                     The padding is the only divergence: the app can afford a pill
-                     flush to the rail because the rail is a real window edge, and
-                     here it sits inside a rounded panel. -->
-                <div class="h-12 flex items-center">
-                  <span class="flex w-12 items-center justify-center shrink-0">
-                    <span class="flex h-10 w-10 items-center justify-center rounded-soft bg-accent-primary text-primary-foreground shadow-sm">
-                      <svg class="w-7 h-7"><use href="#i-cernix"/></svg>
-                    </span>
-                  </span>
-                  <span class="pl-space-2 text-landing-nav font-semibold tracking-tight text-text-emphatic">Cernix</span>
-                </div>
-
-                <!-- Workspace items. The active pill is inset, so it reads
-                     as a selected item rather than a change of background. -->
-                <!-- Workspace items. flex-1 so the utility strip below is pushed
-                     to the foot of the rail, which is where Sidebar.tsx puts it:
-                     the workspace group carries flex-1 and the utilities follow as
-                     a separate block. No divider between them, because the real
-                     rail has none. -->
-                <div class="flex flex-col w-full flex-1">
-                  <div class="relative h-12 flex items-center">
-                    <span class="absolute inset-y-1 inset-x-1 rounded-soft bg-secondary"></span>
-                    <span class="relative flex w-12 items-center justify-center shrink-0 text-secondary-foreground">
-                      <svg class="w-[18px] h-[18px]"><use href="#i-hard-drive"/></svg>
-                    </span>
-                    <span class="relative pl-space-2 text-landing-caption font-semibold text-secondary-foreground">Local Archive</span>
-                  </div>
-
-                  <div class="relative h-12 flex items-center text-text-muted">
-                    <span class="flex w-12 items-center justify-center shrink-0">
-                      <svg class="w-[18px] h-[18px]"><use href="#i-folder-tree"/></svg>
-                    </span>
-                    <span class="pl-space-2 text-landing-caption">Workstation</span>
-                  </div>
-
-                </div>
-
-                <!-- Utility strip, at the foot of the rail. -->
-                <div class="flex flex-col w-full">
-
-                  <div class="relative h-12 flex items-center text-text-muted">
-                    <span class="flex w-12 items-center justify-center shrink-0">
-                      <svg class="w-[18px] h-[18px]"><use href="#i-moon"/></svg>
-                    </span>
-                    <span class="pl-space-2 text-landing-caption">Dark mode</span>
-                  </div>
-
-                  <div class="relative h-12 flex items-center text-text-muted">
-                    <span class="flex w-12 items-center justify-center shrink-0">
-                      <!-- The dot anchors to the glyph, not to the icon
-                           column: Sidebar.tsx puts `relative` on the 18px
-                           icon wrapper, so -bottom-0.5 -right-0.5 lands on
-                           the glyph's own corner. Hung off the w-12 column
-                           instead, the same offsets throw it 15px out and
-                           it has to be hand-tuned back, which is how this
-                           drifted. -->
-                      <span class="relative flex">
-                        <svg class="w-[18px] h-[18px]"><use href="#i-user"/></svg>
-                      <!-- The one dot on this page that carries real state:
-                           Drive is connected.
-
-                           Offset and ring are Sidebar.tsx's: -bottom-0.5
-                           -right-0.5, and the ring is --surface-workspace
-                           wherever the dot lands. Ringing it in the ground
-                           it happens to sit on is the same as not ringing
-                           it, which is what this drew before. The outline
-                           is what separates the dot from the glyph it
-                           overlaps, so it has to be a colour neither of
-                           them is. -->
-                        <span class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-pill bg-status-success ring-2 ring-surface-workspace"></span>
-                      </span>
-                    </span>
-                    <span class="pl-space-2 text-landing-caption">Account</span>
-                  </div>
-
-                  <div class="relative h-12 flex items-center text-text-muted">
-                    <span class="flex w-12 items-center justify-center shrink-0">
-                      <svg class="w-[18px] h-[18px]"><use href="#i-settings"/></svg>
-                    </span>
-                    <span class="pl-space-2 text-landing-caption">Settings</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- ── The grid ── -->
-              <div class="flex-1 min-w-0 min-h-0 flex flex-col">
-                <div class="p-space-3 grid grid-cols-2 lg:grid-cols-3 gap-space-2 flex-1 min-h-0 overflow-hidden">
-                  <div class="relative aspect-square rounded-soft border border-border-subtle bg-surface-raised">
-                    <div class="absolute inset-0 rounded-soft opacity-[0.04] text-text-emphatic" style="background-image:radial-gradient(currentColor 1px, transparent 1px);background-size:12px 12px"></div>
-                    <span class="absolute top-1.5 left-1.5 h-4 w-4 rounded-none border border-border-strong bg-surface-floating"></span>
-                  </div>
-                  <div class="relative aspect-square rounded-soft border border-border-subtle bg-surface-raised">
-                    <div class="absolute inset-0 rounded-soft opacity-[0.04] text-text-emphatic" style="background-image:radial-gradient(currentColor 1px, transparent 1px);background-size:12px 12px"></div>
-                    <span class="absolute top-1.5 left-1.5 h-4 w-4 rounded-none border border-border-strong bg-surface-floating"></span>
-                  </div>
-                  <div class="relative aspect-square rounded-soft border-2 border-accent-primary ring-1 ring-accent-primary/40 bg-surface-raised">
-                    <div class="absolute inset-0 rounded-soft opacity-[0.04] text-text-emphatic" style="background-image:radial-gradient(currentColor 1px, transparent 1px);background-size:12px 12px"></div>
-                    <span class="absolute top-1.5 left-1.5 h-4 w-4 rounded-none border border-accent-primary bg-accent-primary flex items-center justify-center">
-                      <svg class="w-2.5 h-2.5 text-primary-foreground"><use href="#i-check"/></svg>
-                    </span>
-                    <div class="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 rounded-soft border border-border-strong bg-surface-floating px-1 py-0.5">
-                      <svg class="w-2 h-2 text-status-warn"><use href="#i-star-fill"/></svg>
-                      <svg class="w-2 h-2 text-status-warn"><use href="#i-star-fill"/></svg>
-                      <svg class="w-2 h-2 text-status-warn"><use href="#i-star-fill"/></svg>
-                      <svg class="w-2 h-2 text-status-warn"><use href="#i-star-fill"/></svg>
-                      <svg class="w-2 h-2 text-status-warn"><use href="#i-star-fill"/></svg>
-                    </div>
-                  </div>
-
-                  <div class="relative aspect-square rounded-soft border border-border-subtle bg-surface-raised">
-                    <div class="absolute inset-0 rounded-soft opacity-[0.04] text-text-emphatic" style="background-image:radial-gradient(currentColor 1px, transparent 1px);background-size:12px 12px"></div>
-                    <span class="absolute top-1.5 left-1.5 h-4 w-4 rounded-none border border-border-strong bg-surface-floating"></span>
-                  </div>
-                  <div class="relative aspect-square rounded-soft border-2 border-accent-primary ring-1 ring-accent-primary/40 bg-surface-raised">
-                    <div class="absolute inset-0 rounded-soft opacity-[0.04] text-text-emphatic" style="background-image:radial-gradient(currentColor 1px, transparent 1px);background-size:12px 12px"></div>
-                    <span class="absolute top-1.5 left-1.5 h-4 w-4 rounded-none border border-accent-primary bg-accent-primary flex items-center justify-center">
-                      <svg class="w-2.5 h-2.5 text-primary-foreground"><use href="#i-check"/></svg>
-                    </span>
-                    <div class="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 rounded-soft border border-border-strong bg-surface-floating px-1 py-0.5">
-                      <svg class="w-2 h-2 text-status-warn"><use href="#i-star-fill"/></svg>
-                      <svg class="w-2 h-2 text-status-warn"><use href="#i-star-fill"/></svg>
-                      <svg class="w-2 h-2 text-status-warn"><use href="#i-star-fill"/></svg>
-                      <svg class="w-2 h-2 text-status-warn"><use href="#i-star-fill"/></svg>
-                      <svg class="w-2 h-2 text-text-muted"><use href="#i-star"/></svg>
-                    </div>
-                  </div>
-                  <div class="relative aspect-square rounded-soft border border-border-subtle bg-surface-raised">
-                    <div class="absolute inset-0 rounded-soft opacity-[0.04] text-text-emphatic" style="background-image:radial-gradient(currentColor 1px, transparent 1px);background-size:12px 12px"></div>
-                    <span class="absolute top-1.5 left-1.5 h-4 w-4 rounded-none border border-border-strong bg-surface-floating"></span>
-                  </div>
-
-                  <div class="relative aspect-square rounded-soft border-2 border-accent-primary ring-1 ring-accent-primary/40 bg-surface-raised">
-                    <div class="absolute inset-0 rounded-soft opacity-[0.04] text-text-emphatic" style="background-image:radial-gradient(currentColor 1px, transparent 1px);background-size:12px 12px"></div>
-                    <span class="absolute top-1.5 left-1.5 h-4 w-4 rounded-none border border-accent-primary bg-accent-primary flex items-center justify-center">
-                      <svg class="w-2.5 h-2.5 text-primary-foreground"><use href="#i-check"/></svg>
-                    </span>
-                  </div>
-                  <div class="relative aspect-square rounded-soft border border-border-subtle bg-surface-raised">
-                    <div class="absolute inset-0 rounded-soft opacity-[0.04] text-text-emphatic" style="background-image:radial-gradient(currentColor 1px, transparent 1px);background-size:12px 12px"></div>
-                    <span class="absolute top-1.5 left-1.5 h-4 w-4 rounded-none border border-border-strong bg-surface-floating"></span>
-                  </div>
-
-                  <div class="relative aspect-square rounded-soft border border-border-subtle bg-surface-raised">
-                    <div class="absolute inset-0 rounded-soft opacity-[0.04] text-text-emphatic" style="background-image:radial-gradient(currentColor 1px, transparent 1px);background-size:12px 12px"></div>
-                    <span class="absolute top-1.5 left-1.5 h-4 w-4 rounded-none border border-border-strong bg-surface-floating"></span>
-                  </div>
-                </div>
-
-                <!-- Pager, as the grid carries it under the tiles. -->
-                <div class="mt-auto h-10 flex items-center justify-between gap-space-3 px-space-3 border-t border-border-subtle">
-                  <div class="flex items-center gap-space-3 min-w-0">
-                    <span class="inline-flex items-center gap-space-1 h-6 px-space-2 rounded-nested border border-border-subtle bg-surface-raised text-landing-micro font-mono text-text-muted tabular-nums">25 per page<svg class="w-2.5 h-2.5"><use href="#i-chevron-down"/></svg></span>
-                    <span class="text-landing-micro font-mono text-text-muted tabular-nums truncate">1–25 of 142</span>
-                  </div>
-                  <div class="flex items-center gap-space-1 shrink-0">
-                    <span class="inline-flex items-center justify-center h-6 w-6 rounded-nested border border-border-subtle bg-surface-raised text-text-disabled" aria-hidden="true"><svg class="w-3 h-3 rotate-90"><use href="#i-chevron-down"/></svg></span>
-                    <span class="inline-flex items-center justify-center h-6 w-6 rounded-nested border border-border-subtle bg-surface-raised text-text-default" aria-hidden="true"><svg class="w-3 h-3 -rotate-90"><use href="#i-chevron-down"/></svg></span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- ── Summary inspector ── -->
-              <aside class="w-70 border-l border-border-strong bg-surface-panel flex flex-col shrink-0">
-                <header class="h-9 shrink-0 flex items-center gap-space-2 px-space-4 border-b border-border-subtle bg-surface-raised">
-                  <svg class="w-3 h-3 text-text-muted shrink-0"><use href="#i-clipboard-list"/></svg>
-                  <span class="text-landing-meta font-bold text-text-muted uppercase tracking-widest">Summary</span>
-                </header>
-                <div class="p-space-4 space-y-space-2">
-                  <div class="flex items-center justify-between gap-space-3 py-1">
-                    <span class="text-landing-meta text-text-muted font-bold tracking-wider">Total</span>
-                    <span class="text-landing-micro font-mono text-text-default tabular-nums">142</span>
-                  </div>
-                  <div class="flex items-center justify-between gap-space-3 py-1">
-                    <span class="text-landing-meta text-text-muted font-bold tracking-wider">Not synced</span>
-                    <span class="text-landing-micro font-mono text-text-emphatic tabular-nums">111</span>
-                  </div>
-                  <div class="flex items-center justify-between gap-space-3 py-1">
-                    <span class="text-landing-meta text-text-muted font-bold tracking-wider">Synced</span>
-                    <span class="text-landing-micro font-mono text-text-disabled tabular-nums">31</span>
-                  </div>
-                  <div class="my-space-2 border-t border-border-subtle"></div>
-                  <div class="flex items-center justify-between gap-space-3 py-1">
-                    <span class="text-landing-meta text-text-muted font-bold tracking-wider">Selected</span>
-                    <span class="text-landing-micro font-mono text-accent-primary tabular-nums">3</span>
-                  </div>
-                  <div class="flex items-center justify-between gap-space-3 py-1">
-                    <span class="text-landing-meta text-text-muted font-bold tracking-wider">Transfer size</span>
-                    <span class="text-landing-micro font-mono text-text-default tabular-nums">184.6 MB</span>
-                  </div>
-                </div>
-              </aside>
-
-            </div>
-          </div>
-        </div>
+      <div class="relative w-full max-w-7xl mx-auto reveal-stagger-2">
+        <!-- One cut per theme, filmed with the app in that theme. Only the
+             one on screen is shown, loaded and played; the theme toggle
+             swaps them in place. Without script, the light cut stands. -->
+        <video data-film="light" class="block w-full aspect-video rounded-xl" muted loop playsinline preload="none"
+               poster="/reel/cernix-film-v2-poster.webp"
+               aria-label="Cernix in use: a memory card is imported and culled, the photos are sent to Google Drive, and one is edited.">
+          <source src="/reel/cernix-film-v2.webm" type='video/webm; codecs="av01.0.09M.08"' />
+          <source src="/reel/cernix-film-v2.mp4" type="video/mp4" />
+        </video>
+        <video data-film="dark" class="block w-full aspect-video rounded-xl" muted loop playsinline preload="none" hidden
+               poster="/reel/cernix-film-dark-v2-poster.webp"
+               aria-label="Cernix in use: a memory card is imported and culled, the photos are sent to Google Drive, and one is edited.">
+          <source src="/reel/cernix-film-dark-v2.webm" type='video/webm; codecs="av01.0.09M.08"' />
+          <source src="/reel/cernix-film-dark-v2.mp4" type="video/mp4" />
+        </video>
       </div>
+      <script>
+        (function () {
+          var light = document.querySelector('video[data-film="light"]')
+          var dark = document.querySelector('video[data-film="dark"]')
+          if (!light || !dark) return
+          var root = document.documentElement
+          var still = false
+          try { still = window.matchMedia('(prefers-reduced-motion: reduce)').matches } catch (e) { /* no matchMedia: play */ }
+          var started = false
+          // Show the cut for the current theme, at the same moment of the
+          // film, and play it; the other stops and hides. Resolves once
+          // the shown cut has a picture at that moment.
+          function show() {
+            var on = root.classList.contains('dark') ? dark : light
+            var off = on === dark ? light : dark
+            var at = !off.hidden && off.currentTime > 0 ? off.currentTime : null
+            // Already in step (the toggle was hovered): no seek, no wait.
+            if (at !== null && !on.paused && Math.abs(on.currentTime - at) < 0.25) at = null
+            off.pause()
+            off.hidden = true
+            on.hidden = false
+            var ready = new Promise(function (done) {
+              if (at === null) {
+                if (on.readyState >= 2 || !started) done()
+                else on.addEventListener('loadeddata', done, { once: true })
+                return
+              }
+              on.addEventListener('seeked', done, { once: true })
+              // A cut that has not loaded yet ignores a seek, so it waits
+              // for its metadata.
+              if (on.readyState >= 1) on.currentTime = at
+              else on.addEventListener('loadedmetadata', function () { on.currentTime = at }, { once: true })
+            })
+            if (started && !still) {
+              on.preload = 'auto'
+              on.play().catch(function () { /* autoplay refused: the poster stays */ })
+            }
+            return ready
+          }
+          show()
+          // The toggle says so as it flips the theme, and waits (briefly)
+          // for the new cut before the page fades across.
+          root.addEventListener('cernix:theme', function () { window.cernixThemeReady = show() })
+          // A theme set any other way still lands on the right cut.
+          new MutationObserver(function () {
+            var want = root.classList.contains('dark') ? dark : light
+            if (want.hidden) show()
+          }).observe(root, { attributes: true, attributeFilter: ['class'] })
+          // Hovering or focusing the toggle starts the other cut, hidden and
+          // in step with this one, so a click finds it at the right moment
+          // with a picture ready. Leaving without a click stops it again.
+          var toggle = document.getElementById('theme-toggle')
+          var cool = 0
+          function warm() {
+            clearTimeout(cool)
+            if (!started || still) return
+            var on = root.classList.contains('dark') ? dark : light
+            var other = on === dark ? light : dark
+            other.preload = 'auto'
+            function follow() {
+              if (!other.hidden) return
+              other.currentTime = on.currentTime
+              other.play().catch(function () { /* stays where it is */ })
+            }
+            if (other.readyState >= 1) follow()
+            else { other.addEventListener('loadedmetadata', follow, { once: true }); if (other.readyState === 0) other.load() }
+          }
+          function rest() {
+            clearTimeout(cool)
+            cool = setTimeout(function () {
+              var other = root.classList.contains('dark') ? light : dark
+              if (other.hidden) other.pause()
+            }, 1500)
+          }
+          if (toggle) {
+            toggle.addEventListener('pointerenter', warm)
+            toggle.addEventListener('focus', warm)
+            toggle.addEventListener('pointerleave', rest)
+            toggle.addEventListener('blur', rest)
+          }
+          function start() { started = true; show() }
+          if (document.readyState === 'complete') start()
+          else window.addEventListener('load', start)
+        })()
+      </script>
 
     </div>
   </section>
@@ -568,7 +405,7 @@
               <path d="M2 12 C12 9, 26 14, 40 11" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
               <path d="M33 6 L41 11 L33 17" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
             </svg>
-            <span class="refusal-note">The only thing it talks to on the internet is your own Google Drive.</span>
+            <span class="refusal-note">Its only outside connections are your own Google Drive, if you connect it, and a check for updates you can turn off.</span>
           </div>
           <div class="refusal refusal-ink-primary border-t border-border-subtle py-space-3 text-landing-nav">
             <span class="text-text-muted">No</span> <span class="refusal-term text-text-emphatic font-medium">account</span>
@@ -618,7 +455,7 @@
             Your photographs stay yours.
           </h2>
           <p class="mt-space-6 text-landing-sub text-text-muted max-w-3xl">
-            Cernix is a program on your computer, not a service you join. Ingesting, culling and editing all work with the internet switched off, and the only thing it ever reaches for is the Drive you point it at.
+            Cernix is a program on your computer, not a service you join. Ingesting, culling and editing all work with the internet switched off, and the only things it ever reaches for are the Drive you point it at and, unless you turn it off, a check for a newer version.
           </p>
         </div>
 
@@ -713,7 +550,7 @@
               Cernix sees the card within two seconds and copies everything onto your computer, filed by the day you shot it.
             </p>
             <p class="text-landing-body text-text-muted">
-              Anything it has already taken is skipped, and nothing on the card is ever changed or deleted.
+              Anything it has already taken is skipped, and importing never changes or deletes anything on the card. Removing files from it is something only you do, afterwards.
             </p>
             <div class="flex flex-wrap gap-space-2">
               <span class="px-space-3 py-space-1.5 bg-surface-raised border border-border-subtle rounded-pill text-landing-caption text-text-muted">SD, CFexpress and USB</span>
@@ -1005,7 +842,7 @@
 
     <!-- ─── Beat 2: CULL ─── the verb the product is named for.
 
-         This beat used to draw a photo grid, and the hero draws one
+         This beat used to draw a photo grid, and the hero's film shows one
          three screens above it: sidebar, tiles, ratings, Summary rail,
          pager. Beat 1 then draws the same window in list mode. Three
          views of one surface before the page reaches the editor, and
@@ -1359,7 +1196,7 @@
             <div class="flex h-[600px]">
 
               <!-- The app's rail, collapsed. Sidebar.tsx's own tokens, the
-                   same ones the hero draws expanded: --sidebar for the rail
+                   same ones the app draws expanded: --sidebar for the rail
                    and its border, the brand tile in --accent-primary under
                    --primary-foreground, every active item in --secondary.
                    Those two hues are not interchangeable there. --primary
@@ -3175,7 +3012,10 @@
       // at all leaves a CTA that still works.
       function apply(info) {
         var mine = detect()
-        var entry = info && info.platforms && mine ? info.platforms[mine] : null
+        // A Mac goes to its row on /installation, where it picks Apple
+        // Silicon or Intel: straight to a file would hand an Intel Mac
+        // the arm64 dmg, which does not run there.
+        var entry = info && info.platforms && mine && mine !== 'macos' ? info.platforms[mine] : null
 
         ctas.forEach(function (cta) {
           cta.setAttribute('href', entry && entry.url ? entry.url : '/installation' + (mine ? '#' + mine : ''))

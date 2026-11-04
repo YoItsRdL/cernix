@@ -1,5 +1,70 @@
 # Cernix Workstation Changelog
 
+## [1.2.5] - 2026-11-04
+
+A release-readiness pass over the whole app: every surface was walked
+through by keyboard and mouse, against Drive, and on an installed build.
+
+### Added
+- **Cernix updates itself.** On Windows and Linux an installed Cernix
+  finds its next release, downloads it in the background and installs it
+  on restart. On macOS it says a new version exists and opens the
+  release page. This is the first version that can do it, so 1.2.4 has
+  to be replaced by hand once.
+- **Stars and picks in the Local Archive.** Rate and pick on the card;
+  the rating is kept with the file and carried to Drive on upload.
+  Right-click opens a menu with the same actions.
+- **RAW files show their picture.** The grid and the viewer show the
+  JPEG inside the RAW, turned by its own orientation, and a RAW and its
+  JPEG are one tile: what is done to the tile is done to both files.
+- **Move the archive from Settings.** Settings says where the Local
+  Archive is and opens it. Moving it copies everything, checks every
+  copy, switches over, and only then removes the old files.
+- **Videos play in the Local Archive**, and their tiles show a frame and
+  a length.
+- Disconnect Drive from Settings. Ctrl/Cmd+Shift+L switches the theme
+  from anywhere. Appearance follows the system by default.
+
+### Changed
+- **The Local Archive is ordered oldest first**, by capture date, and
+  capture dates are read again.
+- **Files already in the archive are marked Copied** and left
+  unselected; empty and unreadable files are marked DAMAGED.
+- **The import says what it is doing**, and the end screen says what
+  happened, including which files did not reach Drive and why.
+- **Trash asks first** and names what stayed and why. A Drive trash that
+  fails says why in a sentence.
+- The window comes back where it was. A second launch brings the running
+  Cernix forward instead of starting another. Dialogs reopen where they
+  were last used. The editor loads when a photograph is opened for
+  editing, not at start.
+- The fonts are bundled: nothing asks Google Fonts for anything.
+
+### Fixed
+- **Keyboard and screen readers.** The grid has one focus, arrows and
+  Shift ranges behave, keys meant for the viewer, a dialog or the editor
+  stay there, focus is drawn and returned, and controls are named.
+- **Deleting Cernix's data no longer deletes your photographs unwarned.**
+- **A failed copy leaves nothing behind** and is reported, not hidden.
+  Pulling a card during its review closes the review and says so.
+- **Downloads from Drive never overwrite a file**, and keep their names.
+- Exports leave their GPS position behind.
+- The Intel Mac download is the Intel build.
+- Muted text meets 4.5:1 contrast. Narrow windows and 200% zoom no
+  longer cut off the toolbar or the pager.
+
+### Security
+- The installed app refuses a debugging port, checks its own archive,
+  ignores development environment variables, and has a tighter content
+  policy and link handler.
+- One Drive sign-in at a time. Thumbnails come only from thumbnail
+  hosts, redirects are checked, and Drive file ids are validated.
+- Bridge handlers check their arguments, the path guard follows links,
+  and the system drive and profile cannot be picked as an import source.
+- Dropping the retired AI tables wipes their pages, so a stored key
+  leaves no trace in the database file.
+- Electron 45; `npm audit` is clean.
+
 ## [1.2.4] - 2026-09-13
 
 ### Fixed

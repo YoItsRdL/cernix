@@ -1,13 +1,19 @@
+import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, RefreshCw, Layers, FolderOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SPRING_STANDARD } from '@/lib/motion'
+import type { VolumeInfo } from '@/types'
 
 interface EmptyStateProps {
-  hasVolumes: boolean
+  /** The cards connected now. Each gets its own scan button when there are several. */
+  volumes: VolumeInfo[]
   isScanning: boolean
-  onScan: () => void
+  onScan: (volume: VolumeInfo) => void
   onImportFolder: () => void
+  /** Take keyboard focus on arrival, when the control that led here was just replaced. */
+  focusOnMount?: boolean
+  onFocused?: () => void
 }
 
 /**
@@ -28,11 +34,24 @@ interface EmptyStateProps {
  * is worse than no affordance.
  */
 export function EmptyState({
-  hasVolumes,
+  volumes,
   isScanning,
   onScan,
   onImportFolder,
+  focusOnMount = false,
+  onFocused,
 }: EmptyStateProps) {
+  const primary = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!focusOnMount) return
+    primary.current?.focus()
+    onFocused?.()
+  }, [focusOnMount, onFocused])
+  const hasVolumes = volumes.length > 0
+  const nameOf = (v: VolumeInfo) => v.label || v.path
+  // One card: the button it always was. Several: one per card, named, so
+  // the user picks which; "Scan device" used to take the first silently.
+  const scanTargets: (VolumeInfo | null)[] = volumes.length > 1 ? volumes : [volumes[0] ?? null]
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-surface-workspace">
       <motion.div
@@ -64,6 +83,7 @@ export function EmptyState({
             app: one filled primary, one outlined beside it. */}
         <div className="flex items-center gap-space-3">
           <Button
+            ref={primary}
             variant="primary"
             size="sm"
             onClick={onImportFolder}
@@ -73,29 +93,36 @@ export function EmptyState({
             <FolderOpen size={14} />
             Import folder
           </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={onScan}
-            disabled={!hasVolumes || isScanning}
-            className="h-10 px-space-6 gap-space-2"
-          >
-            {isScanning
-              ? <RefreshCw size={14} className="animate-spin text-text-muted" />
-              : <Plus size={14} />}
-            Scan device
-          </Button>
+          {scanTargets.map((vol) => (
+            <Button
+              key={vol?.path ?? 'none'}
+              variant="secondary"
+              size="sm"
+              onClick={() => { if (vol) onScan(vol) }}
+              disabled={!vol || isScanning}
+              className="h-10 px-space-6 gap-space-2"
+            >
+              {isScanning
+                ? <RefreshCw size={14} className="animate-spin text-text-muted" />
+                : <Plus size={14} />}
+              {volumes.length > 1 && vol ? `Scan ${nameOf(vol)}` : 'Scan device'}
+            </Button>
+          ))}
         </div>
 
         {/* The landing page's quiet meta line. A disabled control with no
             explanation is a dead end, so this says what is missing and
             what would fix it. */}
-        <p className="mt-space-5 text-caption text-text-disabled h-4">
+        <p className="mt-space-5 text-caption text-text-muted min-h-4 max-w-sm">
           {isScanning
             ? 'Scanning connected volumes…'
-            : hasVolumes
-              ? 'A removable drive is connected and ready to scan.'
-              : 'No removable drive detected: plug one in to scan.'}
+            : volumes.length > 1
+              ? `${volumes.length} drives connected: ${volumes.map(nameOf).join(', ')}.`
+              : hasVolumes
+                ? (volumes[0].hasDcim === false
+                  ? `${nameOf(volumes[0])} is connected. It has no DCIM folder, so it was not scanned: scan it if it holds photographs.`
+                  : `${nameOf(volumes[0])} is connected and ready to scan.`)
+                : 'No removable drive detected: plug one in to scan.'}
         </p>
       </motion.div>
     </div>

@@ -96,9 +96,11 @@ export function installMockApi(): RecordedCall[] {
       (window as unknown as { __seedRatings?: unknown[] }).__seedRatings ?? [],
     ratingSetStars: async () => {},
     ratingSetFlag: async () => {},
-    ratingSetUserPick: async () => {},
     themeGet: () => 'light',
-    themeSet: async () => {},
+    themeSet: async () => ({ ok: true as const }),
+    themePreference: async () => 'light' as const,
+    onThemeChanged: () => () => {},
+    reportError: () => {},
   }
 
   ;(window as unknown as { __calls: RecordedCall[] }).__calls = calls

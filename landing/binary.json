@@ -13,6 +13,10 @@
     "macos": {
       "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.2.4/Cernix-1.2.4-arm64.dmg",
       "sha256": "133735337fdfbe4cde3026d086c5a4024a000351decd39f5e62bf73d7414c59f"
+    },
+    "macos-x64": {
+      "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.2.4/Cernix-1.2.4-x64.dmg",
+      "sha256": "815a95293e98d9dddf5303302c0b04a78f6959db5348adfe5e32b680bece6093"
     }
   }
 }

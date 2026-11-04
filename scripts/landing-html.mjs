@@ -111,9 +111,11 @@ function substitute(src, data, name) {
  * Eight hex characters is plenty to notice a change; this is a cache
  * key, not a checksum anyone verifies.
  *
- * Requires the stylesheet to exist, so `landing:build` compiles CSS
- * before HTML. Tailwind scans `src/**` as well as the built pages, so
- * nothing is lost by generating the HTML second.
+ * Requires the stylesheet to exist and be current, so the npm script
+ * compiles the CSS before running this. Run on its own against a stale
+ * `dist/style.css` it stamped every page with the old hash. Tailwind
+ * scans `src/**` as well as the built pages, so nothing is lost by
+ * generating the HTML second.
  */
 const cssPath = path.join(ROOT, 'landing/dist/style.css')
 if (!fs.existsSync(cssPath)) {
@@ -122,6 +124,21 @@ if (!fs.existsSync(cssPath)) {
 const assetv = crypto.createHash('sha256')
   .update(fs.readFileSync(cssPath)).digest('hex').slice(0, 8)
 console.log(`  stylesheet ${assetv}`)
+
+/**
+ * The fonts, beside the stylesheet that names them.
+ *
+ * `src/shared/fonts.css` says `url('./fonts/...')` and Tailwind leaves
+ * that as written, so in `dist/style.css` it means `dist/fonts/`. They
+ * share `/dist/*`'s year-long `immutable`, which holds because a file
+ * here is never changed in place: a new font is a new file name.
+ */
+const fontsSrc = path.join(ROOT, 'src/shared/fonts')
+const fontsOut = path.join(ROOT, 'landing/dist/fonts')
+fs.mkdirSync(fontsOut, { recursive: true })
+for (const name of fs.readdirSync(fontsSrc)) {
+  fs.copyFileSync(path.join(fontsSrc, name), path.join(fontsOut, name))
+}
 
 /**
  * The app's version, stamped in as `{{ version }}`.

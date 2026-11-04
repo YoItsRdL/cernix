@@ -40,28 +40,29 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     title: 'Selecting',
     note: 'Local Archive and Workstation alike.',
     shortcuts: [
-      { keys: 'Click', what: 'Select one, replacing the rest' },
-      { keys: 'mod + Click', what: 'Select a range from the last one clicked' },
-      { keys: 'shift + Click', what: 'Add or remove one, keeping the rest' },
+      { keys: 'Click', what: 'Select one, replacing the rest (in the Local Archive, add or remove it)' },
+      { keys: 'shift + Click', what: 'Select a range from the last one clicked' },
+      { keys: 'mod + Click', what: 'Add or remove one, keeping the rest' },
       { keys: 'mod + A', what: 'Select everything, not just this page' },
       { keys: 'Esc', what: 'Clear the selection' },
-      { keys: 'mod + Z', what: 'Undo the last move or trash' },
+      { keys: 'mod + Z', what: 'Undo the last move or trash (Workstation)' },
     ],
   },
   {
     title: 'Moving through the grid',
-    note: 'The page follows, so arrows cross page boundaries.',
+    note: 'The page follows, so arrows cross page boundaries. In the Local Archive they only move: the selection stays as it is.',
     shortcuts: [
       { keys: '← → ↑ ↓', what: 'Move through the photographs' },
       { keys: 'shift + arrows', what: 'Extend the selection as you go' },
       { keys: 'Home / End', what: 'First or last, wherever it lives' },
       { keys: 'Page Up / Down', what: 'A page at a time' },
       { keys: 'Enter', what: 'Open the focused photograph or folder' },
+      { keys: 'Space', what: 'Select or deselect the focused one' },
     ],
   },
   {
     title: 'Viewing a photograph',
-    note: 'While the full-screen viewer is open.',
+    note: 'While the full-screen viewer is open. Trash, download and edit are the Workstation’s. Stars and picks work in both: in the Local Archive they are kept on the card’s files and follow them to Drive.',
     shortcuts: [
       { keys: '← →', what: 'Previous or next, wrapping at the ends' },
       { keys: 'Space', what: 'Select or deselect this one' },
@@ -75,11 +76,12 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   },
   {
     title: 'The window',
-    note: 'Anywhere in the app.',
+    note: 'Anywhere in the app. On an AZERTY keyboard the digit row needs Shift (or use the numpad) for mod + 0 and for the 0 to 5 ratings.',
     shortcuts: [
       { keys: 'mod + -', what: 'Zoom the interface out, for more room on a scaled screen' },
       { keys: 'mod + +', what: 'Zoom the interface in' },
       { keys: 'mod + 0', what: 'Back to the unzoomed size' },
+      { keys: 'mod + shift + L', what: 'Switch between light and dark, even with a dialog or the viewer open' },
     ],
   },
   {
@@ -87,6 +89,9 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     shortcuts: [
       { keys: '\\', what: 'Hold to see the untouched original' },
       { keys: 'C', what: 'Crop' },
+      { keys: 'Enter', what: 'Apply the crop or the transform' },
+      { keys: 'O', what: 'Next crop guide: thirds, phi, diagonal, triangle, spiral, none' },
+      { keys: 'shift + O', what: 'Turn the spiral guide' },
       { keys: 'shift + C', what: 'Restore the original geometry' },
       { keys: 'mod + alt + T', what: 'Free transform' },
       { keys: 'R', what: 'Straighten' },
@@ -95,6 +100,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: 'T', what: 'Cycle the targeted-adjustment overlays' },
       { keys: '← →', what: 'Nudge the focused slider' },
       { keys: 'shift + ← →', what: 'Nudge it ten at a time' },
+      { keys: '0', what: 'Reset the focused slider' },
       { keys: 'Esc', what: 'Leave the current mode, then the editor' },
       { keys: '?', what: 'Show this sheet' },
     ],

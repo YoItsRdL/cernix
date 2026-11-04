@@ -23,6 +23,8 @@ import { DistillerLightbox } from './distiller/components/DistillerLightbox'
 import { DistillerContextMenu } from './distiller/components/DistillerContextMenu'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Cloud } from 'lucide-react'
 
 interface DistillerProps {
   onOpenEditor?: (file: { id: string; name: string; modifiedTime: string; thumbnailLink?: string }) => void
@@ -34,12 +36,19 @@ interface DistillerProps {
    * The owner of both has to say.
    */
   editorOpen?: boolean
+  /**
+   * False once the app knows Drive is not connected. Undefined while it
+   * has not yet found out, which renders as connected: a flash of
+   * "not connected" on every launch would be worse than a brief spinner.
+   */
+  connected?: boolean
+  onConnect?: () => void
 }
 
 /** Workstation: the Drive-backed library. Composition root; the parts
  *  are in distiller/. */
-export function Distiller({ onOpenEditor, editorOpen = false }: DistillerProps) {
-  const { state, actions, setters, refs } = useDistiller(onOpenEditor)
+export function Distiller({ onOpenEditor, editorOpen = false, connected = true, onConnect }: DistillerProps) {
+  const { state, actions, setters, refs } = useDistiller(onOpenEditor, connected)
 
   // Close context menu on external click
   useEffect(() => {
@@ -55,6 +64,22 @@ export function Distiller({ onOpenEditor, editorOpen = false }: DistillerProps) 
     onSetFlag: actions.handleSetFlag
   }), [actions, setters])
 
+  // Not an error, so not the error the boot threw: the library is on
+  // Drive, and there is no Drive yet. Its header actions (Organize by
+  // Date, Empty Folders) could only fail, so none of it is drawn.
+  if (!connected) {
+    return (
+      <div className="flex h-full items-center justify-center bg-surface-workspace">
+        <EmptyState
+          icon={<Cloud size={24} />}
+          title="Drive is not connected"
+          detail="Workstation is your library on Google Drive. Connect Drive to browse, rate and organise what you have imported."
+          action={onConnect && <Button variant="primary" size="sm" onClick={onConnect}>Connect Drive</Button>}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-full bg-surface-workspace text-text-emphatic select-none overflow-hidden font-sans">
       <DistillerSidebar
@@ -66,7 +91,7 @@ export function Distiller({ onOpenEditor, editorOpen = false }: DistillerProps) 
         actions={actions}
       />
 
-      <main className="flex-1 flex flex-col min-w-0 bg-surface-workspace relative">
+      <section className="flex-1 flex flex-col min-w-0 bg-surface-workspace relative">
         <DistillerHeader
           breadcrumbs={state.breadcrumbs}
           selectedCount={state.selected.size}
@@ -135,7 +160,7 @@ export function Distiller({ onOpenEditor, editorOpen = false }: DistillerProps) 
             actions={viewportActions}
           />
         </div>
-      </main>
+      </section>
 
       {state.showInspector && (
         <div className="hidden lg:block h-full border-l border-border-subtle bg-surface-panel/40 backdrop-blur-3xl shrink-0 overflow-hidden">

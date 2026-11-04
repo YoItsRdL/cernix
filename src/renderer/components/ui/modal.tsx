@@ -58,6 +58,11 @@ export function Modal({
   open, onOpenChange, title, icon, description, actions,
   size = 'lg', className, children,
 }: ModalProps) {
+  // Radix returns focus to its Trigger. These dialogs are controlled and
+  // have none, so closing dropped focus on <body> and a keyboard user
+  // started again from the top of the window. The opener is whatever
+  // held focus as the dialog opened.
+  const opener = React.useRef<HTMLElement | null>(null)
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
@@ -69,6 +74,17 @@ export function Modal({
           )}
         />
         <DialogPrimitive.Content
+          onOpenAutoFocus={() => {
+            opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+          }}
+          onCloseAutoFocus={(e) => {
+            const back = opener.current
+            opener.current = null
+            if (back?.isConnected && !(back as HTMLButtonElement).disabled) {
+              e.preventDefault()
+              back.focus()
+            }
+          }}
           className={cn(
             'fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2', MODAL_LAYER,
             'w-[calc(100%-var(--spacing-space-6)*2)]', SIZES[size],
@@ -109,9 +125,46 @@ export function Modal({
             <DialogPrimitive.Description className="sr-only">{title}</DialogPrimitive.Description>
           )}
 
-          <div className="flex-1 min-h-0 overflow-y-auto p-space-6">{children}</div>
+          <ScrollBody>{children}</ScrollBody>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
+  )
+}
+
+/**
+ * The body, which scrolls when the content is taller than the card.
+ *
+ * A dialog traps Tab, and the keyboard sheet's body (987px of content
+ * in 564) held nothing Tab could land on: the Close button was all
+ * there was, and the Editing group could not be reached without a
+ * mouse. When, and only when, the body overflows it becomes a Tab stop
+ * itself, so the arrows and Page keys scroll it; a body that fits adds
+ * no stop.
+ */
+function ScrollBody({ children }: { children: React.ReactNode }) {
+  const ref = React.useRef<HTMLDivElement>(null)
+  const [overflows, setOverflows] = React.useState(false)
+
+  React.useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const check = () => setOverflows(el.scrollHeight > el.clientHeight + 1)
+    check()
+    // The box, and what is in it: content growing does not resize the box.
+    const observer = new ResizeObserver(check)
+    observer.observe(el)
+    for (const child of Array.from(el.children)) observer.observe(child)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div
+      ref={ref}
+      tabIndex={overflows ? 0 : undefined}
+      className="flex-1 min-h-0 overflow-y-auto p-space-6 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-border-focus"
+    >
+      {children}
+    </div>
   )
 }

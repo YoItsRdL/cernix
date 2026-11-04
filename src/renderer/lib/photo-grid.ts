@@ -2,11 +2,6 @@ import { GRID_GUTTER, maxColumnsFor, defaultColumnsFor, pageSizeFor, usableWidth
 
 const Gutter = GRID_GUTTER
 
-/** Height of the filename + size caption beneath each thumbnail. Named
- *  because the page-size arithmetic needs it too, and an unexplained
- *  34 in two places is a number waiting to drift. */
-export const CaptionHeight = 34
-
 /** How many columns fit at the breaking point, minus the scrollbar. */
 export function autoColumnCount(width: number): number {
   return maxColumnsFor(usableWidth(width))
@@ -17,10 +12,11 @@ export function defaultColumnCount(width: number): number {
   return defaultColumnsFor(usableWidth(width))
 }
 
-/** The vertical pitch of one row: the tile, its caption, and the gutter. */
+/** The vertical pitch of one row: the tile and the gutter. Tiles are square;
+ *  they used to reserve 34 px for a caption nothing drew. */
 function rowPitch(width: number, columnCount: number): number {
   const columnWidth = (usableWidth(width) / Math.max(1, columnCount)) - Gutter
-  return columnWidth + CaptionHeight + Gutter
+  return columnWidth + Gutter
 }
 
 /**

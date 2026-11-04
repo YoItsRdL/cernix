@@ -278,7 +278,7 @@ export function MaskPanel({
                 {MASK_ADJUSTMENT_SLIDERS.map((s) => (
                   <div key={s.key}>
                     {'section' in s && s.section && (
-                      <div className="px-space-5 pt-space-2 pb-space-1 text-caption font-mono uppercase tracking-widest text-text-disabled">
+                      <div className="px-space-5 pt-space-2 pb-space-1 text-caption font-mono uppercase tracking-widest text-text-muted">
                         {s.section}
                       </div>
                     )}
@@ -451,7 +451,7 @@ function BrushSettingsControls({
         onReset={() => onChange({ ...settings, opacity: 0.9 })}
         format={(v) => `${Math.round(v * 100)}%`}
       />
-      <div className="px-space-5 pt-space-1 pb-space-2 text-caption font-mono text-text-disabled">
+      <div className="px-space-5 pt-space-1 pb-space-2 text-caption font-mono text-text-muted">
         {strokeCount === 0
           ? 'Click + drag on the canvas to paint.'
           : `${strokeCount} stroke${strokeCount === 1 ? '' : 's'} painted`}
@@ -495,7 +495,7 @@ interface RangeMaskControlsProps {
 function RangeMaskControls({ range, onMode, onChange }: RangeMaskControlsProps) {
   return (
     <div className="border-t border-border-subtle mt-space-2 pt-space-2">
-      <div className="px-space-5 pb-space-2 text-caption font-mono uppercase tracking-widest text-text-disabled">
+      <div className="px-space-5 pb-space-2 text-caption font-mono uppercase tracking-widest text-text-muted">
         Range
       </div>
       <div className="px-space-5 pb-space-2 grid grid-cols-3 gap-space-1">
@@ -615,7 +615,7 @@ function MaskVectorSection({ label, isSet, onAdd, onRemove, children }: MaskVect
   return (
     <div className="border-t border-border-subtle mt-space-1">
       <div className="flex items-center px-space-5 pt-space-2 pb-space-1">
-        <span className="text-caption font-mono uppercase tracking-widest text-text-disabled">
+        <span className="text-caption font-mono uppercase tracking-widest text-text-muted">
           {label}
         </span>
         <IconButton

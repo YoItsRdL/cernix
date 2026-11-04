@@ -151,6 +151,16 @@ function isNativeExecutable(file) {
 const wait = ms => new Promise(r => setTimeout(r, ms))
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 
+// `backgroundThrottling: false` (see openWindow) stopped being enough
+// on Electron 45. Its Chromium also throttles a window the OS reports
+// as covered, and whether it is covered depends on what else is on the
+// screen: the same run went clean four times and failed five suites
+// the next, each "harness mounted, but the probe never found its
+// fixture". Occlusion tracking off, the windows render whatever covers
+// them. Set before `whenReady`, which is when Chromium reads switches.
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+
 async function main() {
   await app.whenReady()
   buildHarnesses([...new Set(suites.map(s => s.harness))])
@@ -202,8 +212,11 @@ async function main() {
     pageErrors = []
     // Page errors, so a mount failure can say why rather than only that
     // it happened.
-    w.webContents.on('console-message', (_e, level, message) => {
-      if (level >= 2 && !/DevTools|Autofill|Content-Security/i.test(message)) pageErrors.push(message)
+    // The event object, not the positional arguments Electron 35
+    // deprecated; its level is a word, and "warning or worse" is what
+    // the numeric `>= 2` meant.
+    w.webContents.on('console-message', (e) => {
+      if ((e.level === 'warning' || e.level === 'error') && !/DevTools|Autofill|Content-Security/i.test(e.message)) pageErrors.push(e.message)
     })
     return w
   }

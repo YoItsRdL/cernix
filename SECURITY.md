@@ -14,7 +14,9 @@ Useful things to include, as far as you have them: what an attacker gains, the C
 
 Cernix is maintained by one person in their own time. There is no security team and no paid support, so treating a response time as a commitment would be dishonest. What you can expect is an acknowledgement as soon as it's seen, and to be kept in the loop while it's worked on. If a report goes quiet, a nudge on the advisory thread is welcome.
 
-Fixes ship in a normal release. There's no separate security-patch channel, and no auto-updater, so a fix only reaches people who download it. Anything with real impact will be called out in the release notes rather than folded quietly into a changelog.
+Fixes ship in a normal release. There's no separate security-patch channel. Since the release after 1.2.4 the app checks GitHub for new releases (unless the user turned that off): Windows and Linux download the update and install it on restart, macOS says it is out and links to it. Anyone still on 1.2.4 or earlier has no updater and only gets a fix by downloading it. Anything with real impact will be called out in the release notes rather than folded quietly into a changelog.
+
+Releases are not code-signed, so an update is verified only by the SHA-512 in the release's `latest.yml` manifest, which is served from the same GitHub release as the installer. That catches a corrupted download, not a compromised release: whoever can publish a Cernix release can publish an update. Reports about the update path are in scope.
 
 ## Scope
 

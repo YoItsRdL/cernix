@@ -45,12 +45,28 @@ export function Pager({ pagination, noun = 'item', className }: PagerProps) {
   // One page of results is not a thing to navigate. Showing a lone,
   // permanently-disabled control would be furniture, not information,
   // but the count still earns its place.
+  // Next on the second-to-last page lands on the last and disables the
+  // button that held focus, and focus falls to <body>. Paging with the
+  // keyboard then needs a Tab from the top of the window. When a step
+  // reaches an end, focus follows to the page it arrived on.
+  const nav = React.useRef<HTMLElement>(null)
+  const refocus = React.useRef(false)
+  React.useEffect(() => {
+    if (!refocus.current) return
+    refocus.current = false
+    nav.current?.querySelector<HTMLElement>('[aria-current="page"]')?.focus()
+  }, [page])
+  const step = (go: () => void, reachesEnd: boolean) => {
+    refocus.current = reachesEnd
+    go()
+  }
+
   const numbers = pageCount > 1 ? pageWindow(page, pageCount) : []
 
   return (
     <div
       className={cn(
-        'h-10 shrink-0 px-space-4 flex items-center justify-between gap-space-3',
+        '@container h-10 shrink-0 px-space-4 flex items-center justify-between gap-space-3',
         'border-t border-border-subtle bg-surface-panel/50',
         className
       )}
@@ -69,7 +85,11 @@ export function Pager({ pagination, noun = 'item', className }: PagerProps) {
                 TOOLBAR_CONTROL
               )}
             >
-              {pageSize} per page
+              {pageSize}
+              {/* The words go first when the bar is narrow: at 200% zoom
+                  the selector ran under the page numbers. The accessible
+                  name still says "Items per page". */}
+              <span className="hidden @md:inline">per page</span>
               <ChevronDown size={11} />
             </Button>
           </DropdownMenuTrigger>
@@ -80,6 +100,7 @@ export function Pager({ pagination, noun = 'item', className }: PagerProps) {
             {PAGE_SIZE_OPTIONS.map(option => (
               <DropdownMenuItem
                 key={option}
+                aria-label={`${option} per page${option === pageSize ? ', current' : ''}`}
                 onClick={() => setPageSize(option)}
                 className="justify-between gap-space-3"
               >
@@ -90,7 +111,7 @@ export function Pager({ pagination, noun = 'item', className }: PagerProps) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <span className="text-metadata text-text-muted tabular-nums truncate min-w-0">
+        <span className="hidden @md:inline text-metadata text-text-muted tabular-nums truncate min-w-0">
           {total === 0
             ? `No ${noun}s`
             : `${firstItem.toLocaleString()}–${lastItem.toLocaleString()} of ${total.toLocaleString()}`}
@@ -99,13 +120,14 @@ export function Pager({ pagination, noun = 'item', className }: PagerProps) {
 
       {numbers.length > 0 && (
         <nav
+          ref={nav}
           aria-label="Pagination"
           className={cn('flex items-center h-7 p-0.5 gap-0.5 shrink-0', TOOLBAR_CONTROL)}
         >
           <IconButton
             icon={<ChevronLeft size={14} />}
             aria-label="Previous page"
-            onClick={prev}
+            onClick={() => step(prev, page === 1)}
             disabled={page === 0}
             className="h-6 w-6 rounded-nested"
           />
@@ -145,7 +167,7 @@ export function Pager({ pagination, noun = 'item', className }: PagerProps) {
           <IconButton
             icon={<ChevronRight size={14} />}
             aria-label="Next page"
-            onClick={next}
+            onClick={() => step(next, page === pageCount - 2)}
             disabled={page >= pageCount - 1}
             className="h-6 w-6 rounded-nested"
           />

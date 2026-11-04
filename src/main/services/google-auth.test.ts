@@ -32,12 +32,12 @@ vi.mock('electron', () => ({
   app: { getPath: () => userData },
   shell: { openExternal: vi.fn() },
   safeStorage: {
-    isEncryptionAvailable: () => keychain.available,
+    isAsyncEncryptionAvailable: async () => keychain.available,
     getSelectedStorageBackend: () => keychain.backend,
-    encryptString: (s: string) => Buffer.concat([CIPHER_TAG, Buffer.from(s, 'utf8').reverse()]),
-    decryptString: (b: Buffer) => {
+    encryptStringAsync: async (s: string) => Buffer.concat([CIPHER_TAG, Buffer.from(s, 'utf8').reverse()]),
+    decryptStringAsync: async (b: Buffer) => {
       if (!b.subarray(0, 4).equals(CIPHER_TAG)) throw new Error('not our ciphertext')
-      return Buffer.from(b.subarray(4)).reverse().toString('utf8')
+      return { result: Buffer.from(b.subarray(4)).reverse().toString('utf8'), shouldReEncrypt: false }
     },
   },
 }))
@@ -54,8 +54,8 @@ const TOKENS = {
 
 type Innards = {
   tokens: typeof TOKENS | null
-  saveTokensToDisk(): void
-  loadTokensFromDisk(): typeof TOKENS | null
+  saveTokensToDisk(): Promise<void>
+  loadTokensFromDisk(): Promise<{ tokens: typeof TOKENS; reEncrypt: boolean } | null>
   deleteTokensFromDisk(): void
   isTokenExpired(): boolean
 }
@@ -70,11 +70,11 @@ beforeEach(() => {
 afterEach(() => { fs.rmSync(userData, { recursive: true, force: true }) })
 
 describe('GoogleAuthManager token storage', () => {
-  it('round-trips the tokens through the keychain', () => {
+  it('round-trips the tokens through the keychain', async () => {
     const m = inner(new GoogleAuthManager())
     m.tokens = { ...TOKENS }
-    m.saveTokensToDisk()
-    expect(m.loadTokensFromDisk()).toEqual(TOKENS)
+    await m.saveTokensToDisk()
+    expect((await m.loadTokensFromDisk())?.tokens).toEqual(TOKENS)
   })
 
   /**
@@ -83,10 +83,10 @@ describe('GoogleAuthManager token storage', () => {
    * at all, and this is the kind of regression a refactor introduces
    * quietly by dropping the safeStorage call.
    */
-  it('never writes a token in a form anything can read', () => {
+  it('never writes a token in a form anything can read', async () => {
     const m = inner(new GoogleAuthManager())
     m.tokens = { ...TOKENS }
-    m.saveTokensToDisk()
+    await m.saveTokensToDisk()
 
     const raw = fs.readFileSync(tokenFile())
     const asText = raw.toString('utf8')
@@ -98,23 +98,22 @@ describe('GoogleAuthManager token storage', () => {
 
   // A token file from another machine, another OS user, or a half-written
   // one must not take the app down on launch.
-  it('returns null rather than throwing on a file it cannot decrypt', () => {
+  it('returns null rather than throwing on a file it cannot decrypt', async () => {
     const m = inner(new GoogleAuthManager())
     for (const junk of [Buffer.from(''), Buffer.from('plain text'), Buffer.from(JSON.stringify(TOKENS))]) {
       fs.writeFileSync(tokenFile(), junk)
-      expect(() => m.loadTokensFromDisk()).not.toThrow()
-      expect(m.loadTokensFromDisk()).toBeNull()
+      await expect(m.loadTokensFromDisk()).resolves.toBeNull()
     }
   })
 
-  it('returns null when there is no token file', () => {
-    expect(inner(new GoogleAuthManager()).loadTokensFromDisk()).toBeNull()
+  it('returns null when there is no token file', async () => {
+    expect(await inner(new GoogleAuthManager()).loadTokensFromDisk()).toBeNull()
   })
 
-  it('removes the token file on disconnect', () => {
+  it('removes the token file on disconnect', async () => {
     const m = inner(new GoogleAuthManager())
     m.tokens = { ...TOKENS }
-    m.saveTokensToDisk()
+    await m.saveTokensToDisk()
     expect(fs.existsSync(tokenFile())).toBe(true)
     m.deleteTokensFromDisk()
     expect(fs.existsSync(tokenFile())).toBe(false)
@@ -181,64 +180,111 @@ describe('GoogleAuthManager without a usable keychain', () => {
   const asLinux = () => Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
   afterEach(() => Object.defineProperty(process, 'platform', { value: platform, configurable: true }))
 
-  it('writes nothing when Chromium fell back to its hardcoded key', () => {
+  it('writes nothing when Chromium fell back to its hardcoded key', async () => {
     asLinux()
     keychain.backend = 'basic_text'
     const m = new GoogleAuthManager()
     inner(m).tokens = { ...TOKENS }
-    inner(m).saveTokensToDisk()
+    await inner(m).saveTokensToDisk()
     expect(fs.existsSync(tokenFile())).toBe(false)
   })
 
-  it('writes nothing when the OS reports no encryption at all', () => {
+  it('writes nothing when the OS reports no encryption at all', async () => {
     keychain.available = false
     const m = new GoogleAuthManager()
     inner(m).tokens = { ...TOKENS }
-    inner(m).saveTokensToDisk()
+    await inner(m).saveTokensToDisk()
     expect(fs.existsSync(tokenFile())).toBe(false)
   })
 
-  it('tells the user, rather than only the console it does not have', () => {
+  it('tells the user, rather than only the console it does not have', async () => {
     asLinux()
     keychain.backend = 'basic_text'
     const m = new GoogleAuthManager()
     const errors: { message: string }[] = []
     m.on('auth:error', e => errors.push(e))
     inner(m).tokens = { ...TOKENS }
-    inner(m).saveTokensToDisk()
+    await inner(m).saveTokensToDisk()
     expect(errors).toHaveLength(1)
     expect(errors[0].message).toMatch(/reconnect next launch/i)
   })
 
-  it('says it once, not on every token refresh', () => {
+  it('says it once, not on every token refresh', async () => {
     asLinux()
     keychain.backend = 'basic_text'
     const m = new GoogleAuthManager()
     const errors: unknown[] = []
     m.on('auth:error', e => errors.push(e))
     inner(m).tokens = { ...TOKENS }
-    inner(m).saveTokensToDisk()
-    inner(m).saveTokensToDisk()
-    inner(m).saveTokensToDisk()
+    await inner(m).saveTokensToDisk()
+    await inner(m).saveTokensToDisk()
+    await inner(m).saveTokensToDisk()
     expect(errors).toHaveLength(1)
   })
 
-  it('still writes on a Linux host with a real keyring', () => {
+  it('still writes on a Linux host with a real keyring', async () => {
     asLinux()
     keychain.backend = 'gnome_libsecret'
     const m = new GoogleAuthManager()
     inner(m).tokens = { ...TOKENS }
-    inner(m).saveTokensToDisk()
+    await inner(m).saveTokensToDisk()
     expect(fs.existsSync(tokenFile())).toBe(true)
     expect(fs.readFileSync(tokenFile()).includes(Buffer.from(TOKENS.refresh_token))).toBe(false)
   })
 
-  it('does not consult the Linux backend on Windows, where DPAPI is always there', () => {
+  it('does not consult the Linux backend on Windows, where DPAPI is always there', async () => {
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
     keychain.backend = 'basic_text'   // would be refused if it were read
     const m = new GoogleAuthManager()
     inner(m).tokens = { ...TOKENS }
-    inner(m).saveTokensToDisk()
+    await inner(m).saveTokensToDisk()
     expect(fs.existsSync(tokenFile())).toBe(true)
+  })
+})
+
+describe('GoogleAuthManager sign-in flow', () => {
+  type Flow = { waitForAuthCode(): Promise<unknown>; abandonPending: (() => void) | null }
+  const flow = (m: unknown) => m as unknown as Flow
+  const callback = (query: string) => fetch(`http://127.0.0.1:8899/oauth/callback${query}`).then(r => r.status)
+  const listening = async () => {
+    for (let i = 0; i < 40; i++) {
+      try { await callback('?state=x'); return } catch { await new Promise(r => setTimeout(r, 25)) }
+    }
+    throw new Error('the callback server never came up')
+  }
+
+  it('a second Connect ends the first flow and takes over the port', async () => {
+    const m = new GoogleAuthManager()
+    const first = flow(m).waitForAuthCode()
+    const firstEnded = first.then(() => 'resolved', (e: Error) => e.message)
+    await listening()
+
+    const second = flow(m).waitForAuthCode()
+    const secondEnded = second.then(() => 'resolved', (e: Error) => e.message)
+    expect(await firstEnded).toBe('Sign-in restarted')
+
+    // Bound again, by the second flow: a refused connection here is the
+    // bug, where the first listener kept the port until a restart.
+    await listening()
+    expect(await callback('?state=x')).toBe(400)
+
+    flow(m).abandonPending?.()
+    expect(await secondEnded).toBe('Sign-in restarted')
+  })
+
+  it('a callback with the wrong state is refused and does not end the flow', async () => {
+    const m = new GoogleAuthManager()
+    const pending = flow(m).waitForAuthCode()
+    let ended: string | null = null
+    pending.then(() => { ended = 'resolved' }, (e: Error) => { ended = e.message })
+    await listening()
+
+    expect(await callback('?state=wrong&code=stolen')).toBe(400)
+    await new Promise(r => setTimeout(r, 50))
+    expect(ended).toBeNull()
+
+    flow(m).abandonPending?.()
+    await new Promise(r => setTimeout(r, 20))
+    expect(ended).toBe('Sign-in restarted')
   })
 })

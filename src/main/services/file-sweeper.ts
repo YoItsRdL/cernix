@@ -7,9 +7,13 @@ import { app } from 'electron'
 import { exiftool } from 'exiftool-vendored'
 import type { SyncDatabase } from './sync-db'
 import { uploadKey } from './upload-key'
-import { SUPPORTED_EXTENSIONS, MAX_SCAN_DEPTH, SWEEP_CONCURRENCY, EXIF_TIMEOUT_MS, datePath as buildDatePath } from '../constants'
+import { ARCHIVE_META_KEY, SUPPORTED_EXTENSIONS, MAX_SCAN_DEPTH, SWEEP_CONCURRENCY, EXIF_TIMEOUT_MS, datePath as buildDatePath } from '../constants'
 import { messageOf } from '../../shared/errors'
-import type { SweepSession, SweepProgress, SweepError, FileEntry, ScannedFile } from '../../shared/ipc-types'
+import type { SweepSession, SweepProgress, SweepError, FileEntry, ScannedFile, FileDamage } from '../../shared/ipc-types'
+import { indexLibrary, isInLibrary } from './library-index'
+import { checkFile } from './file-check'
+import { parseExifDate } from './exif-date'
+import { readJpegCaptureDate } from './jpeg-exif-date'
 
 // Re-exported so main-side callers keep importing them from the service
 // that emits them, while one declaration lives in shared/.
@@ -46,7 +50,10 @@ export class FileSweeper extends EventEmitter {
    * Defaults to %APPDATA%/Cernix/staging
    */
   getStagingRoot(): string {
-    const custom = process.env['STAGING_DIR']
+    // A development and test switch. In the installed app a folder outside
+    // userData made the archive unreachable, since the path guard admits
+    // only userData/staging (F-034).
+    const custom = app.isPackaged ? undefined : process.env['STAGING_DIR']
     if (custom && custom.trim() !== '') return custom
     return path.join(app.getPath('userData'), 'staging')
   }
@@ -67,15 +74,31 @@ export class FileSweeper extends EventEmitter {
     // database per file meant a scan of a full card ran thousands of
     // queries to answer one question.
     const uploaded = this.db.getUploadedKeys()
+    const inArchive = await indexLibrary(libraryRoot)
     const results: ScannedFile[] = []
     let syncedCount = 0
-    for (const file of rawFiles) {
+    // Per file, in batches: whether it is whole, and for a JPEG when it was
+    // taken, read from its first bytes (about 0.1 ms). The review orders by
+    // that date; without it a 2031 or a 1970 photograph sat among the rest
+    // by file time. Other formats are ordered by file time, as before.
+    const damage: Array<FileDamage | undefined> = []
+    const taken: Array<Date | undefined> = []
+    for (let i = 0; i < rawFiles.length; i += SWEEP_CONCURRENCY * 8) {
+      const batch = rawFiles.slice(i, i + SWEEP_CONCURRENCY * 8)
+      damage.push(...await Promise.all(batch.map(f => checkFile(f.absolutePath, f.sizeBytes))))
+      taken.push(...await Promise.all(batch.map(async f =>
+        /\.jpe?g$/i.test(f.absolutePath) ? parseExifDate(await readJpegCaptureDate(f.absolutePath)) : undefined)))
+    }
+    for (const [i, file] of rawFiles.entries()) {
       const isSynced = uploaded.has(uploadKey(file.absolutePath, file.sizeBytes))
       if (isSynced) syncedCount++
 
       results.push({
         ...file,
+        damage: damage[i],
+        ...(taken[i] ? { captureDate: taken[i] } : {}),
         isUploaded: isSynced,
+        isCopied: !isSynced && isInLibrary(inArchive, file.absolutePath, file.sizeBytes),
       })
     }
 
@@ -89,10 +112,29 @@ export class FileSweeper extends EventEmitter {
    */
   /** The canonical library path: one persistent tree for all imports */
   getLibraryRoot(): string {
+    const moved = this.db.getMeta(ARCHIVE_META_KEY)
+    if (moved && moved.trim() !== '') return moved
     return path.join(this.getStagingRoot(), 'library')
   }
 
+  /** Records a new archive location. Empty puts it back to the default. */
+  setLibraryRoot(root: string): void {
+    this.db.setMeta(ARCHIVE_META_KEY, root)
+  }
+
+  private frozen = false
+  /** Holds new imports back while the archive is being moved. */
+  freeze(on: boolean): void {
+    this.frozen = on
+  }
+
+  /** True while a sweep is scanning or copying. */
+  isBusy(): boolean {
+    return this.activeSessions.size > 0
+  }
+
   async sweep(sourcePath: string, selectedFiles?: string[], customFolder?: string): Promise<SweepSession> {
+    if (this.frozen) throw new Error('The archive is being moved. Import again when that has finished.')
     const sessionId = this.generateSessionId()
     // All files land in one canonical library, not per-session directories
     const stagingPath = this.getLibraryRoot()
@@ -118,7 +160,15 @@ export class FileSweeper extends EventEmitter {
     try {
       // ── Phase 1: Scan ──
       console.log(`[FileSweeper] Scanning ${sourcePath} for sweep...`)
-      let files = await this.scanDirectory(sourcePath)
+      let files = await this.scanDirectory(sourcePath, () => this.cancelledSessions.has(sessionId))
+
+      // Terminated while still reading the card: there is nothing copied
+      // to report, and the walk must not go on to copy what it found.
+      if (this.cancelledSessions.has(sessionId)) {
+        session.status = 'cancelled'
+        this.emit('sweep:complete', { ...session })
+        return session
+      }
 
       // Filter by selection if provided
       if (selectedFiles && selectedFiles.length > 0) {
@@ -149,23 +199,43 @@ export class FileSweeper extends EventEmitter {
       const CONCURRENCY = SWEEP_CONCURRENCY
       let lastProgressTime = Date.now()
       let bytesSinceLastProgress = 0
+      let errorsBefore = 0
+      let diskFull = false
+      let stopReason: string | null = null
+      let alreadyThere = 0
 
-      // Helper for concurrent chunking
-      for (let i = 0; i < files.length; i += CONCURRENCY) {
-        // Check for cancellation
-        if (this.cancelledSessions.has(sessionId)) {
-          session.status = 'cancelled'
-          break
-        }
+      // Throttled to every 200ms. A duplicate is skipped, not copied, but
+      // it is still a file the sweep has got through: a card that was
+      // mostly imported before showed no movement at all.
+      const reportProgress = (file: FileEntry) => {
+        const now = Date.now()
+        const elapsed = now - lastProgressTime
+        if (elapsed < 200) return
+        const bytesPerSecond = Math.round((bytesSinceLastProgress / elapsed) * 1000)
+        this.emit('sweep:progress', {
+          sessionId,
+          file: file.relativePath,
+          current: session.processedFiles,
+          total: session.totalFiles,
+          bytesPerSecond,
+          percentComplete: Math.round((session.processedFiles / session.totalFiles) * 100),
+        })
+        lastProgressTime = now
+        bytesSinceLastProgress = 0
+      }
 
-        const chunk = files.slice(i, i + CONCURRENCY)
-        
-        await Promise.all(chunk.map(async (file) => {
+      // A rolling pool: each worker takes the next file as soon as it is
+      // free. Fixed chunks of four waited for their slowest file every
+      // time, so a sweep ran at the speed of its slowest reads (F-080).
+      const work = async (file: FileEntry) => {
+        {
           if (!file.captureDate) {
             file.captureDate = await this.readExifCaptureDate(file.absolutePath)
           }
           const d = file.captureDate || file.mtime
           const wantedPath = path.join(stagingPath, buildDatePath(d), path.basename(file.absolutePath))
+          /** The name claimed for this copy, removed again if the copy fails. */
+          let claimed: string | null = null
 
           try {
             // Ensure destination subdirectory exists
@@ -178,48 +248,71 @@ export class FileSweeper extends EventEmitter {
               // Already staged locally. Still track for upload in case it never made it to Drive
               session.addedFiles.push(relPath)
               session.processedFiles++
+              alreadyThere++
+              reportProgress(file)
               return
             }
 
             // Stream copy (memory-efficient for large files)
+            claimed = destPath
             await this.copyFileStream(file.absolutePath, destPath)
+            claimed = null
             session.addedFiles.push(relPath)
 
             session.processedFiles++
             session.processedBytes += file.sizeBytes
             bytesSinceLastProgress += file.sizeBytes
 
-            // Throttle progress events to every 200ms
-            const now = Date.now()
-            const elapsed = now - lastProgressTime
-            if (elapsed >= 200) {
-              const bytesPerSecond = elapsed > 0 ? Math.round((bytesSinceLastProgress / elapsed) * 1000) : 0
-
-              this.emit('sweep:progress', {
-                sessionId,
-                file: file.relativePath,
-                current: session.processedFiles,
-                total: session.totalFiles,
-                bytesPerSecond,
-                percentComplete: Math.round((session.processedFiles / session.totalFiles) * 100),
-              })
-
-              lastProgressTime = now
-              bytesSinceLastProgress = 0
-            }
+            reportProgress(file)
 
           } catch (err) {
-            const errorMsg = messageOf(err) || String(err)
-            console.error(`[FileSweeper] Error copying ${file.relativePath}: ${errorMsg}`)
-            session.errors.push({ file: file.relativePath, error: errorMsg })
-
-            this.emit('sweep:error', {
-              sessionId,
-              error: errorMsg,
-              file: file.relativePath,
-            })
+            // The placeholder claimed for this copy, or the part of it that
+            // was written, is not a photograph: left in the archive it read
+            // as one, empty, under the photograph's name.
+            if (claimed) await fsp.rm(claimed, { force: true }).catch(() => {})
+            const code = (err as NodeJS.ErrnoException).code ?? /\b(E[A-Z]+)\b/.exec(messageOf(err) ?? '')?.[1]
+            const reason = describeCopyFailure(code, messageOf(err) || String(err))
+            console.error(`[FileSweeper] Error copying ${file.relativePath}: ${messageOf(err)}`)
+            session.errors.push({ file: file.relativePath, error: reason })
+            if (code === 'ENOSPC') diskFull = true
+            // One file is not the whole sweep: said in the log, counted at
+            // the end. As a `sweep:error` it put the window into its error
+            // state for a single locked file, and on into a screen that
+            // never left "Importing".
+            this.emit('log', { level: 'warn', source: 'sweep', message: `Could not copy ${file.relativePath}: ${reason}` })
           }
-        }))
+        }
+      }
+
+      let cursor = 0
+      const worker = async () => {
+        while (stopReason === null && !this.cancelledSessions.has(sessionId)) {
+          const i = cursor++
+          if (i >= files.length) return
+          await work(files[i])
+
+          // Two failures every remaining file would share, so the sweep
+          // stops and says so rather than failing the rest one by one.
+          if (session.errors.length > errorsBefore) {
+            errorsBefore = session.errors.length
+            const sourceGone = !(await fsp.access(sourcePath).then(() => true, () => false))
+            if ((sourceGone || diskFull) && stopReason === null) {
+              const copied = `${session.processedFiles} of ${session.totalFiles} files were copied`
+              stopReason = sourceGone
+                ? `The card or folder is no longer there, so the copy stopped: ${copied}. Insert it again and import to copy the rest.`
+                : `The disk holding the archive is full, so the copy stopped: ${copied}. Free some space and import again to copy the rest.`
+            }
+          }
+        }
+      }
+      await Promise.all(Array.from({ length: CONCURRENCY }, worker))
+      if (this.cancelledSessions.has(sessionId)) session.status = 'cancelled'
+
+      if (stopReason) {
+        session.status = 'error'
+        console.error(`[FileSweeper] Sweep stopped: ${stopReason}`)
+        this.emit('sweep:error', { sessionId, error: stopReason })
+        return session
       }
 
       // ── Complete ──
@@ -227,7 +320,7 @@ export class FileSweeper extends EventEmitter {
         session.status = 'complete'
       }
 
-      console.log(`[FileSweeper] Sweep complete: ${session.processedFiles}/${session.totalFiles} files copied`)
+      console.log(`[FileSweeper] Sweep complete: ${session.processedFiles - alreadyThere} copied, ${alreadyThere} already in the archive, of ${session.totalFiles}`)
       this.emit('sweep:complete', { ...session })
 
     } catch (err) {
@@ -257,9 +350,8 @@ export class FileSweeper extends EventEmitter {
    * Cancel every in-flight sweep and return how many were cancelled.
    *
    * The renderer drives this from "Terminate Protocol". It has no
-   * session id to pass. `sweep:started` isn't bridged through the
-   * preload, so the renderer only learns the id at `sweep:complete`,
-   * which is too late to cancel. The UI only ever runs one sweep at a
+   * session id to pass. The renderer only learns the id at
+   * `sweep:complete`, which is too late to cancel. The UI only ever runs one sweep at a
    * time, so cancelling all active sessions is the same operation
    * from the user's point of view.
    */
@@ -286,7 +378,7 @@ export class FileSweeper extends EventEmitter {
   /**
    * Recursively scan a directory for files with supported extensions.
    */
-  private async scanDirectory(dirPath: string): Promise<FileEntry[]> {
+  private async scanDirectory(dirPath: string, shouldStop?: () => boolean): Promise<FileEntry[]> {
     const results: FileEntry[] = []
     const visited = new Set<string>()
     const MAX_DEPTH = MAX_SCAN_DEPTH
@@ -315,6 +407,7 @@ export class FileSweeper extends EventEmitter {
       }
 
       for (const entry of entries) {
+        if (shouldStop?.()) return
         const fullPath = path.join(currentPath, entry.name)
 
         if (entry.isDirectory()) {
@@ -351,6 +444,13 @@ export class FileSweeper extends EventEmitter {
 
   /** Read EXIF capture date for a single file. Returns undefined on timeout/missing. */
   private async readExifCaptureDate(absolutePath: string): Promise<Date | undefined> {
+    // A JPEG says so in its first bytes, which costs a fraction of a
+    // millisecond against ExifTool's 25. Anything it cannot answer, a
+    // JPEG without that tag included, still goes to ExifTool.
+    if (/\.jpe?g$/i.test(absolutePath)) {
+      const quick = parseExifDate(await readJpegCaptureDate(absolutePath))
+      if (quick) return quick
+    }
     try {
       const tags = await Promise.race([
         exiftool.read(absolutePath),
@@ -494,5 +594,22 @@ export class FileSweeper extends EventEmitter {
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
+  }
+}
+
+/**
+ * Why one file could not be copied, in words. The raw text ("Read error:
+ * ENOENT: no such file or directory, open 'C:\\...'") reached the screen as
+ * it was; the path is already named beside it.
+ */
+export function describeCopyFailure(code: string | undefined, raw: string): string {
+  switch (code) {
+    case 'ENOENT': return 'it is no longer there'
+    case 'EBUSY': return 'another program has it open'
+    case 'EPERM':
+    case 'EACCES': return 'Windows or another program will not let it be read'
+    case 'ENOSPC': return 'the disk holding the archive is full'
+    case 'EIO': return 'the card could not be read here (it may be damaged)'
+    default: return raw
   }
 }

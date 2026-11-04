@@ -3,6 +3,8 @@
 // declare its own ScannedFile and its own callback payloads, and two of
 // them did not match what main sends.
 
+import type { TrashFailure } from '../shared/trash-report'
+
 export type IngestState = 'idle' | 'scanning' | 'review' | 'sweeping' | 'complete' | 'error'
 export type TabId = 'library-ingest' | 'organize' | 'settings' | 'local'
 
@@ -10,11 +12,13 @@ export type TabId = 'library-ingest' | 'organize' | 'settings' | 'local'
 import type { EditParams } from '@/../shared/edit-params'
 import type {
   ScannedFile, SweepProgress, SweepSession, UploadSessionSummary, UploadProgress,
-  RatingRecord, RatingFlag, RatingStars,
+  RatingRecord, RatingFlag, RatingStars, UpdateStatus, UpdateState,
+  ArchivePick, ArchiveMoveReply, ArchiveProgress,
 } from '@/../shared/ipc-types'
 export type {
   ScannedFile, SweepProgress, SweepSession, UploadSessionSummary, UploadProgress,
-  RatingRecord, RatingFlag, RatingStars,
+  RatingRecord, RatingFlag, RatingStars, UpdateStatus, UpdateState,
+  ArchivePick, ArchiveMoveReply, ArchiveProgress,
 }
 export type {
   CurvePoint, CurveChannel, ToneCurve,
@@ -42,6 +46,8 @@ export interface VolumeInfo {
   sizeBytes: number
   freeBytes: number
   fileSystem: string
+  /** A DCIM folder, as on a camera card. Anything else is not scanned until asked. */
+  hasDcim?: boolean
 }
 
 export interface AuthStatus {
@@ -66,22 +72,37 @@ export interface ElectronAPI {
   sweepStart: (path: string, selected: string[], customFolder?: string) => Promise<void>
   /** Abort the in-flight sweep. Resolves with how many sessions were cancelled. */
   sweepCancel: () => Promise<{ cancelled: number }>
-  mediaTrash: (paths: string[]) => Promise<{ trashedPaths: string[]; failures: string[] }>
+  /** Show one file in the system file manager. */
+  mediaReveal: (path: string) => Promise<void>
+  mediaTrash: (paths: string[]) => Promise<{ trashedPaths: string[]; missingPaths: string[]; failures: TrashFailure[] }>
   onSweepProgress: (cb: (p: SweepProgress) => void) => () => void
   onSweepComplete: (cb: (s: SweepSession) => void) => () => void
-  onSweepError: (cb: (e: { error?: string; message?: string; sessionId?: string; file?: string }) => void) => () => void
+  onSweepError: (cb: (e: { error?: string; message?: string; sessionId?: string; file?: string; kind?: 'drive-disconnected' }) => void) => () => void
   onUploadStarted: (cb: (s: UploadSessionSummary) => void) => () => void
   onUploadProgress: (cb: (p: UploadProgress) => void) => () => void
+  /** A file that finally could not be uploaded (not a retry). */
+  onUploadError: (cb: (e: { file: string; error: string }) => void) => () => void
   onUploadComplete: (cb: (s: UploadSessionSummary) => void) => () => void
 
   // Auth & Identity
   authConnect: () => Promise<void>
   authStatus: () => Promise<AuthStatus>
+  /** Revoke the grant at Google and delete the stored token. */
+  authDisconnect: () => Promise<void>
   authRebuildLedger: () => Promise<{ count: number }>
   /** Open the support page in the system browser. */
   supportOpen: () => Promise<{ ok: true }>
   /** The running app version, as stamped into the build from package.json. */
   systemVersion: () => Promise<string>
+  /** Where the copied photographs are kept. */
+  archiveInfo: () => Promise<{ path: string }>
+  /** Pick a folder for the archive; says what moving there would mean, or why not. */
+  archivePickDestination: () => Promise<ArchivePick>
+  /** Move the archive to the folder just picked. */
+  archiveMove: () => Promise<ArchiveMoveReply>
+  archiveMoveCancel: () => Promise<void>
+  onArchiveProgress: (cb: (p: ArchiveProgress) => void) => () => void
+  archiveOpen: () => Promise<{ ok: true } | { ok: false; reason: string }>
   /** Theme this window started with. Synchronous: no round trip. */
   /** Minimise the window. */
   windowMinimize: () => Promise<{ ok: true }>
@@ -98,7 +119,9 @@ export interface ElectronAPI {
 
   themeGet: () => 'light' | 'dark'
   /** Switch theme: applies immediately, persists locally. */
-  themeSet: (theme: 'light' | 'dark') => Promise<{ ok: true }>
+  themeSet: (theme: 'light' | 'dark' | 'system') => Promise<{ ok: true }>
+  themePreference: () => Promise<'light' | 'dark' | 'system'>
+  onThemeChanged: (cb: (theme: 'light' | 'dark') => void) => () => void
   onAuthStatus: (cb: (s: AuthStatus) => void) => () => void
   /** Auth failures (bad/missing OAuth credentials, expired session). */
   onAuthError: (cb: (e: { message: string }) => void) => () => void
@@ -132,7 +155,6 @@ export interface ElectronAPI {
   ratingGetAll: () => Promise<RatingRecord[]>
   ratingSetStars: (fileId: string, stars: number | null) => Promise<void>
   ratingSetFlag: (fileId: string, flag: 'pick' | null) => Promise<void>
-  ratingSetUserPick: (fileId: string, picked: boolean) => Promise<void>
 
   // Editor source cache
   editorPrepareSource: (fileId: string, modifiedTime: string, fileName: string) => Promise<string>
@@ -142,8 +164,9 @@ export interface ElectronAPI {
   editorReadParams: (sourcePath: string) => Promise<EditParams>
   editorWriteParams: (sourcePath: string, params: EditParams) => Promise<void>
 
-  editorUploadExport: (sourceFileId: string, bytes: ArrayBuffer, outputName: string, sourceCachePath: string | null, subpath: string[] | null) => Promise<{ id: string; webViewLink?: string; name: string; mirrorPath: string[]; warning?: string }>
-  editorSaveExportLocal: (bytes: ArrayBuffer, outputName: string, sourceCachePath: string | null) => Promise<{ saved: false } | { saved: true; path: string; warning?: string }>
+  /** `keepLocation`: keep the source's GPS position (off by default; Drive exports go to a public-link folder). */
+  editorUploadExport: (sourceFileId: string, bytes: ArrayBuffer, outputName: string, sourceCachePath: string | null, subpath: string[] | null, keepLocation: boolean) => Promise<{ id: string; webViewLink?: string; name: string; mirrorPath: string[]; warning?: string }>
+  editorSaveExportLocal: (bytes: ArrayBuffer, outputName: string, sourceCachePath: string | null, keepLocation: boolean) => Promise<{ saved: false } | { saved: true; path: string; warning?: string }>
 
   // Presets
   presetList: () => Promise<Preset[]>
@@ -156,6 +179,19 @@ export interface ElectronAPI {
   presetThumbPut: (sourceHash: string, presetId: string, presetUpdatedAt: string, bytes: Uint8Array) => Promise<void>
 
   // System Log (Terminal Panel)
+  /** Where the updater is, and whether the user lets it ask. */
+  updateStatus: () => Promise<UpdateStatus>
+  /** The Settings checkbox. Off means no request is made at all. */
+  updateSetEnabled: (enabled: boolean) => Promise<UpdateStatus>
+  /** "Check now". */
+  updateCheck: () => Promise<UpdateStatus>
+  /** "Restart to update". Refused, with a reason, while work would be cut short. */
+  updateInstall: () => Promise<{ ok: true } | { ok: false; reason: string }>
+  /** macOS: open the release page for the version found. */
+  updateOpenRelease: () => Promise<{ ok: true }>
+  onUpdateStatus: (cb: (s: UpdateStatus) => void) => () => void
   onSysLog: (cb: (entry: { level: string; source: string; message: string }) => void) => () => void
+  /** A crash the error screen caught, for main's fatal-error log. */
+  reportError: (detail: string) => void
 
 }

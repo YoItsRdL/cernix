@@ -2,22 +2,28 @@ import { useEffect, useState } from 'react'
 import { Coffee } from 'lucide-react'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
+import { topOverlay } from '@/lib/overlay'
 
 /** Written the moment it opens, so closing the app mid-view still counts
  *  as having been asked. */
 const SEEN_KEY = 'cernix.coffee.invited'
 
-/** Long enough that the window has painted and the volume watcher has
- *  reported, so this never lands on top of a card being detected. */
-const DELAY_MS = 4000
+/** Long enough for the result on screen to be read before anything is asked. */
+const DELAY_MS = 1500
 
 function alreadyInvited(): boolean {
   try { return localStorage.getItem(SEEN_KEY) === '1' } catch { return true }
 }
 
 /**
- * Asks once, on the first launch that reaches this code, and never
- * again on that install.
+ * Asks once, after the first import has finished, and never again on
+ * that install.
+ *
+ * It used to ask four seconds after the first launch, before anything
+ * had been done: over the first-launch screen, over a card's review,
+ * over Settings. Now the caller says when the moment is (an import's end
+ * screen), and it still stands down if a dialog is open by then; it is
+ * only marked as asked once it has actually been shown.
  *
  * The once-ness is the design rather than a nicety. Cernix gates nothing
  * behind this and says so in its own copy; a box that returned on every
@@ -28,17 +34,18 @@ function alreadyInvited(): boolean {
  * never contacts the host: opening the page is main's job, through
  * `supportOpen`.
  */
-export function CoffeeInvite() {
+export function CoffeeInvite({ moment }: { moment: boolean }) {
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    if (alreadyInvited()) return
+    if (!moment || alreadyInvited()) return
     const t = setTimeout(() => {
+      if (topOverlay()) return
       try { localStorage.setItem(SEEN_KEY, '1') } catch { /* asked anyway */ }
       setOpen(true)
     }, DELAY_MS)
     return () => clearTimeout(t)
-  }, [])
+  }, [moment])
 
   if (!open) return null
 

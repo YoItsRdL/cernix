@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
+import { topOverlay } from '@/lib/overlay'
 
 export interface ListSelectionOptions {
   /**
@@ -28,12 +29,13 @@ export interface ListSelectionOptions {
  * selection model drift, and the drift is invisible until someone tries
  * to select a range in the wrong tab.
  *
- * The modifier mapping is deliberately *swapped* from the Finder/Photos
- * convention, per the preference already established in Local Archive:
+ * The modifier mapping is the one every file manager and photo app has
+ * (decision 34). It used to be swapped, on a preference set early in the
+ * Local Archive, and surprised everyone who had used any other program:
  *
  *   plain click     replace the selection with this one item
- *   Ctrl/Cmd+click  range from the anchor to this item
- *   Shift+click     toggle this item, keeping the rest
+ *   Shift+click     range from the anchor to this item
+ *   Ctrl/Cmd+click  toggle this item, keeping the rest
  *
  * A plain click means one of two things, and which one depends on what
  * the tile is. Where a separate checkbox does the selecting, the tile's
@@ -42,7 +44,7 @@ export interface ListSelectionOptions {
  * modifiers never change meaning between them.
  *
  * `metaKey` is Cmd on macOS and `ctrlKey` is Ctrl elsewhere; both mean
- * "range" here.
+ * "add or remove" here.
  *
  * The anchor lives in a ref because moving it must not re-render.
  * Only the resulting selection drives the UI. It survives Shift-clicks
@@ -92,8 +94,8 @@ export function useListSelection({
   const handleSelectClick = useCallback(
     (id: string, e: Pick<React.MouseEvent, 'metaKey' | 'ctrlKey' | 'shiftKey'>) => {
       const { orderedIds: ids, onChange: set } = latest.current
-      const isRange = e.metaKey || e.ctrlKey
-      const isToggle = e.shiftKey
+      const isRange = e.shiftKey
+      const isToggle = e.metaKey || e.ctrlKey
 
       if (isRange && anchor.current !== null) {
         const from = ids.indexOf(anchor.current)
@@ -174,6 +176,11 @@ export function useListSelection({
         el instanceof HTMLTextAreaElement ||
         (el instanceof HTMLElement && el.isContentEditable)
       if (typing) return
+      // Keys for a dialog, menu or the viewer on top are theirs: Esc that
+      // closed Settings also cleared the selection behind it. A key one of
+      // them already used is theirs too: Radix prevents the default of
+      // the Esc that dismisses it, and by then it is marked closed.
+      if (e.defaultPrevented || topOverlay()) return
 
       if ((e.metaKey || e.ctrlKey) && (e.key === 'a' || e.key === 'A')) {
         e.preventDefault()

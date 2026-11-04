@@ -8,6 +8,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DURATION_FAST, DURATION_STANDARD, EASE_STANDARD } from '@/lib/motion'
 import type { RatingStars, RatingFlag } from '../types'
+import { coveredBy } from '@/lib/overlay'
 
 interface LightboxProps {
   isOpen: boolean
@@ -158,6 +159,19 @@ export function Lightbox({
   // the edge of an image. Closing now needs the press to both start and
   // end on the backdrop itself.
   const pressOrigin = React.useRef<EventTarget | null>(null)
+  /** The viewer's own box: a dialog, so the page behind it stands down. */
+  const roomRef = React.useRef<HTMLDivElement | null>(null)
+
+  // Focus moves into the viewer while it is open and goes back where it
+  // was when it closes. Left on the tile behind, the tile's own Space
+  // handler toggled it as well as the photograph on screen, and closing
+  // dropped focus to the page body.
+  useEffect(() => {
+    if (!isOpen) return
+    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    roomRef.current?.focus({ preventScroll: true })
+    return () => { if (before && before.isConnected) before.focus({ preventScroll: true }) }
+  }, [isOpen])
   const effectiveStars = (userStars ?? 0) as number
   const starsAreUser = userStars != null
 
@@ -168,20 +182,40 @@ export function Lightbox({
   // Defined unconditionally and guarded inside: built conditionally,
   // each one was a fresh identity on every render, which tore down and
   // rebuilt the key listener below with it.
+  // Holding an arrow steps every 45 ms, and each outgoing photograph stays
+  // mounted for its exit animation: 60 full-size images and 500 MB of GPU
+  // memory after thirty steps (F-081). While steps come faster than a
+  // crossfade, the frame keeps one key, so the photographs swap in place;
+  // a moment after the last step it returns to its own key and fades once.
+  const [rapid, setRapid] = React.useState(false)
+  const lastStep = React.useRef(0)
+  const settle = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const noteStep = React.useCallback(() => {
+    const now = Date.now()
+    if (now - lastStep.current < 250) setRapid(true)
+    lastStep.current = now
+    if (settle.current) clearTimeout(settle.current)
+    settle.current = setTimeout(() => setRapid(false), 300)
+  }, [])
+  React.useEffect(() => () => { if (settle.current) clearTimeout(settle.current) }, [])
   const goNext = React.useCallback(() => {
     if (!onNext) return
     setDirection(1)
+    noteStep()
     onNext()
-  }, [onNext])
+  }, [onNext, noteStep])
   const goPrev = React.useCallback(() => {
     if (!onPrev) return
     setDirection(-1)
+    noteStep()
     onPrev()
-  }, [onPrev])
+  }, [onPrev, noteStep])
 
   useEffect(() => {
     if (!isOpen) return
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Settings or the shortcut sheet opened over the viewer has the keys.
+      if (coveredBy(roomRef.current)) return
       if (e.key === 'Escape') onClose()
       if (e.key === 'ArrowRight' && goNext) goNext()
       if (e.key === 'ArrowLeft' && goPrev) goPrev()
@@ -211,7 +245,28 @@ export function Lightbox({
           // photograph in light mode blacked out the whole app around
           // it. Opaque also retires a full-screen backdrop-blur that
           // was blurring what the remaining 5% never showed.
-          className="fixed inset-0 z-[500] bg-viewer-field flex flex-col"
+          ref={roomRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Photograph viewer"
+          tabIndex={-1}
+          className="fixed inset-0 z-[500] bg-viewer-field flex flex-col outline-none"
+          // Tab stays inside. Left to itself it walked on through the
+          // tiles and pager hidden behind the viewer.
+          onKeyDown={(e) => {
+            if (e.key !== 'Tab' || coveredBy(roomRef.current)) return
+            const room = roomRef.current
+            if (!room) return
+            const stops = Array.from(room.querySelectorAll<HTMLElement>(
+              'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+            )).filter(el => el.getClientRects().length > 0)
+            if (stops.length === 0) { e.preventDefault(); return }
+            const first = stops[0]
+            const last = stops[stops.length - 1]
+            const at = document.activeElement
+            if (e.shiftKey && (at === first || at === room)) { e.preventDefault(); last.focus() }
+            else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus() }
+          }}
           onMouseDown={(e) => { pressOrigin.current = e.target }}
           onClick={(e) => {
             if (e.target === e.currentTarget && pressOrigin.current === e.currentTarget) onClose()
@@ -300,7 +355,7 @@ export function Lightbox({
               )}
               <IconButton
                 icon={<X size={16} />}
-                aria-label="Close"
+                aria-label="Close viewer"
                 onClick={onClose}
                 title="Close (Esc)"
                 className={cn('w-8 text-viewer-text hover:text-viewer-text', VIEWER_CONTROL)}
@@ -338,7 +393,7 @@ export function Lightbox({
                   overlapping costs no layout. */}
               <AnimatePresence initial={false} custom={direction}>
                 <motion.div
-                  key={frameKey ?? 'frame'}
+                  key={rapid ? 'rapid' : (frameKey ?? 'frame')}
                   custom={direction}
                   variants={FRAME_MOTION}
                   initial="enter"

@@ -20,6 +20,8 @@ import type { PreviewPipeline } from './pipeline/preview'
 import { FULL_FRAME_CROP, IDENTITY_IMAGE_TRANSFORM, applyPresetOverCurrent } from '../../shared/edit-params'
 import type { EditParams } from '../../shared/edit-params'
 import { DURATION_FAST, EASE_STANDARD } from '@/lib/motion'
+import { isTyping } from '@/lib/editor-keys'
+import { topOverlay } from '@/lib/overlay'
 
 const FORMAT_EXT: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -66,6 +68,23 @@ export function EditorView({ file, onExit }: EditorViewProps) {
   /** When true, the heal/clone overlay is visible and the canvas
    *  captures clicks for new spots. */
   const [healMode, setHealMode] = useState(false)
+  // Read by the key handlers that are bound once, which would otherwise see
+  // the value from when they were bound.
+  const healModeRef = useRef(false)
+  useEffect(() => { healModeRef.current = healMode })
+  // Esc leaves the masks or healing mode first, as the shortcut sheet says,
+  // and only then the editor (the app closes it if nobody used the key).
+  useEffect(() => {
+    if (!maskMode && !healMode) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || isTyping(e.target) || topOverlay()) return
+      e.preventDefault()
+      setMaskMode(false)
+      setHealMode(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [maskMode, healMode])
  /** Visualise Spots: heal-tool diagnostic that swaps
    *  the preview for a contrast-stretched Laplacian-of-luma view.
    *  Transient state, not in EditParams. Sensitivity persists in
@@ -95,8 +114,7 @@ export function EditorView({ file, onExit }: EditorViewProps) {
   useEffect(() => {
     if (!healMode) return
     const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null
-      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return
+      if (isTyping(e.target) || topOverlay()) return
       if (e.key === 'a' || e.key === 'A') {
         e.preventDefault()
         setVisualizeSpots(v => !v)
@@ -122,8 +140,7 @@ export function EditorView({ file, onExit }: EditorViewProps) {
   const [tatMode, setTatMode] = useState<TatMode>('off')
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null
-      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return
+      if (isTyping(e.target) || topOverlay()) return
       // Bare T cycles TAT modes. Ctrl/⌘+Alt+T is free-transform (handled
       // in the mode-hotkeys effect below). Gate on no-modifiers so the
       // two don't fire together.
@@ -196,19 +213,24 @@ export function EditorView({ file, onExit }: EditorViewProps) {
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
       if (e.key !== '\\' || e.repeat) return
-      const target = e.target as HTMLElement | null
-      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return
+      if (isTyping(e.target) || topOverlay()) return
       setComparing(true)
     }
     const onUp = (e: KeyboardEvent) => {
       if (e.key !== '\\') return
       setComparing(false)
     }
+    // With the window out of focus, or the key let go after the AltGr that
+    // made it on some layouts, the keyup never arrives here and the compare
+    // stayed on. Anything that takes the keyboard away ends it.
+    const off = () => setComparing(false)
     window.addEventListener('keydown', onDown)
     window.addEventListener('keyup', onUp)
+    window.addEventListener('blur', off)
     return () => {
       window.removeEventListener('keydown', onDown)
       window.removeEventListener('keyup', onUp)
+      window.removeEventListener('blur', off)
     }
   }, [])
 
@@ -221,13 +243,17 @@ export function EditorView({ file, onExit }: EditorViewProps) {
     const onKey = (e: KeyboardEvent) => {
       const isRestore = (e.key === 'c' || e.key === 'C') && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey
       const isCropKey = (e.key === 'c' || e.key === 'C') && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey
-      const isFreeTransform = (e.key === 't' || e.key === 'T') && (e.ctrlKey || e.metaKey) && e.altKey
+      // The physical T key: with Option held on a Mac, e.key is a dagger.
+      const isFreeTransform = (e.code === 'KeyT' || e.key === 't' || e.key === 'T') && (e.ctrlKey || e.metaKey) && e.altKey
       const isStraighten   = (e.key === 'r' || e.key === 'R') && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey
       const isMaskKey      = (e.key === 'a' || e.key === 'A') && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey
       const isHealKey      = (e.key === 'h' || e.key === 'H') && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey
       if (!isCropKey && !isFreeTransform && !isRestore && !isStraighten && !isMaskKey && !isHealKey) return
-      const target = e.target as HTMLElement | null
-      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return
+      // Not while typing, and not under a dialog or a menu.
+      if (isTyping(e.target) || topOverlay()) return
+      // While healing, A belongs to the spot overlay (the handler above). This
+      // one also took it, and left healing for Masks as it toggled.
+      if (isMaskKey && healModeRef.current) return
       e.preventDefault()
       if (isRestore) {
         restoreOriginal()
@@ -300,7 +326,7 @@ export function EditorView({ file, onExit }: EditorViewProps) {
 
       if (opts.destination === 'local') {
         toast.loading(`Saving (${sizeLabel})…`, { id: tid })
-        const result = await window.electronAPI.editorSaveExportLocal(bytes, baseName, sourceCachePath)
+        const result = await window.electronAPI.editorSaveExportLocal(bytes, baseName, sourceCachePath, opts.keepLocation)
         if (!result.saved) {
           toast.dismiss(tid)
           return
@@ -316,12 +342,14 @@ export function EditorView({ file, onExit }: EditorViewProps) {
 
       toast.loading(`Uploading to Drive (${sizeLabel})…`, { id: tid })
       const subpath = framePreset ? ['Framed', framePreset.label] : null
-      const result = await window.electronAPI.editorUploadExport(file.id, bytes, baseName, sourceCachePath, subpath)
+      const result = await window.electronAPI.editorUploadExport(file.id, bytes, baseName, sourceCachePath, subpath, opts.keepLocation)
       const finalName = result.name || baseName
       const locationLabel = result.mirrorPath?.length
         ? `Cernix Shared/${result.mirrorPath.join('/')}`
         : 'Cernix Shared'
-      const summary = `${finalName} → ${locationLabel}`
+      // "public link" in the words: the folder is public by design, and
+      // the toast is the last thing seen before sending a link around.
+      const summary = `${finalName} → ${locationLabel} (public link folder)`
       if (result.warning) {
         toast.warning(`${summary}: ${result.warning}`, {
           id: tid,

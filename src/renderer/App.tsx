@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle2, RefreshCw, FolderTree, FileImage, AlertTriangle, Share2 } from 'lucide-react'
 import { Sidebar } from './components/Sidebar'
@@ -6,10 +6,19 @@ import { EmptyState } from './components/EmptyState'
 import { ReviewView } from './components/ReviewView'
 import { SettingsPanel } from './components/SettingsPanel'
 import { CoffeeInvite } from './components/CoffeeInvite'
+import { UpdateNotice } from './components/UpdateNotice'
 import { KeyboardShortcuts } from './components/KeyboardShortcuts'
 import { ShareModal } from './components/ShareModal'
 import { Distiller } from './components/Distiller'
-import { EditorView, type EditorFile } from './editor/EditorView'
+import type { EditorFile } from './editor/EditorView'
+import { LoadingState } from './components/ui/loading-state'
+import { isTyping } from '@/lib/editor-keys'
+import { topOverlay } from '@/lib/overlay'
+
+// The editor, its WebGL pipeline and its panels are most of the bundle and
+// are not needed to import a card. Loaded the first time a photograph is
+// opened for editing (decision 39), so the archive starts without them.
+const EditorView = lazy(() => import('./editor/EditorView').then(m => ({ default: m.EditorView })))
 import { TerminalPanel } from './components/TerminalPanel'
 import { useIngest } from './hooks/useIngest'
 import { WindowControls } from './components/WindowControls'
@@ -18,6 +27,7 @@ import { AppToaster } from './components/ui/app-toaster'
 import { toast } from 'sonner'
 import { messageOf } from '../shared/errors'
 import { logActivity } from './lib/activity-log'
+import { describeSweep } from '@/lib/sweep-status'
 import { type VolumeInfo, type AuthStatus, type TabId } from '@/types'
 import { Button } from '@/components/ui/button'
 import { SPRING_STANDARD } from '@/lib/motion'
@@ -40,17 +50,21 @@ export default function App() {
   const {
     state: sweepState,
     scanningPath,
+    reviewPath,
     scannedFiles,
     selectedFiles,
+    selectionIsPreset,
     progress,
+    sweepDetail,
+    errorKind,
     uploadProgress,
     currentSession,
     driveFolderId,
     driveFolderUrl,
     errorMessage,
     uploadFailures,
+    failureList,
     startScan,
-    toggleAll,
     setSelection,
     removeFiles,
     startSweep,
@@ -80,18 +94,28 @@ export default function App() {
   const [editorFile, setEditorFile] = useState<EditorFile | null>(null)
   const [showDesignSandbox, setShowDesignSandbox] = useState(false)
 
-  // Lazy-loaded so the sandbox never ships weight to production-mode
-  // users who don't press the hidden shortcut.
+  // Lazy-loaded, and only in development: `import.meta.env.DEV` is false
+  // in a build, so the sandbox is removed from it rather than hidden
+  // behind a key (decision 32).
   const [DesignSandbox, setDesignSandbox] = useState<React.ComponentType | null>(null)
   useEffect(() => {
-    if (showDesignSandbox && !DesignSandbox) {
+    if (import.meta.env.DEV && showDesignSandbox && !DesignSandbox) {
       import('./components/_design-sandbox/primitives').then(m => setDesignSandbox(() => m.DesignSandbox))
     }
   }, [showDesignSandbox, DesignSandbox])
 
   useEffect(() => {
     if (!editorFile) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setEditorFile(null) }
+    // Esc is the editor's to use first: a crop, a transform, the straighten
+    // tool, a name being typed and a dialog on top each take it for
+    // themselves. This runs after all of them (a listener cannot see what a
+    // later one will decide), and leaves the editor only if nobody used it.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || isTyping(e.target)) return
+      window.setTimeout(() => {
+        if (!e.defaultPrevented && !topOverlay()) setEditorFile(null)
+      }, 0)
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [editorFile])
@@ -118,12 +142,13 @@ export default function App() {
     setActiveTab(tab)
   }, [])
 
-  // Hidden design-system sandbox. Ctrl/Cmd + Shift + D. The sandbox
+  // Hidden design-system sandbox, development builds only. Ctrl/Cmd + Shift + D. The sandbox
   // is the in-app equivalent of Storybook; keeps design work inside
   // the running renderer where tokens, primitives, and state treatments
   // can be verified against live app conditions (DPR, font rendering,
   // theme) instead of a separate harness. Esc dismisses.
   useEffect(() => {
+    if (!import.meta.env.DEV) return
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'd' || e.key === 'D')) {
         e.preventDefault()
@@ -153,17 +178,42 @@ export default function App() {
       // is only interesting because of the scan it starts, and when a
       // sweep is already running it deliberately does not start one,
       // which is worth saying rather than leaving the user waiting.
+      // Only a camera card is scanned on its own (decision 19). A stick of
+      // documents is not offered up as photographs.
+      if (vol.hasDcim === false) {
+        toast(`${label} mounted`, {
+          description: 'It has no DCIM folder, so it was not scanned. Scan it from here if it holds photographs.',
+        })
+        return
+      }
       const willScan = sweepState === 'idle'
       if (willScan) {
         toast.success(`${label} mounted: scanning`)
         startScan(vol.path)
       } else {
-        toast(`${label} mounted`, { description: 'Scan already in progress.' })
+        // Said for what is actually happening: "Scan already in
+        // progress" was shown over a review, when nothing was scanning.
+        toast(`${label} mounted`, {
+          description: sweepState === 'scanning'
+            ? 'Another scan is running. Scan this one when it has finished.'
+            : 'Finish or discard the current import, then scan it from here.',
+        })
       }
     })
 
     const unsubRemoved = window.electronAPI.onVolumeRemoved((vol) => {
       setVolumes(prev => prev.filter(v => v.path !== vol.path))
+      // The review of a card that has been pulled stayed on screen, with
+      // nothing left to copy from, and stayed even after another card
+      // went in. It is closed, and said. A review of a folder, or of
+      // another card, is left alone; a sweep already running reports
+      // the missing source itself.
+      if (sweepState === 'review' && reviewPath && isOnVolume(reviewPath, vol.path)) {
+        resetIngest()
+        toast(`${vol.label || 'The card'} was removed`, {
+          description: 'Its review was closed. Put it back in to scan it again.',
+        })
+      }
     })
 
     const unsubAuth = window.electronAPI.onAuthStatus((s) => {
@@ -183,38 +233,38 @@ export default function App() {
       unsubAuth()
       unsubAuthError()
     }
-  }, [sweepState, startScan])
+  }, [sweepState, startScan, reviewPath, resetIngest])
 
   // ── Actions ──
   const handleConnectCloud = async () => {
     await window.electronAPI.authConnect()
   }
 
-  const handleManualScan = async () => {
-    if (volumes.length === 0) return
-    logActivity('sweep', 'info', `SCAN ${volumes[0].path}`)
-    await startScan(volumes[0].path)
+  /** Scans the card the user chose: with two in, "the first" is not a choice they made. */
+  const handleManualScan = async (vol: VolumeInfo) => {
+    logActivity('sweep', 'info', `SCAN ${vol.path}`)
+    setFocusNext('review')
+    await startScan(vol.path)
   }
 
-  const [importPath, setImportPath] = useState<string | null>(null)
-
-  const reset = useCallback(() => {
-    resetIngest()
-    setImportPath(null)
-  }, [resetIngest])
+  // The control that was pressed is replaced by another screen, and focus
+  // went to the page body. Say which screen takes it (F-071): a keyboard
+  // user pressing Discard lands on "Import folder", and one pressing Scan
+  // device lands in the grid.
+  const [focusNext, setFocusNext] = useState<'empty' | 'review' | null>(null)
+  const reset = () => { setFocusNext('empty'); resetIngest() }
 
   /** "Terminate Protocol": abort the sweep in main, then clear the UI. */
   const handleTerminate = useCallback(async () => {
     logActivity('sweep', 'warn', 'CANCEL sweep, at the user\'s request')
     await cancelSweep()
-    setImportPath(null)
   }, [cancelSweep])
 
   const handleImportFolder = async () => {
     const folderPath = await window.electronAPI.openFolderDialog()
     if (!folderPath) return
     logActivity('sweep', 'info', `IMPORT FOLDER ${folderPath}`)
-    setImportPath(folderPath)
+    setFocusNext('review')
     startScan(folderPath)
   }
 
@@ -239,10 +289,10 @@ export default function App() {
     }
   }
 
+  // The sweep copies what the review on screen came from; useIngest
+  // keeps that, so there is no source to choose here.
   const handleBeginIngest = async () => {
-    const sourcePath = importPath || volumes[0]?.path
-    if (!sourcePath) return
-    await startSweep(sourcePath)
+    await startSweep()
   }
 
   // Once, on the first card seen. The ref is what makes it once; the
@@ -279,8 +329,9 @@ export default function App() {
   const handleShare = useCallback(async () => {
     if (!driveFolderId) return
     setSharing(true)
-    // Worth a line of its own: this is the one action in the app that
-    // makes something reachable by anyone with the link.
+    // Worth a line of its own: this makes the imported folder reachable
+    // by anyone with the link. (Editor exports to Drive are too, by
+    // design: they land in "Cernix Shared", which is public.)
     logActivity('drive', 'info', 'SHARE requesting link access for the imported folder')
     try {
       await window.electronAPI.driveSetPublic(driveFolderId)
@@ -330,7 +381,9 @@ export default function App() {
           onTabChange={handleTabChange}
           volumes={volumes}
           authStatus={authStatus}
-          onConnectCloud={handleConnectCloud}
+          // Connected, Account opens Settings, where the account and
+          // Disconnect are; it used to run the whole sign-in again.
+          onConnectCloud={authStatus?.connected ? () => setModal('settings') : handleConnectCloud}
           onRebuildLedger={handleRebuildLedger}
           onOpenSettings={() => setShowSettings(true)}
         />
@@ -347,7 +400,7 @@ export default function App() {
             <header className="app-drag h-12 flex items-center justify-between bg-surface-panel border-b border-border-subtle px-4 shrink-0 transition-all duration-300">
                {/* Left: View Title (Lightroom style) */}
                <div className="flex items-center gap-4">
-                  <span className="text-body font-medium text-text-disabled uppercase tracking-widest">{getTabLabel(activeTab)}</span>
+                  <h1 className="text-body font-medium text-text-muted uppercase tracking-widest">{getTabLabel(activeTab)}</h1>
                </div>
 
                {/* Right: the row's own controls, then the corner the
@@ -427,18 +480,23 @@ export default function App() {
                           key="review"
                           scannedFiles={scannedFiles}
                           selectedFiles={selectedFiles}
-                          onToggleAll={toggleAll}
+                          selectionIsPreset={selectionIsPreset}
                           onSetSelection={setSelection}
                           onRemoveFiles={removeFiles}
                           onCancel={reset}
                           onBeginIngest={handleBeginIngest}
+                          focusOnMount={focusNext === 'review'}
+                          onFocused={() => setFocusNext(null)}
                         />
                       ) : sweepState === 'sweeping' ? (
                         <motion.div key="sweeping" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col items-center justify-center p-12">
                           <div className="w-64 h-1 bg-border-subtle rounded-none mb-6 overflow-hidden shadow-inner">
                             <motion.div
                               initial={{ width: 0 }}
-                              animate={{ width: `${(progress * 0.3) + (uploadProgress * 0.7)}%` }}
+                              // The copy is 30% and the upload 70% only when
+                              // there is an upload to come: signed out the bar
+                              // stopped at 30% on a finished copy.
+                              animate={{ width: `${authStatus?.connected ? (progress * 0.3) + (uploadProgress * 0.7) : progress}%` }}
                               className="h-full bg-accent-primary rounded-none"
                             />
                           </div>
@@ -448,14 +506,24 @@ export default function App() {
                           <p className="text-body text-text-muted">
                             {uploadProgress > 0
                               ? `Syncing to Drive (${Math.round(uploadProgress)}%)`
-                              : `Optimizing local staging (${Math.round(progress)}%)`
+                              : sweepDetail
+                                ? `Copying ${describeSweep(sweepDetail).count} (${Math.round(progress)}%)`
+                                : 'Starting…'
                             }
                           </p>
+                          {uploadProgress === 0 && sweepDetail && (() => {
+                            const d = describeSweep(sweepDetail)
+                            return (
+                              <p className="text-metadata text-text-muted mt-1 font-mono" aria-live="off">
+                                {d.file}{d.pace ? ` · ${d.pace}` : ''}
+                              </p>
+                            )
+                          })()}
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={handleTerminate}
-                            className="mt-8 text-caption font-bold uppercase text-text-disabled hover:text-status-danger"
+                            className="mt-8 text-caption font-bold uppercase text-text-muted hover:text-status-danger"
                           >
                             Terminate Protocol
                           </Button>
@@ -470,7 +538,7 @@ export default function App() {
                         >
                           <AlertTriangle size={32} className="text-status-warn mb-8" />
                           <h2 className="text-heading font-medium text-text-emphatic mb-1.5 tracking-tight">
-                            Ingest paused
+                            {errorKind === 'drive-disconnected' ? 'Copied, not uploaded' : 'Ingest paused'}
                           </h2>
                           <p className="text-body text-text-muted mb-10 max-w-md mx-auto">
                             {errorMessage ?? 'Something went wrong during ingest.'}
@@ -478,11 +546,15 @@ export default function App() {
                           <div className="flex items-center gap-3">
                             <Button variant="neutral" size="sm" onClick={reset} className="gap-2 font-bold">
                               <RefreshCw size={12} />
-                              Reset
+                              {errorKind === 'drive-disconnected' ? 'Done' : 'Reset'}
                             </Button>
-                            <Button variant="primary" size="sm" onClick={handleConnectCloud} className="gap-2 font-bold">
-                              Reconnect Drive
-                            </Button>
+                            {/* Only when Drive is the problem: a card that
+                                could not be read is not fixed by signing in. */}
+                            {errorKind === 'drive-disconnected' && (
+                              <Button variant="primary" size="sm" onClick={handleConnectCloud} className="gap-2 font-bold">
+                                Connect Drive
+                              </Button>
+                            )}
                           </div>
                         </motion.div>
                       ) : sweepState === 'complete' ? (
@@ -523,6 +595,22 @@ export default function App() {
                                : 'Media Assets Indexed Successfully'}
                           </motion.p>
 
+                          {/* Which ones, and why: the count alone left the
+                              person hunting through the card. The Output
+                              panel has the rest. */}
+                          {uploadFailures > 0 && failureList.length > 0 && (
+                            <ul className="mb-8 max-w-md mx-auto text-left space-y-space-1 text-metadata text-text-muted font-mono">
+                              {failureList.slice(0, 5).map(f => (
+                                <li key={f.file} className="truncate" title={`${f.file}: ${f.error}`}>
+                                  <span className="text-text-default">{f.file.split(/[\\/]/).pop()}</span>: {f.error}
+                                </li>
+                              ))}
+                              {failureList.length > 5 && (
+                                <li>and {failureList.length - 5} more, named in Output</li>
+                              )}
+                            </ul>
+                          )}
+
                           <motion.div
                             initial={{ y: 20, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
@@ -553,10 +641,10 @@ export default function App() {
                           </motion.div>
                         </motion.div>
                       ) : (
-                        <EmptyState key="empty" hasVolumes={volumes.length > 0} isScanning={false} onScan={handleManualScan} onImportFolder={handleImportFolder} />
+                        <EmptyState key="empty" volumes={volumes} isScanning={false} onScan={handleManualScan} onImportFolder={handleImportFolder} focusOnMount={focusNext === 'empty'} onFocused={() => setFocusNext(null)} />
                       )
                    ) : activeTab === 'organize' ? (
-                      <Distiller key="distiller" onOpenEditor={setEditorFile} editorOpen={!!editorFile} />
+                      <Distiller key="distiller" onOpenEditor={setEditorFile} editorOpen={!!editorFile} connected={authStatus ? authStatus.connected : undefined} onConnect={handleConnectCloud} />
                    ) : activeTab === 'settings' ? (
                       <div className="flex-1 flex items-center justify-center text-text-disabled text-body font-mono italic">Configuration Terminal Active...</div>
                    ) : (
@@ -565,7 +653,14 @@ export default function App() {
                 </AnimatePresence>
 
                 <AnimatePresence>
-                  {editorFile && <EditorView key="editor" file={editorFile} onExit={() => setEditorFile(null)} />}
+                  {editorFile && (
+                    <Suspense
+                      key="editor"
+                      fallback={<div className="absolute inset-0 z-40 flex items-center justify-center bg-surface-workspace"><LoadingState label="Opening the editor" /></div>}
+                    >
+                      <EditorView file={editorFile} onExit={() => setEditorFile(null)} />
+                    </Suspense>
+                  )}
                 </AnimatePresence>
 
                 {/* The app's only toast surface. See app-toaster.tsx for
@@ -586,17 +681,21 @@ export default function App() {
         </main>
       </div>
 
-      {/* Asks once per install, a few seconds after launch, and then
-          never again. Outside AnimatePresence because it owns its own
-          open state and is not one of the mutually exclusive shell
-          modals; it should not be able to displace Settings or be
+      {/* Asks once per install, on the end screen of the first import,
+          and then never again. Outside AnimatePresence because it owns
+          its own open state and is not one of the mutually exclusive
+          shell modals; it should not be able to displace Settings or be
           displaced by it. */}
-      <CoffeeInvite />
+      <CoffeeInvite moment={sweepState === 'complete' && modal === null} />
+
+      {/* The update toast. Renders nothing itself; see UpdateNotice. */}
+      <UpdateNotice />
 
       {/* Global Overlays */}
       <AnimatePresence>
         {showSettings && (
           <SettingsPanel
+            authStatus={authStatus}
             onClose={() => setModal(null)}
             onShowShortcuts={() => setModal('shortcuts')}
           />
@@ -618,4 +717,11 @@ export default function App() {
       </AnimatePresence>
     </div>
   )
+}
+
+/** Whether `p` is the volume's root or inside it. Case-blind: Windows paths are. */
+function isOnVolume(p: string, volumeRoot: string): boolean {
+  const root = volumeRoot.replace(/[\\/]+$/, '').toLowerCase()
+  const path = p.toLowerCase()
+  return path === root || path.startsWith(root + '\\') || path.startsWith(root + '/')
 }

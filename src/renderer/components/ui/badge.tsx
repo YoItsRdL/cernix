@@ -60,7 +60,7 @@ const badgeVariants = cva(
       // On chrome the tone fills, borders and inks, at the same three
       // strengths for every tone so no state shouts louder than another.
       { ground: 'chrome', tone: 'neutral', class: 'bg-overlay-hover border-border-subtle text-text-muted' },
-      { ground: 'chrome', tone: 'accent', class: 'bg-accent-primary/10 border-accent-primary/30 text-accent-primary' },
+      { ground: 'chrome', tone: 'accent', class: 'bg-accent-primary/10 border-accent-primary/30 text-accent-text' },
       { ground: 'chrome', tone: 'success', class: 'bg-status-success/10 border-status-success/30 text-status-success' },
       { ground: 'chrome', tone: 'warn', class: 'bg-status-warn/10 border-status-warn/30 text-status-warn' },
       { ground: 'chrome', tone: 'danger', class: 'bg-status-danger/10 border-status-danger/30 text-status-danger' },

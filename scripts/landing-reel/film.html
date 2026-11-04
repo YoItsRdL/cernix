@@ -1,0 +1,344 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Cernix film</title>
+<!--
+  The landing film: Cernix itself, in one unbroken take.
+
+  The take (record.mjs film) runs card to editor in real time, about two
+  and a half minutes. Here it is played back on a smooth speed curve, real
+  time where something happens and quickly through the waits, while a
+  virtual camera moves in on the detail that matters and back out. No cuts
+  inside the app: what you see is the order it happened in.
+
+  window.renderAt(t) draws any moment; render.cjs screenshots it. Copy on
+  screen is quoted from the landing page.
+-->
+<style>
+  @font-face { font-family: 'Geist'; src: url('/assets/fonts/geist.woff2') format('woff2'); font-weight: 100 900; }
+  @font-face { font-family: 'Geist Mono'; src: url('/assets/fonts/geist-mono.woff2') format('woff2'); font-weight: 100 900; }
+  :root {
+    --sand: oklch(0.9290 0.0252 69.4290);
+    --ink: oklch(0.2502 0.0405 70.1305);
+    --muted: oklch(0.4600 0.0350 68);
+    --orange: oklch(0.6803 0.1404 44.9592);
+    --pill: oklch(0.985 0.008 75 / 0.86);
+    --key: oklch(0.985 0.008 75);
+    --key-edge: oklch(0.80 0.03 66);
+    --line: oklch(0.25 0.04 70 / 0.12);
+    --drop: oklch(0.25 0.04 70 / 0.35);
+  }
+  /* The dark cut sits on the landing's dark background, and its pills are
+     the app's dark surfaces. */
+  :root.dark {
+    --sand: oklch(0.1710 0.0079 67.2580);
+    --ink: oklch(0.92 0.005 70);
+    --muted: oklch(0.70 0.01 70);
+    --orange: oklch(0.7214 0.1337 49.9802);
+    --pill: oklch(0.24 0.01 67 / 0.88);
+    --key: oklch(0.27 0.01 67);
+    --key-edge: oklch(0.14 0.008 67);
+    --line: oklch(1 0 0 / 0.10);
+    --drop: oklch(0 0 0 / 0.55);
+  }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--sand); }
+  /* Flat, and exactly the landing's own background, so the film has no
+     edge on the page. */
+  #stage { position: absolute; inset: 0; overflow: hidden; background: var(--sand); }
+
+  #view { position: absolute; left: 0; top: 0; width: 1280px; height: 800px; transform-origin: 0 0; border-radius: 12px; overflow: hidden;
+          background: var(--sand);
+          /* A hairline and a short shadow: nothing reaches the frame's edge,
+             where the page would show it cut off. */
+          box-shadow: 0 0 0 1px var(--line), 0 10px 24px -14px var(--drop); }
+  #view img.frame { position: absolute; inset: 0; width: 1280px; height: 800px; display: block; }
+  #pointer { position: absolute; left: 0; top: 0; width: 22px; height: 32px; transform-origin: 2px 2px; }
+  .ring { position: absolute; left: 0; top: 0; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; border: 2px solid var(--orange); box-sizing: border-box; }
+
+  .caption { position: absolute; left: 50%; top: 0; transform-origin: 50% 50%; white-space: nowrap; padding: 18px 30px; border-radius: 999px;
+             background: var(--pill); backdrop-filter: blur(18px); box-shadow: 0 0 0 1px var(--line), 0 18px 40px -16px var(--drop);
+             font: 600 34px/1 'Geist', sans-serif; letter-spacing: -0.025em; color: var(--ink); display: flex; align-items: center; gap: 16px; }
+  .caption .label { font: 600 15px/1 'Geist Mono', monospace; letter-spacing: 0.22em; text-transform: uppercase; color: var(--orange); }
+
+  #keys { position: absolute; left: 0; top: 0; display: flex; gap: 10px; }
+  .key { min-width: 54px; height: 54px; padding: 0 14px; box-sizing: border-box; border-radius: 12px; background: var(--key);
+         font: 600 24px/54px 'Geist Mono', monospace; color: var(--ink); text-align: center; transform-origin: 50% 100%;
+         box-shadow: 0 3px 0 var(--key-edge), 0 0 0 1px var(--line), 0 14px 30px -14px var(--drop); }
+
+  .mask { display: inline-block; overflow: hidden; vertical-align: top; padding: 0 0.04em 0.14em; margin: 0 -0.04em -0.14em; }
+  .mask > span { display: inline-block; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="view"><img class="frame" id="frame"><img class="frame" id="loop"><img id="pointer"></div>
+  <div id="rings"></div>
+  <div id="captions"></div>
+  <div id="keys"></div>
+</div>
+<script>
+// The timeline below was laid out from 4.0 (the app on Ready to import) to
+// 48.8 (the editor, finished). The film plays that span, then dissolves the
+// last frame into the first in place, so the loop never leaves the app.
+const FROM = 4.0, TO = 48.8, DISSOLVE = 1.4
+const DURATION = TO - FROM + DISSOLVE
+window.DURATION = DURATION
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x))
+const smoother = (t) => { t = clamp(t); return t * t * t * (t * (t * 6 - 15) + 10) }
+const span = (t, a, b) => smoother((t - a) / (b - a))
+const mix = (a, b, k) => a + (b - a) * k
+const $ = (id) => document.getElementById(id)
+const el = (tag, cls, parent) => { const e = document.createElement(tag); if (cls) e.className = cls; parent?.appendChild(e); return e }
+function track(t, keys) {
+  if (t <= keys[0][0]) return keys[0][1]
+  for (let i = 1; i < keys.length; i++) {
+    const [t1, v1] = keys[i], [t0, v0] = keys[i - 1]
+    if (t <= t1) {
+      const k = smoother((t - t0) / (t1 - t0))
+      if (typeof v0 === 'number') return mix(v0, v1, k)
+      const o = {}; for (const key in v0) o[key] = mix(v0[key], v1[key], k); return o
+    }
+  }
+  return keys[keys.length - 1][1]
+}
+
+// ── copy, word for word from landing/src/pages/index.html ──
+const COPY = {
+  ingest: ['Ingest', 'Put the card in. That’s the setup.'],
+  cull: ['Cull', 'Every frame gets a verdict'],
+  sync: ['Sync', 'Your work, on Google Drive'],
+  edit: ['Edit', 'Finish the job here.'],
+}
+
+// ── time: the film's clock against the take's ──
+// [film s, light take s]. A monotone cubic through these points: real time
+// where something happens, quickly through the waits, and never a jolt
+// between. The dark take ran the same script at a different speed, so its
+// times are carried across event by event (toTake, below).
+const TIME = [
+  [4.0, 0.0], [5.6, 1.5], [6.8, 9.6], [8.0, 13.7], [9.4, 17.4], [10.8, 19.4],
+  [11.6, 20.7], [16.8, 26.3], [17.8, 27.6], [19.6, 29.75], [20.6, 32.0], [21.8, 40.7],
+  [23.4, 42.7], [25.0, 45.7], [26.0, 50.4], [28.6, 60.0], [29.4, 83.2], [31.2, 86.3],
+  [32.4, 87.9], [33.6, 90.85], [34.6, 106.8], [35.8, 110.2], [37.2, 112.85], [38.6, 115.5],
+  [39.8, 117.25], [40.8, 120.2], [43.8, 128.3], [44.8, 131.3], [47.6, 138.0], [48.8, 141.8],
+]
+let monotone
+function buildCurve(points) {
+  const x = points.map((p) => p[0]), y = points.map((p) => p[1]), n = x.length
+  const d = [], m = new Array(n)
+  for (let i = 0; i < n - 1; i++) d.push((y[i + 1] - y[i]) / (x[i + 1] - x[i]))
+  m[0] = d[0]; m[n - 1] = d[n - 2]
+  for (let i = 1; i < n - 1; i++) m[i] = d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2
+  for (let i = 0; i < n - 1; i++) {
+    if (d[i] === 0) { m[i] = m[i + 1] = 0; continue }
+    const a = m[i] / d[i], b = m[i + 1] / d[i], h = a * a + b * b
+    if (h > 9) { const s = 3 / Math.sqrt(h); m[i] = s * a * d[i]; m[i + 1] = s * b * d[i] }
+  }
+  return (t) => {
+    if (t <= x[0]) return y[0]
+    if (t >= x[n - 1]) return y[n - 1]
+    let i = 0; while (t > x[i + 1]) i++
+    const h = x[i + 1] - x[i], s = (t - x[i]) / h
+    const h00 = 2 * s ** 3 - 3 * s ** 2 + 1, h10 = s ** 3 - 2 * s ** 2 + s, h01 = -2 * s ** 3 + 3 * s ** 2, h11 = s ** 3 - s ** 2
+    return h00 * y[i] + h10 * h * m[i] + h01 * y[i + 1] + h11 * h * m[i + 1]
+  }
+}
+const filmOf = (s) => { // the film time at which the take reaches s
+  let lo = TIME[0][0], hi = TIME.at(-1)[0]
+  for (let k = 0; k < 40; k++) { const mid = (lo + hi) / 2; if (monotone(mid) < s) lo = mid; else hi = mid }
+  return (lo + hi) / 2
+}
+
+// ── camera: the window point (fx, fy) at the centre of the frame, at zoom z ──
+const FIT = 1480 / 1280
+const FULL = { fx: 640, fy: 400, z: 1 }
+const CAMERA = [
+  [0, FULL], [11.2, FULL],
+  [12.2, { fx: 640, fy: 560, z: 1.4 }], [16.6, { fx: 640, fy: 560, z: 1.4 }],
+  [17.6, FULL], [18.4, FULL],
+  [19.2, { fx: 1100, fy: 120, z: 1.55 }], [19.75, { fx: 1100, fy: 120, z: 1.55 }],
+  [20.5, FULL], [26.0, FULL],
+  [26.9, { fx: 330, fy: 150, z: 1.75 }], [29.0, { fx: 330, fy: 150, z: 1.75 }],
+  [30.0, FULL], [36.6, FULL],
+  [37.5, { fx: 1010, fy: 240, z: 1.6 }], [40.3, { fx: 1010, fy: 240, z: 1.6 }],
+  [41.4, { fx: 1120, fy: 420, z: 1.95 }], [44.0, { fx: 1120, fy: 470, z: 1.95 }], [47.4, { fx: 1120, fy: 560, z: 1.95 }],
+  [48.6, FULL],
+]
+// The frame never runs past the window's edge: the focus is held in from
+// each side by half of what the zoom shows.
+function camera(t) {
+  const c = track(t, CAMERA)
+  const hw = 960 / (FIT * c.z), hh = 540 / (FIT * c.z)
+  return { z: c.z, fx: hw >= 640 ? 640 : clamp(c.fx, hw, 1280 - hw), fy: hh >= 400 ? Math.max(400, Math.min(c.fy, 400 + (c.z - 1) * 400)) : Math.max(c.fy, hh) }
+}
+
+// ── take data ──
+let TAKE
+const THEME = new URLSearchParams(location.search).get('theme') === 'dark' ? 'dark' : 'light'
+const DIR = THEME === 'dark' ? 'film-dark' : 'film'
+if (THEME === 'dark') document.documentElement.classList.add('dark')
+
+/**
+ * A time in the light take, as the same moment in this one. Both ran the
+ * same script, so the scripted stretch just before and just after each
+ * event takes the same time in both; only the waits between differ. Each
+ * event anchors three points (its lead-in, itself, its follow-through),
+ * and anything between is placed proportionally.
+ */
+function aligner(light, here) {
+  const pts = [[0, 0]]
+  const L = light.marks, H = here.marks
+  for (let i = 0; i < L.length; i++) {
+    if (L[i].label !== H[i]?.label) throw new Error(`takes differ at ${L[i].label}`)
+    const lead = Math.min(1.5, (L[i].t - (L[i - 1]?.t ?? 0)) / 2, (H[i].t - (H[i - 1]?.t ?? 0)) / 2)
+    const follow = Math.min(1.2, ((L[i + 1]?.t ?? Infinity) - L[i].t) / 2, ((H[i + 1]?.t ?? Infinity) - H[i].t) / 2)
+    pts.push([L[i].t - lead, H[i].t - lead], [L[i].t, H[i].t], [L[i].t + follow, H[i].t + follow])
+  }
+  return (s) => {
+    if (s <= pts[0][0]) return pts[0][1]
+    for (let i = 1; i < pts.length; i++) if (s <= pts[i][0]) {
+      const [a0, b0] = pts[i - 1], [a1, b1] = pts[i]
+      return b0 + (b1 - b0) * (s - a0) / Math.max(1e-6, a1 - a0)
+    }
+    const [a, b] = pts.at(-1); return b + (s - a)
+  }
+}
+
+async function loadTake(dir = DIR) {
+  const [frames, pointer, marks] = await Promise.all(['frames', 'pointer', 'marks'].map((f) => fetch(`/raw/${dir}/${f}.json`).then((r) => r.json())))
+  return { frames: frames.frames, pointer, marks }
+}
+function frameAt(s) {
+  const f = TAKE.frames
+  let lo = 0, hi = f.length - 1
+  while (lo < hi) { const m = (lo + hi + 1) >> 1; if (f[m][0] <= s) lo = m; else hi = m - 1 }
+  return f[lo][1]
+}
+function pointerAt(s) {
+  const p = TAKE.pointer
+  if (s <= p[0].t) return p[0]
+  for (let i = 1; i < p.length; i++) if (p[i].t >= s) {
+    const a = p[i - 1], b = p[i], k = (s - a.t) / Math.max(1e-6, b.t - a.t)
+    return { x: mix(a.x, b.x, k), y: mix(a.y, b.y, k), down: a.down }
+  }
+  return p[p.length - 1]
+}
+
+// ── the window ──
+const POINTER_SVG = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 32"><path d="M2 2v24l6-6 5 10.5 4-1.8-5-10.2h8.5z" fill="#231a12" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>')
+let CLICKS = []
+function drawView(t, loop) {
+  const s = monotone(t)
+  const want = `/raw/${DIR}/${frameAt(s)}`
+  if (!$('frame').src.endsWith(want)) $('frame').src = want
+  // The dissolve back to the first frame of the take.
+  const first = `/raw/${DIR}/${frameAt(monotone(FROM))}`
+  if (!$('loop').src.endsWith(first)) $('loop').src = first
+  $('loop').style.opacity = loop
+  const c = camera(t)
+  const scale = FIT * c.z
+  const x = 960 - c.fx * scale, y = 540 - c.fy * scale
+  $('view').style.transform = `translate(${x}px, ${y}px) scale(${scale})`
+  // The pointer, at the film's own rate, and a ring wherever it clicks.
+  const p = pointerAt(s)
+  const pv = span(t, 4.4, 4.8) * (1 - span(t, 48.3, 48.7))
+  $('pointer').style.display = pv > 0.01 ? 'block' : 'none'
+  $('pointer').style.opacity = pv
+  $('pointer').style.transform = `translate(${p.x - 2}px, ${p.y - 2}px) scale(${(p.down ? 0.88 : 1) / Math.max(1, c.z * 0.75)})`
+  return { x, y, scale }
+}
+function drawRings(t, v) {
+  CLICKS.forEach(({ ring, at, x, y }) => {
+    const k = (t - at) / 0.55
+    const on = v && k >= 0 && k <= 1
+    ring.style.display = on ? 'block' : 'none'
+    if (!on) return
+    const e = 1 - Math.pow(1 - k, 3)
+    ring.style.transform = `translate(${v.x + x * v.scale}px, ${v.y + y * v.scale}px) scale(${0.4 + e * 1.2})`
+    ring.style.opacity = (1 - k) * 0.9
+  })
+}
+
+// ── captions and keys ──
+let CAPS = [], KEYS = []
+function masked(container, text) {
+  return text.split(' ').map((w, i, all) => {
+    const m = el('span', 'mask', container); const s = el('span', '', m); s.textContent = w
+    if (i < all.length - 1) container.appendChild(document.createTextNode(' '))
+    return s
+  })
+}
+function reveal(spans, t, tin, tout, step = 0) {
+  spans.forEach((s, i) => {
+    const a = span(t, tin + i * step, tin + i * step + 0.6)
+    const b = span(t, tout, tout + 0.45)
+    s.style.transform = `translateY(${(1 - a) * 115 - b * 115}%)`
+  })
+}
+function drawCaptions(t) {
+  for (const c of CAPS) {
+    const on = t > c.tin - 0.05 && t < c.tout + 0.6
+    c.box.style.display = on ? 'flex' : 'none'
+    if (!on) continue
+    const a = span(t, c.tin, c.tin + 0.5), b = span(t, c.tout, c.tout + 0.5)
+    c.box.style.transform = `translate(-50%, ${972 - (1 - a) * 24 + b * 24}px) scale(${0.96 + 0.04 * a})`
+    c.box.style.opacity = a * (1 - b)
+    reveal(c.label, t, c.tin + 0.05, c.tout)
+    reveal(c.words, t, c.tin + 0.15, c.tout)
+  }
+  // Keys, as they are pressed, in a row that clears once the verdict is in.
+  let x = 0
+  const row = $('keys')
+  row.style.transform = `translate(${1200}px, ${858}px)`
+  KEYS.forEach(({ k, at }) => {
+    const a = clamp((t - at) / 0.28), out = span(t, 16.8, 17.3)
+    const on = t >= at && out < 1
+    k.style.display = on ? 'block' : 'none'
+    const pop = a < 1 ? 0.7 + 0.3 * (1 - Math.pow(1 - a, 3)) + Math.sin(a * Math.PI) * 0.08 : 1
+    k.style.transform = `scale(${pop}) translateY(${(1 - a) * 10 + out * 10}px)`
+    k.style.opacity = clamp(a * 3) * (1 - out)
+  })
+}
+
+window.renderAt = async (t) => {
+  t = ((t % DURATION) + DURATION) % DURATION
+  const loop = span(t, TO - FROM, DURATION)
+  t = Math.min(FROM + t, TO)
+  const v = drawView(t, loop)
+  drawRings(t, v)
+  drawCaptions(t)
+  await Promise.all([...document.images].map((i) => (i.complete && i.naturalWidth ? null : i.decode().catch(() => null))))
+}
+
+window.ready = (async () => {
+  TAKE = await loadTake()
+  const toTake = THEME === 'dark' ? aligner(await loadTake('film'), TAKE) : (s) => s
+  monotone = buildCurve(TIME.map(([f, s]) => [f, toTake(s)]))
+  $('pointer').src = POINTER_SVG
+  // Clicks: every press in the pointer log, placed on the film's clock.
+  let last = false
+  for (const p of TAKE.pointer) {
+    if (p.down && !last) {
+      const at = filmOf(p.t)
+      if (at > 4.0 && at < 48.6 && !CLICKS.some((c) => Math.abs(c.at - at) < 0.12)) CLICKS.push({ ring: el('div', 'ring', $('rings')), at, x: p.x, y: p.y })
+    }
+    last = p.down
+  }
+  for (const m of TAKE.marks.filter((m) => m.label.startsWith('key:') && m.label !== 'key:Esc')) {
+    const k = el('div', 'key', $('keys')); k.textContent = m.label.slice(4)
+    KEYS.push({ k, at: filmOf(m.t) })
+  }
+  for (const [key, tin, tout] of [['ingest', 4.6, 10.4], ['cull', 11.2, 17.2], ['sync', 18.2, 30.4], ['edit', 35.6, 48.0]]) {
+    const box = el('div', 'caption', $('captions'))
+    const lab = el('span', 'label', box); const label = masked(lab, COPY[key][0])
+    const txt = el('span', '', box); const words = masked(txt, COPY[key][1])
+    CAPS.push({ box, label, words, tin, tout })
+  }
+  await document.fonts.ready
+  return true
+})()
+</script>
+</body>
+</html>

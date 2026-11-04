@@ -42,13 +42,21 @@ const PAIRS = [
   ['text-default', 'surface-raised', 4.5],
 
   // Metadata and captions. Dense Lightroom-style UI, AA Large floor.
-  ['text-muted', 'surface-workspace', 3.0],
-  ['text-muted', 'surface-panel', 3.0],
-  ['text-muted', 'surface-raised', 3.0],
+  // Held to 4.5: live counts, filters and column values are set in it,
+  // and they are information, not decoration (F-077). What recedes on
+  // purpose is `text-disabled`.
+  ['text-muted', 'surface-workspace', 4.5],
+  ['text-muted', 'surface-panel', 4.5],
+  ['text-muted', 'surface-raised', 4.5],
 
   // The pair flagged when the palette landed: muted-foreground on muted
   // is what the metadata columns actually sit on.
-  ['muted-foreground', 'muted', 3.0],
+  ['muted-foreground', 'muted', 4.5],
+
+  // The accent used as text ("Deselect", the Selected count).
+  ['accent-text', 'surface-workspace', 4.5],
+  ['accent-text', 'surface-panel', 4.5],
+  ['accent-text', 'surface-raised', 4.5],
 
   // shadcn primitives, on their own grounds.
   ['foreground', 'background', 4.5],

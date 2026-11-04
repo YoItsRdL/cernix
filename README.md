@@ -20,14 +20,14 @@ Every bullet above maps to something you can do in the released build. If you fi
 
 ## Privacy
 
-Cernix talks to two services, and only when you make it:
+Cernix talks to two services:
 
 - **Google Drive**, after you connect an account. The OAuth scope is `drive.file`, which grants access only to files the app itself creates or that you explicitly open: it cannot see the rest of your Drive.
-- **Google Fonts**, to load the interface typeface at launch.
+- **GitHub**, to check for a new release at launch and every six hours. GitHub sees your IP address, the version and your OS, and nothing else is sent. On Windows and Linux a new version downloads in the background and installs when you restart; on macOS Cernix only says it is out. Turn it off in Settings under Updates and no request is made.
 
-That is not a promise you have to take on trust. The packaged app ships a Content Security Policy that allowlists Google's API, OAuth and user-content hosts for connections, and Google Fonts for the stylesheet and the font files. Everything else is refused by the browser engine itself, not by application code. It is one list, in `src/main/index.ts`, and the wildcard that dev builds need for hot reload is explicitly gated on the app not being packaged.
+That is not a promise you have to take on trust. The packaged app ships a Content Security Policy that allowlists Google's API, OAuth and user-content hosts for connections; the typefaces are bundled. Everything else the interface tries to reach is refused by the browser engine itself, not by application code. It is one list, in `src/main/services/csp.ts`, and the wildcard that dev builds need for hot reload is explicitly gated on the app not being packaged. The update check is not in that list because it is not the interface's: it runs in the main process (`src/main/services/updater.ts`).
 
-There is no analytics, no crash reporting, and no update check. Your photos, catalogue, and credentials stay on your machine.
+There is no analytics and no crash reporting. Your photos, catalogue, and credentials stay on your machine.
 
 ## Architecture
 
@@ -121,10 +121,11 @@ npm run release:mac    # macOS dmg + zip (arm64 and x64)
 npm run smoke          # launch the packaged app and check it stays up
 ```
 
-On Linux, `npm install` builds `better-sqlite3` from source if no prebuild
-matches, which needs a C++ toolchain and Python. `npx electron-builder
-install-app-deps` then rebuilds it against the Electron ABI; without that
-step the packaged app starts and fails to open its database.
+`better-sqlite3` 13 ships a prebuilt binary for each platform and picks the
+right one when the app starts, so nothing is rebuilt against Electron: a
+Windows build made without any rebuild step opens its databases. Where no
+prebuild matches, `npm install` compiles it from source, which needs a C++
+toolchain and Python.
 
 Drive sign-in persists only where a system keyring is running: without
 one, Chromium has no key to seal the token with, and Cernix will not

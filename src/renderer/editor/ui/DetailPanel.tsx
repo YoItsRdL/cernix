@@ -28,7 +28,7 @@ export function DetailPanel({
   const fmtSigned = (v: number) => `${v >= 0 ? '+' : ''}${Math.round(v * 100)}`
   return (
     <div className="py-1">
-      <div className="px-space-5 pb-space-1 text-caption font-mono uppercase tracking-widest text-text-disabled">
+      <div className="px-space-5 pb-space-1 text-caption font-mono uppercase tracking-widest text-text-muted">
         Presence
       </div>
       <Slider
@@ -65,7 +65,7 @@ export function DetailPanel({
         format={fmtSigned}
       />
 
-      <div className="px-space-5 pt-space-2 pb-space-1 text-caption font-mono uppercase tracking-widest text-text-disabled border-t border-border-subtle mt-space-1">
+      <div className="px-space-5 pt-space-2 pb-space-1 text-caption font-mono uppercase tracking-widest text-text-muted border-t border-border-subtle mt-space-1">
         Sharpen
       </div>
       <Slider
@@ -113,7 +113,7 @@ export function DetailPanel({
         format={(v) => `${Math.round(v * 100)}%`}
       />
 
-      <div className="px-space-5 pt-space-2 pb-space-1 text-caption font-mono uppercase tracking-widest text-text-disabled border-t border-border-subtle mt-space-1">
+      <div className="px-space-5 pt-space-2 pb-space-1 text-caption font-mono uppercase tracking-widest text-text-muted border-t border-border-subtle mt-space-1">
         Noise Reduction
       </div>
       <Slider

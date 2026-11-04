@@ -47,7 +47,7 @@ const tagIndex = args.indexOf('--release-tag')
 if (tagIndex === -1 || !args[tagIndex + 1]) {
   console.error('Usage: node scripts/landing-update-binary.mjs --release-tag <vX.Y.Z>')
   console.error('')
-  console.error('  --release-tag   GitHub Release tag the .exe was uploaded under.')
+  console.error('  --release-tag   GitHub Release tag the artifacts were uploaded under.')
   console.error('                  Example: --release-tag v1.0.0-RC1')
   process.exit(2)
 }
@@ -66,12 +66,15 @@ const version = pkg.version
 // that 404s. That is the whole contract: `binary.json` describes what
 // was built, never what was intended.
 //
-// Each candidate list is in preference order, so a run that built both
-// macOS architectures publishes the Apple Silicon one.
+// Each candidate list is in preference order. The two Macs are two
+// entries: `macos` stays the Apple Silicon dmg, so a page cached before
+// `macos-x64` existed still offers a working file to most Macs, and the
+// installation page gives each architecture its own button.
 const CANDIDATES = {
   windows: [`Cernix-Setup-${version}.exe`],
   linux: [`Cernix-${version}-x86_64.AppImage`],
-  macos: [`Cernix-${version}-arm64.dmg`, `Cernix-${version}-x64.dmg`],
+  macos: [`Cernix-${version}-arm64.dmg`],
+  'macos-x64': [`Cernix-${version}-x64.dmg`],
 }
 
 const platforms = {}
@@ -129,5 +132,5 @@ for (const platform of Object.keys(CANDIDATES)) {
   if (!platforms[platform]) console.log(`  ${platform.padEnd(8)} (not built: the page will offer source instead)`)
 }
 console.log('')
-console.log('Next: commit landing/binary.json and push. The landing deploy')
-console.log('workflow (CNX-725) will rebuild the page with the new CTA target.')
+console.log('Next: commit landing/binary.json, then run `npm run landing:deploy`.')
+console.log('A push alone does not publish: the Vercel project has no git integration.')

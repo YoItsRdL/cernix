@@ -16,7 +16,7 @@ import { matchesRatingFilter, ratingFilterDescription, type RatingFilter } from 
 
 /** Everything the Workstation does to a Drive folder: browse, select,
  *  rename, move, trash and their undos. */
-export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
+export function useDistiller(onOpenEditor?: (file: EditorFile) => void, connected = true) {
   // ── State ──
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
   const [rootFolderId, setRootFolderId] = useState<string | null>(null)
@@ -139,6 +139,10 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
   // it fires once on mount. Signing in used to leave the library
   // spinning until the window was reloaded.
   const bootedRef = useRef(false)
+  // Signed out, the boot is expected to fail and the surface says so
+  // itself; a toast quoting the IPC error on top of that said it twice.
+  const connectedRef = useRef(connected)
+  useEffect(() => { connectedRef.current = connected })
   useEffect(() => {
     let cancelled = false
 
@@ -159,7 +163,7 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
         // empty state says so, which beats an indicator that never
         // resolves.
         setLoading(false)
-        toast.error(messageOf(err) || 'Connection failed')
+        if (connectedRef.current) toast.error(messageOf(err) || 'Connection failed')
       }
     }
 
@@ -257,38 +261,23 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void) {
     [focusFiles, folders, visibleFiles],
   )
 
-  // The diff below needs the previous selection without applySelection
-  // depending on it. Synced in an effect rather than during render.
-  // Writing a ref while rendering is a React rule violation, and effects
-  // flush before any click can arrive.
-  const selectedRef = useRef(selected)
-  useEffect(() => { selectedRef.current = selected })
-
   /**
-   * Selection here doubles as the persisted "pick" flag, which the old
-   * single-toggle handler could write inline because exactly one id
-   * changed per click. Range-select changes many at once, so the write
-   * is now a diff. Only ids that actually crossed the boundary are
-   * sent, and a range over already-selected items costs nothing.
+   * Selection is selection, and a pick is a pick (decision 27).
    *
-   * Folders are skipped: they carry no rating record, and the previous
-   * handler was writing pick flags for them.
+   * Selecting used to write the persisted "pick" flag as well, with a
+   * diff so a range cost only the ids that crossed the boundary. So
+   * clicking around to gather files for a download or a move also
+   * rewrote your picks, and clearing the selection un-picked them.
+   * Neither is what a click means. Picks are made with P, or the pick
+   * button on a tile; the selection is only the set the next action
+   * (download, move, trash) acts on.
    */
   const applySelection = useCallback((ids: string[]) => {
-    const prev = selectedRef.current
-    const next = new Set(ids)
-    const isFile = new Set(files.map(f => f.id))
-    for (const id of next) {
-      if (!prev.has(id) && isFile.has(id)) window.electronAPI.ratingSetUserPick(id, true).catch(() => {})
-    }
-    for (const id of prev) {
-      if (!next.has(id) && isFile.has(id)) window.electronAPI.ratingSetUserPick(id, false).catch(() => {})
-    }
-    setSelected(next)
-  }, [files])
+    setSelected(new Set(ids))
+  }, [])
 
-  // Same model as Local Archive. Plain replaces, Ctrl/Cmd ranges,
-  // Shift toggles, because it is literally the same hook.
+  // Same model as Local Archive. Plain replaces, Shift ranges,
+  // Ctrl/Cmd toggles, because it is literally the same hook.
   const { handleSelectClick, toggle: toggleOne } = useListSelection({
     orderedIds,
     selected,

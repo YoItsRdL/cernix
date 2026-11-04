@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { DriveUploadService } from './drive-upload'
 
 /**
@@ -74,5 +77,58 @@ describe('DriveUploadService retry classification', () => {
     expect(retryable(new Error('Chunk upload failed (403): userRateLimitExceeded'))).toBe(true)
     expect(retryable(new Error('Chunk upload failed (403): rateLimitExceeded'))).toBe(true)
     expect(retryable(new Error('Chunk upload failed (403): insufficientPermissions')), 'a real permission denial stays permanent').toBe(false)
+  })
+})
+
+/**
+ * The id Google gives a new file. It was read as a status and its body
+ * dropped, so a finished upload carried no Drive id: the ledger column was
+ * never filled and a rating made on the card could not follow the file.
+ */
+describe('DriveUploadService keeps the id Google returns', () => {
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  const job = (file: string, size: number) => ({
+    id: 'j1', filePath: file, fileName: path.basename(file), mimeType: 'image/jpeg', sizeBytes: size,
+    driveFolderId: 'folder', status: 'pending', progress: 0, bytesUploaded: 0, resumeUri: null, retryCount: 0, error: null,
+  }) as Record<string, unknown>
+  const upload = (kind: 'simpleUpload' | 'resumableUpload', j: Record<string, unknown>) =>
+    (service() as unknown as Record<string, (j: unknown, t: string) => Promise<void>>)[kind](j, 'token')
+
+  it('on a small file', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cernix-up-'))
+    try {
+      const file = path.join(dir, 'a.jpg'); fs.writeFileSync(file, 'abc')
+      vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ id: '1AbC_driveId', name: 'a.jpg' }), { status: 200 })))
+      const j = job(file, 3)
+      await upload('simpleUpload', j)
+      expect(j.driveFileId).toBe('1AbC_driveId')
+    } finally { fs.rmSync(dir, { recursive: true, force: true }) }
+  })
+
+  it('on a file sent in chunks, from the reply to the last one', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cernix-up-'))
+    try {
+      const file = path.join(dir, 'b.jpg'); fs.writeFileSync(file, 'abcdef')
+      const replies = [
+        new Response('', { status: 200, headers: { location: 'https://upload.example/session' } }),  // session started
+        new Response(JSON.stringify({ id: 'chunkedId' }), { status: 200 }),                           // last chunk
+      ]
+      vi.stubGlobal('fetch', vi.fn(async () => replies.shift()!))
+      const j = job(file, 6)
+      await upload('resumableUpload', j)
+      expect(j.driveFileId).toBe('chunkedId')
+    } finally { fs.rmSync(dir, { recursive: true, force: true }) }
+  })
+
+  it('leaves it empty, rather than failing the upload, when the reply has no usable id', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cernix-up-'))
+    try {
+      const file = path.join(dir, 'c.jpg'); fs.writeFileSync(file, 'abc')
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('not json', { status: 200 })))
+      const j = job(file, 3)
+      await upload('simpleUpload', j)
+      expect(j.driveFileId).toBeNull()
+    } finally { fs.rmSync(dir, { recursive: true, force: true }) }
   })
 })

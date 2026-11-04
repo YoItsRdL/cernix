@@ -1,18 +1,36 @@
 <!-- Theme toggle. Writes the same cernix-theme key the pre-paint
-     script above reads, so the choice travels with the visitor. -->
+     script above reads, so the choice travels with the visitor.
+
+     The change runs inside a view transition where the browser has one
+     (see "Theme crossfade" in style.css). Its new picture is taken once
+     the page is ready to be seen in the new theme: anything that needs a
+     moment (the hero film's other cut) registers a promise on
+     window.cernixThemeReady, and the toggle waits for it, at most 150 ms. -->
 <script>
   (function () {
     var toggle = document.getElementById('theme-toggle')
     if (!toggle) return
+    var root = document.documentElement
     var sync = function () {
-      var dark = document.documentElement.classList.contains('dark')
+      var dark = root.classList.contains('dark')
       toggle.setAttribute('aria-label', dark ? 'Light mode' : 'Dark mode')
     }
     sync()
-    toggle.addEventListener('click', function () {
-      var dark = document.documentElement.classList.toggle('dark')
+    var flip = function () {
+      var dark = root.classList.toggle('dark')
       try { localStorage.setItem('cernix-theme', dark ? 'dark' : 'light') } catch (e) {}
       sync()
+      // Told synchronously, so a listener can register what to wait for.
+      root.dispatchEvent(new Event('cernix:theme'))
+      var ready = window.cernixThemeReady
+      window.cernixThemeReady = null
+      return ready ? Promise.race([ready, new Promise(function (r) { setTimeout(r, 150) })]) : null
+    }
+    var still = false
+    try { still = window.matchMedia('(prefers-reduced-motion: reduce)').matches } catch (e) { /* no matchMedia */ }
+    toggle.addEventListener('click', function () {
+      if (document.startViewTransition && !still) document.startViewTransition(flip)
+      else flip()
     })
   })()
 </script>

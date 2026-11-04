@@ -14,8 +14,8 @@
  */
 
 const PLAIN = { metaKey: false, ctrlKey: false, shiftKey: false }
-const RANGE = { metaKey: false, ctrlKey: true, shiftKey: false }
-const TOGGLE = { metaKey: false, ctrlKey: false, shiftKey: true }
+const RANGE = { metaKey: false, ctrlKey: false, shiftKey: true }
+const TOGGLE = { metaKey: false, ctrlKey: true, shiftKey: false }
 
 /** Ids, target and source of every move, for compact assertions. */
 const MOVES = 'window.__calls.filter(c => c.fn === "driveMoveBatch")' +
@@ -866,7 +866,7 @@ module.exports = [
       // And not because the frame shrank to nothing: without this the
       // assertion above passes for a 1px image.
       await is('the photograph still fills most of the room',
-        () => run('__frameFill() > 45'), true)
+        () => run('__frameFits()'), true)
 
       // The window's three caption buttons are drawn at the corner over
       // everything, the viewer included. They used to sit on a patch of
@@ -1028,7 +1028,17 @@ module.exports = [
       await run('__selectIdx([1])')
       await is('the trash control appears once something is selected', () => run(trashButton + ' ? "yes" : "no"'), 'yes')
 
+      // Trash asks first, and Cancel trashes nothing.
+      const confirm = 'Array.from(document.querySelectorAll("[role=dialog] button")).find(b => b.textContent.trim() === "Move to Trash")'
+      const cancel = 'Array.from(document.querySelectorAll("[role=dialog] button")).find(b => b.textContent.trim() === "Cancel")'
       await run(trashButton + '.click()')
+      await is('trash asks before it does anything', () => run('!!' + confirm), true)
+      await run(cancel + '.click()')
+      await is('and Cancel trashes nothing', remaining, 'DSC_0001.ARW,DSC_0002.ARW,DSC_0003.ARW,DSC_0004.ARW')
+
+      await run(trashButton + '.click()')
+      await is('the question is asked again', () => run('!!' + confirm), true)
+      await run(confirm + '.click()')
       await is('a trashed frame leaves the list', remaining, 'DSC_0001.ARW,DSC_0003.ARW,DSC_0004.ARW')
       await is('and it is no longer selected', () => run('__selected()'), '')
 
@@ -1036,6 +1046,8 @@ module.exports = [
       await run('__refuseIdx([2])')
       await run('__selectIdx([2, 3])')
       await run(trashButton + '.click()')
+      await is('confirmed again', () => run('!!' + confirm), true)
+      await run(confirm + '.click()')
       await is('the accepted frame goes and the refused one stays', remaining, 'DSC_0001.ARW,DSC_0003.ARW')
       await is('the refused frame is still selected, so it can be retried', () => run('__selected()'), 'DSC_0003.ARW')
     },
@@ -1056,6 +1068,69 @@ module.exports = [
       await is('the vertex and fragment shaders both compile',
         () => run('__shaders() ? "compiled" : "FAILED: " + __shaderError()'), 'compiled')
       await is('and they link into a program', () => run('__linked()'), true)
+    },
+  },
+  {
+    /**
+     * What the renderer says about updates, and what it asks main to do.
+     *
+     * Main decides everything (services/updater.ts, unit-tested); the
+     * failure this guards against is the screen saying something main did
+     * not, or a button sending the wrong request: a restart offered on a
+     * Mac, a check made while the user had turned checks off.
+     */
+    name: 'updates are said truthfully, and the user chooses the restart',
+    harness: 'updates',
+    async run({ run, is }) {
+      const settings = async () => JSON.parse(await run('__settings()'))
+      const ready = { enabled: true, supported: true, installsInPlace: true, state: { kind: 'ready', version: '1.3.0' } }
+
+      await is('Settings says the version is current',
+        async () => (await settings()).text.includes('Up to date: 1.2.4 is the latest.'), true)
+      await is('and offers a check', async () => (await settings()).buttons.includes('Check now'), true)
+
+      await run(`__push(${JSON.stringify(ready)})`)
+      await is('a downloaded update raises one toast with a restart',
+        () => run(`__toasts().filter(t => t.includes('Cernix 1.3.0 is ready')).length`), 1)
+      await is('and Settings offers the same restart',
+        async () => (await settings()).buttons.includes('Restart to update'), true)
+
+      // Main refuses while an upload runs: the user is told why and the
+      // offer comes back, rather than the click doing nothing.
+      await run(`__refuse('Cernix is uploading to Drive. Restart when it has finished.')`)
+      await is('the toast asks main to install', () => run(`__toastAction('is ready')`), true)
+      await is('which it did', () => run('__calls()'), 'install')
+      await is('a refusal is said in words',
+        () => run(`__toasts().some(t => t.includes('uploading to Drive'))`), true)
+      await is('and the restart is offered again',
+        () => run(`__toasts().some(t => t.includes('Cernix 1.3.0 is ready'))`), true)
+
+      // Turned off: no check is offered, and the line says nothing is asked.
+      await is('the checkbox turns checks off', () => run(`__press('Check for updates')`), true)
+      await is('main is told', () => run(`__calls().endsWith('set-enabled:false')`), true)
+      await is('Settings says no requests are made',
+        async () => (await settings()).text.includes('Off. Cernix makes no update requests.'), true)
+      await is('and offers no check',
+        async () => (await settings()).buttons.includes('Check now'), false)
+    },
+  },
+  {
+    // An ad-hoc signed Mac app cannot replace itself, so the Mac is sent
+    // to the release page. A restart offered there would do nothing.
+    name: 'on a Mac an update is announced, never installed',
+    harness: 'updates',
+    async run({ run, is }) {
+      const settings = async () => JSON.parse(await run('__settings()'))
+      await run(`__platform('darwin')`)
+      await run(`__push(${JSON.stringify({ enabled: true, supported: true, installsInPlace: false, state: { kind: 'available', version: '1.3.0', releaseUrl: 'https://github.com/YoItsRdL/cernix/releases/tag/v1.3.0' } })})`)
+
+      await is('the toast says it is out', () => run(`__toasts().some(t => t.includes('Cernix 1.3.0 is out'))`), true)
+      await is('and offers no restart', () => run(`__toasts().some(t => t.includes('Restart'))`), false)
+      await is('Settings offers the download', async () => (await settings()).buttons.includes('Download 1.3.0'), true)
+      await is('and says how a Mac updates',
+        async () => (await settings()).text.includes('On a Mac you download a new version yourself'), true)
+      await is('the toast opens the release page', () => run(`__toastAction('is out')`), true)
+      await is('through main, which builds the URL', () => run('__calls()'), 'open-release')
     },
   },
 ]

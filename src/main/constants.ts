@@ -22,6 +22,30 @@ export const THEME_META_KEY = 'ui_theme'
 export const ZOOM_META_KEY = 'ui_zoom'
 
 /**
+ * Where the Local Archive lives when the person moved it from the default
+ * (decision 20). Same store, same reasoning: it describes this machine.
+ * Empty or absent means the default folder in the app's data.
+ */
+export const ARCHIVE_META_KEY = 'archive_root'
+
+/** The window's place and size, same store: it describes this screen. */
+export const WINDOW_META_KEY = 'ui_window'
+
+/**
+ * Whether to check for updates: 'off' when the user turned it off,
+ * anything else (including unset) is on. Same store: a choice about
+ * this machine's network traffic.
+ */
+export const UPDATE_META_KEY = 'update_check'
+
+/**
+ * Where releases are published, and where a Mac user is sent to fetch
+ * one (an ad-hoc signed app cannot replace itself). The update manifests
+ * come from the same releases; the provider is set in package.json.
+ */
+export const RELEASES_URL = 'https://github.com/YoItsRdL/cernix/releases'
+
+/**
  * Window chrome colour per theme.
  *
  * BrowserWindow needs a literal at construction, so these cannot read

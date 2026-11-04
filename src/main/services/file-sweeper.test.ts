@@ -21,7 +21,7 @@ vi.mock('exiftool-vendored', () => ({
 
 const { FileSweeper } = await import('./file-sweeper')
 
-const db = { getUploadedKeys: () => new Set<string>() }
+const db = { getUploadedKeys: () => new Set<string>(), getMeta: () => null }
 
 let root: string
 let src_: string
@@ -220,5 +220,87 @@ describe('FileSweeper.sweep does not lose a photograph', () => {
     const contents = stagedFiles().map(f => fs.readFileSync(f)[0]).sort()
     expect(stagedFiles(), 'the second frame must not be mistaken for the first').toHaveLength(2)
     expect(contents).toEqual([0xAA, 0xBB])
+  })
+})
+
+/**
+ * When a copy fails.
+ *
+ * A failed copy used to leave its placeholder (or the part already
+ * written) in the archive under the photograph's name, empty, while the
+ * session reported the file as an error; a card pulled mid-copy failed
+ * every remaining file one by one; and each failure went out as a
+ * session-fatal `sweep:error`. Now: nothing is left behind, a vanished
+ * source stops the sweep with one message, and a single failure is
+ * counted rather than fatal.
+ */
+describe('FileSweeper.sweep when a copy fails', () => {
+  const libraryFiles = () => {
+    const out: string[] = []
+    const walk = (d: string) => {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const p = path.join(d, e.name)
+        if (e.isDirectory()) walk(p); else out.push(p)
+      }
+    }
+    const lib = path.join(staging, 'staging', 'library')
+    if (fs.existsSync(lib)) walk(lib)
+    return out
+  }
+
+  it('leaves nothing behind for a file that vanished, and carries on', async () => {
+    write('DCIM/A.JPG', 50); write('DCIM/B.JPG', 60); write('DCIM/C.JPG', 70)
+    const s = sweeper()
+    const fatal: unknown[] = []
+    s.on('sweep:error', e => fatal.push(e))
+    // The file goes away mid-copy, after part of it was written.
+    const inner = s as unknown as { copyFileStream: (src: string, dest: string) => Promise<void> }
+    const copy = inner.copyFileStream.bind(s)
+    inner.copyFileStream = async (src, dest) => {
+      if (src.endsWith('B.JPG')) {
+        fs.writeFileSync(dest, 'partial')
+        throw new Error(`Read error: ENOENT: no such file or directory, open '${src}'`)
+      }
+      return copy(src, dest)
+    }
+    const files = await s.scan(src_)
+    const session = await s.sweep(src_, files.map(f => f.relativePath))
+    expect(session.status).toBe('complete')
+    expect(session.processedFiles).toBe(2)
+    expect(session.errors).toEqual([{ file: path.join('DCIM', 'B.JPG'), error: 'it is no longer there' }])
+    expect(fatal, 'one file is not a fatal error').toEqual([])
+    const left = libraryFiles()
+    expect(left.map(f => path.basename(f)).sort()).toEqual(['A.JPG', 'C.JPG'])
+    expect(left.every(f => fs.statSync(f).size > 0), 'no empty placeholder').toBe(true)
+  })
+
+  it('stops with one message when the card is gone', async () => {
+    for (let i = 0; i < 12; i++) write(`DCIM/IMG_${i}.JPG`, 40 + i)
+    const s = sweeper()
+    const fatal: { error: string }[] = []
+    const completed: unknown[] = []
+    s.on('sweep:error', e => fatal.push(e))
+    s.on('sweep:complete', e => completed.push(e))
+    // The card is pulled during the first copy.
+    const inner = s as unknown as { copyFileStream: (src: string, dest: string) => Promise<void> }
+    inner.copyFileStream = async (src) => {
+      fs.rmSync(src_, { recursive: true, force: true })
+      throw new Error(`Read error: ENOENT: no such file or directory, open '${src}'`)
+    }
+    const files = await s.scan(src_)
+    const session = await s.sweep(src_, files.map(f => f.relativePath))
+    expect(session.status).toBe('error')
+    expect(fatal).toHaveLength(1)
+    expect(fatal[0].error).toMatch(/no longer there.*0 of 12 files were copied/)
+    expect(completed).toEqual([])
+    expect(session.errors.length, 'stopped after the first chunk, not one failure per file').toBeLessThanOrEqual(4)
+    expect(libraryFiles(), 'no empty placeholders').toEqual([])
+  })
+
+  it('says why in words', async () => {
+    const { describeCopyFailure } = await import('./file-sweeper')
+    expect(describeCopyFailure('EBUSY', 'x')).toBe('another program has it open')
+    expect(describeCopyFailure('ENOSPC', 'x')).toBe('the disk holding the archive is full')
+    expect(describeCopyFailure(undefined, 'something else')).toBe('something else')
   })
 })

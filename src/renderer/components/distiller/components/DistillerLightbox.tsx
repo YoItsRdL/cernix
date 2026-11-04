@@ -19,6 +19,7 @@ interface DistillerLightboxProps {
     handleSetStars: (id: string, stars: RatingStars | null) => void
     handleSetFlag: (id: string, flag: RatingFlag) => void
     handleTrashBatch: (ids: string[]) => void
+    handleDownloadBatch: (items: { id: string; name: string }[]) => void
     onOpenEditor?: (file: EditorFile) => void
   }
 }
@@ -72,6 +73,9 @@ export function DistillerLightbox({
       flag={flag}
       onSetStars={(s: RatingStars) => actions.handleSetStars(item.id, s)}
       onSetFlag={(f: RatingFlag) => actions.handleSetFlag(item.id, f)}
+      // The viewer's Download button and its D key were in Lightbox all
+      // along, waiting for a caller; the shortcut sheet listed D.
+      onDownload={() => actions.handleDownloadBatch([{ id: item.id, name: item.name }])}
       onTrash={() => {
         // Close first: the photograph is about to stop existing, and a
         // viewer left open on it would be showing a gap.

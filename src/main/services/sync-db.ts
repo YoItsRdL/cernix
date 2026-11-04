@@ -35,9 +35,16 @@ export class SyncDatabase {
     const present = retired.filter(t =>
       this.db.prepare('SELECT 1 FROM sqlite_master WHERE type = ? AND name = ?').get('table', t))
     if (!present.length) return
+    // A dropped table's pages go to the free list with their bytes intact,
+    // and an API key row can be read back out of a copy of the file. Zero
+    // freed pages as they are freed, then rebuild the file without them and
+    // fold the write-ahead log in, so nothing keeps the old contents.
+    this.db.pragma('secure_delete = ON')
     this.db.transaction(() => {
       for (const t of present) this.db.exec(`DROP TABLE IF EXISTS ${t}`)
     })()
+    this.db.exec('VACUUM')
+    this.db.pragma('wal_checkpoint(TRUNCATE)')
     console.log(`[SyncDatabase] dropped retired table(s): ${present.join(', ')}`)
   }
 

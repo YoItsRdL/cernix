@@ -34,26 +34,26 @@ describe('the packaged Content Security Policy', () => {
    * host at all, which turns a token reaching the renderer into a token
    * reaching a stranger.
    */
-  it('lets the renderer connect only to Google, and to nothing wild', () => {
+  it('lets the renderer connect to nothing but itself and the local media scheme', () => {
     const connect = directive(packaged(), 'connect-src')
-    expect(connect).not.toContain('*;')
-    expect(connect.split(/\s+/)).not.toContain('*')
+    expect(connect).not.toContain('*')
     expect(connect).not.toContain('http://')
     expect(connect).not.toContain('ws:')
-    // Named explicitly rather than pattern-matched. An allowlist test
-    // whose pattern is looser than the allowlist proves nothing, and the
-    // first version of this one accepted any host with a Google-ish
-    // suffix while rejecting `oauth2.googleapis.com` for having a digit.
-    const EXPECTED = new Set([
-      '\'self\'', 'cernix-media:', 'blob:',
-      'https://*.googleapis.com',
-      'https://oauth2.googleapis.com',
-      'https://accounts.google.com',
-      'https://*.googleusercontent.com',
-    ])
+    const EXPECTED = new Set(['\'self\'', 'cernix-media:', 'blob:'])
     for (const source of connect.split(/\s+/).filter(Boolean)) {
       expect(EXPECTED.has(source.replace(/;$/, '')), `unexpected connect-src source: ${source}`).toBe(true)
     }
+  })
+
+  it('names no Google host: the renderer never fetches from one', () => {
+    expect(packaged()).not.toMatch(/google/i)
+  })
+
+  it('has no inline script, and shuts objects, base URLs and forms', () => {
+    expect(directive(packaged(), 'script-src')).toBe('\'self\'')
+    expect(directive(packaged(), 'object-src')).toBe('\'none\'')
+    expect(directive(packaged(), 'base-uri')).toBe('\'none\'')
+    expect(directive(packaged(), 'form-action')).toBe('\'none\'')
   })
 
   it('does not allow unsafe-eval', () => {
