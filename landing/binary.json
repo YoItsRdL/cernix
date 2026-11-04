@@ -1,22 +1,22 @@
 {
-  "version": "1.2.4",
-  "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.2.4/Cernix-Setup-1.2.4.exe",
+  "version": "1.2.5",
+  "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.2.5/Cernix-Setup-1.2.5.exe",
   "platforms": {
     "windows": {
-      "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.2.4/Cernix-Setup-1.2.4.exe",
-      "sha256": "336643c41922c7d19e6089c94118c505756c4442ce58b97e0109771c72bf4aea"
+      "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.2.5/Cernix-Setup-1.2.5.exe",
+      "sha256": "45aa91010cf1e7e08ad165296774fd1dcb762cf2e991dd8c91d114b1f0e8a616"
     },
     "linux": {
-      "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.2.4/Cernix-1.2.4-x86_64.AppImage",
-      "sha256": "84a5051088d355cbef1a4a835778b39524b4035463ca411ff27081fa7d583ff7"
+      "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.2.5/Cernix-1.2.5-x86_64.AppImage",
+      "sha256": "97b95ffd5507d19ee44ccadb099f1aa78acbe49be5f05337ebe4684c2e0fa691"
     },
     "macos": {
-      "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.2.4/Cernix-1.2.4-arm64.dmg",
-      "sha256": "133735337fdfbe4cde3026d086c5a4024a000351decd39f5e62bf73d7414c59f"
+      "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.2.5/Cernix-1.2.5-arm64.dmg",
+      "sha256": "499f8808dfa5effe991c23d0f45dda66181712c9d295cec2c6441716091813cd"
     },
     "macos-x64": {
-      "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.2.4/Cernix-1.2.4-x64.dmg",
-      "sha256": "815a95293e98d9dddf5303302c0b04a78f6959db5348adfe5e32b680bece6093"
+      "url": "https://github.com/YoItsRdL/cernix/releases/download/v1.2.5/Cernix-1.2.5-x64.dmg",
+      "sha256": "c4c10317109b39dc4c9aee90a8ad56503e24f6d879791b4308eb427d00280873"
     }
   }
 }
