@@ -21,6 +21,10 @@ If you fork Cernix and redistribute builds, these obligations travel with you.
 
 Via `better-sqlite3` (MIT). SQLite itself is in the [public domain](https://www.sqlite.org/copyright.html) and imposes no conditions.
 
+## The website: fonts and Lenis
+
+cernix.app serves its own copies of third-party files rather than loading them from elsewhere. The fonts (Geist, Geist Mono, JetBrains Mono) are under the SIL Open Font License 1.1, with the licence texts beside them in `dist/fonts/`. [Lenis](https://github.com/darkroomengineering/lenis), which smooths scrolling, is MIT (© darkroom.engineering); its licence is served beside it as `dist/LICENSE-lenis.txt`. Lenis is a development dependency of this repository and is not part of the app.
+
 ## Electron and Chromium
 
 Electron is MIT; Chromium and its dependencies carry BSD and other permissive licences. Both ship their own licence files next to the executable in a packaged build: `LICENSE.electron.txt` and `LICENSES.chromium.html`.

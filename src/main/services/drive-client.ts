@@ -1,4 +1,4 @@
-import { CERNIX_ROOT_FOLDER, CERNIX_SHARED_FOLDER } from '../constants'
+import { CERNIX_ROOT_FOLDER, CERNIX_SHARED_FOLDER, GOOGLE_API_TIMEOUT_MS } from '../constants'
 import type { SyncDatabase } from './sync-db'
 
 /**
@@ -139,18 +139,18 @@ export class DriveClient {
     return id
   }
 
-  /** True when the id resolves to a live, untrashed folder we can see. */
+  /** True when the id resolves to a live, untrashed folder we can see;
+   *  false only when Google says it is not there (404). Anything else
+   *  (offline, a timeout, a 5xx, a 403 rate limit) throws: read as
+   *  "gone", it made a new empty library root over a network blip. */
   private async folderExists(id: string, token: string): Promise<boolean> {
-    try {
-      const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}`)
-      url.searchParams.set('fields', 'id,trashed,mimeType')
-      const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } })
-      if (!res.ok) return false
-      const data = await res.json() as { trashed?: boolean; mimeType?: string }
-      return data.trashed !== true && data.mimeType === 'application/vnd.google-apps.folder'
-    } catch {
-      return false
-    }
+    const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}`)
+    url.searchParams.set('fields', 'id,trashed,mimeType')
+    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(GOOGLE_API_TIMEOUT_MS) })
+    if (res.status === 404) return false
+    if (!res.ok) throw new Error(`Drive folder check failed (${res.status}): ${await res.text()}`)
+    const data = await res.json() as { trashed?: boolean; mimeType?: string }
+    return data.trashed !== true && data.mimeType === 'application/vnd.google-apps.folder'
   }
 
   // ── Browse ──
@@ -179,6 +179,7 @@ export class DriveClient {
       if (pageToken) url.searchParams.set('pageToken', pageToken)
 
       const response = await fetch(url.toString(), {
+        signal: AbortSignal.timeout(GOOGLE_API_TIMEOUT_MS),
         headers: { Authorization: `Bearer ${token}` }
       })
       if (!response.ok) throw new Error(`Drive list failed (${response.status})`)
@@ -217,6 +218,7 @@ export class DriveClient {
     const token = await this.requireToken()
     const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?addParents=${encodeURIComponent(newParentId)}&removeParents=${encodeURIComponent(currentParentId)}`
     const response = await fetch(url, {
+      signal: AbortSignal.timeout(GOOGLE_API_TIMEOUT_MS),
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}` }
     })
@@ -228,6 +230,7 @@ export class DriveClient {
     const response = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`,
       {
+        signal: AbortSignal.timeout(GOOGLE_API_TIMEOUT_MS),
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -254,6 +257,7 @@ export class DriveClient {
     const response = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`,
       {
+        signal: AbortSignal.timeout(GOOGLE_API_TIMEOUT_MS),
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ trashed }),
@@ -281,6 +285,7 @@ export class DriveClient {
     const response = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`,
       {
+        signal: AbortSignal.timeout(GOOGLE_API_TIMEOUT_MS),
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: 'reader', type: 'anyone' }),
@@ -300,7 +305,7 @@ export class DriveClient {
       url.searchParams.set('fields', 'nextPageToken, files(name)')
       url.searchParams.set('pageSize', '1000')
       if (pageToken) url.searchParams.set('pageToken', pageToken)
-      const response = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } })
+      const response = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(GOOGLE_API_TIMEOUT_MS) })
       if (!response.ok) break
       const data = await response.json() as DriveApiList
       for (const f of data.files || []) names.add(f.name)
@@ -419,7 +424,7 @@ export class DriveClient {
       // list: a redirect from a thumbnail host would otherwise carry the
       // token wherever it pointed.
       let target = url
-      let response = await fetch(target, { headers: { Authorization: `Bearer ${token}` }, redirect: 'manual' })
+      let response = await fetch(target, { headers: { Authorization: `Bearer ${token}` }, redirect: 'manual', signal: AbortSignal.timeout(GOOGLE_API_TIMEOUT_MS) })
       for (let hop = 0; hop < 3 && response.status >= 300 && response.status < 400; hop++) {
         const next = response.headers.get('location')
         if (!next) return null
@@ -428,7 +433,7 @@ export class DriveClient {
           console.warn('[DriveClient] Refused a thumbnail redirect to another host')
           return null
         }
-        response = await fetch(target, { headers: { Authorization: `Bearer ${token}` }, redirect: 'manual' })
+        response = await fetch(target, { headers: { Authorization: `Bearer ${token}` }, redirect: 'manual', signal: AbortSignal.timeout(GOOGLE_API_TIMEOUT_MS) })
       }
       if (!response.ok) return null
       const buffer = await response.arrayBuffer()
@@ -467,6 +472,7 @@ export class DriveClient {
       if (pageToken) url.searchParams.set('pageToken', pageToken)
 
       const response = await fetch(url.toString(), {
+        signal: AbortSignal.timeout(GOOGLE_API_TIMEOUT_MS),
         headers: { Authorization: `Bearer ${token}` }
       })
       if (!response.ok) throw new Error(`Drive API error: ${response.status}`)
@@ -517,7 +523,7 @@ export class DriveClient {
       seen.add(currentId)
       const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(currentId)}`)
       url.searchParams.set('fields', 'id,name,parents')
-      const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } })
+      const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(GOOGLE_API_TIMEOUT_MS) })
       if (!res.ok) break
       const data = await res.json() as { id: string; name: string; parents?: string[] }
       if (!currentIsSource) {
@@ -557,6 +563,7 @@ export class DriveClient {
     searchUrl.searchParams.set('fields', 'files(id)')
 
     const searchResponse = await fetch(searchUrl.toString(), {
+      signal: AbortSignal.timeout(GOOGLE_API_TIMEOUT_MS),
       headers: { Authorization: `Bearer ${token}` }
     })
     if (!searchResponse.ok) throw new Error(`Folder search failed (${searchResponse.status}): ${await searchResponse.text()}`)
@@ -564,6 +571,7 @@ export class DriveClient {
     if (searchData.files?.length) return searchData.files[0].id
 
     const createResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
+      signal: AbortSignal.timeout(GOOGLE_API_TIMEOUT_MS),
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,

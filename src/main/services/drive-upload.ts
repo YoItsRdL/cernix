@@ -4,6 +4,7 @@ import path from 'node:path'
 import { EventEmitter } from 'node:events'
 import { messageOf } from '../../shared/errors'
 import type { UploadSessionSummary, UploadProgress } from '../../shared/ipc-types'
+import { GOOGLE_API_TIMEOUT_MS, UPLOAD_REQUEST_TIMEOUT_MS } from '../constants'
 
 // One declaration, in shared/; re-exported from the service that emits it.
 export type { UploadSessionSummary, UploadProgress }
@@ -218,7 +219,7 @@ export class DriveUploadService extends EventEmitter {
     this.emit('upload:started', { ...this.sessionSummary })
 
     // Process the queue
-    await this.processQueue(token)
+    await this.processQueue()
 
     // Finalize. `complete` is a claim that every file reached Drive, so
     // it is only available to a session where none failed. Anything else
@@ -246,10 +247,7 @@ export class DriveUploadService extends EventEmitter {
     if (this.sessionSummary) {
       this.sessionSummary.status = 'uploading'
     }
-    const token = await this.getToken()
-    if (token) {
-      await this.processQueue(token)
-    }
+    await this.processQueue()
   }
 
   /** Cancel all pending uploads */
@@ -269,7 +267,7 @@ export class DriveUploadService extends EventEmitter {
 
   // ── Queue Processor ──
 
-  private async processQueue(token: string): Promise<void> {
+  private async processQueue(): Promise<void> {
     const promises: Promise<void>[] = []
 
     while (true) {
@@ -283,7 +281,7 @@ export class DriveUploadService extends EventEmitter {
         nextJob.status = 'uploading'
         this.activeJobs.set(nextJob.id, nextJob)
 
-        const promise = this.uploadFile(nextJob, token)
+        const promise = this.uploadFile(nextJob)
           .then(() => {
             this.activeJobs.delete(nextJob.id)
           })
@@ -322,8 +320,12 @@ export class DriveUploadService extends EventEmitter {
 
   // ── Single File Upload ──
 
-  private async uploadFile(job: UploadJob, token: string): Promise<void> {
+  private async uploadFile(job: UploadJob): Promise<void> {
     try {
+      // Asked per file, not once per session: a token lives about an
+      // hour, and a long upload outlasts it. getToken renews it.
+      const token = await this.getToken()
+      if (!token) throw new Error('Not authenticated. Connect Google Drive first.')
       if (job.sizeBytes > RESUMABLE_THRESHOLD) {
         await this.resumableUpload(job, token)
       } else {
@@ -347,8 +349,7 @@ export class DriveUploadService extends EventEmitter {
       // Retry with exponential backoff + Connectivity Watch
       if (job.retryCount < MAX_RETRIES && this.isRetryableError(err)) {
         job.retryCount++
-        job.status = 'pending'
-        
+
         // Wait for active connectivity before retrying if it's a network error
         const hasNet = await this.checkConnectivity()
         const delay = Math.pow(2, job.retryCount) * 1000 + (hasNet ? Math.random() * 1000 : 5000)
@@ -356,7 +357,11 @@ export class DriveUploadService extends EventEmitter {
         console.log(`[DriveUpload] Resilience Triggered: Retry ${job.retryCount}/${MAX_RETRIES} for ${job.fileName} in ${Math.round(delay)}ms`)
         this.emit('upload:error', { file: job.fileName, error: `Network Instability Detected. Retrying... (${job.retryCount}/${MAX_RETRIES})`, retryCount: job.retryCount, willRetry: true })
 
+        // Back in the queue only after the wait. Marked pending before it,
+        // the queue took the job again at once, skipping the backoff and
+        // running two attempts in one slot (F-091).
         await new Promise(resolve => setTimeout(resolve, delay))
+        job.status = 'pending'
         return
       }
 
@@ -396,6 +401,7 @@ export class DriveUploadService extends EventEmitter {
     const response = await fetch(
       'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
       {
+        signal: AbortSignal.timeout(UPLOAD_REQUEST_TIMEOUT_MS),
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -429,6 +435,7 @@ export class DriveUploadService extends EventEmitter {
       const initResponse = await fetch(
         'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
         {
+          signal: AbortSignal.timeout(GOOGLE_API_TIMEOUT_MS),
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
@@ -471,6 +478,7 @@ export class DriveUploadService extends EventEmitter {
         const endByte = offset + bytesRead - 1
 
         const chunkResponse = await fetch(job.resumeUri, {
+          signal: AbortSignal.timeout(UPLOAD_REQUEST_TIMEOUT_MS),
           method: 'PUT',
           headers: {
             'Content-Length': String(bytesRead),

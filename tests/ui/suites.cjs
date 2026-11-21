@@ -268,6 +268,36 @@ module.exports = [
   },
 
   {
+    // F-090. The Workstation stays mounted under the editor, and its
+    // Ctrl+Z listener on `window` reversed the last Drive move while the
+    // user was undoing an edit.
+    name: 'ctrl+Z in the editor leaves the Workstation alone',
+    harness: 'distiller',
+    async run({ run, is, wait }) {
+      await run('__ui.reset()')
+      await run('__ui.drag(__ui.tile("DSC_0001"), __ui.tile("Keepers"))')
+      await is('a move to undo later', () => run(MOVES), [[['file-1'], 'fold-A', 'root']])
+
+      await run('__setEditorOpen(true)')
+      await is('the editor is over the grid', () => run('__editorOpen()'), true)
+      await run('__ui.reset()')
+      await run('__ui.key("z", { ctrlKey: true })')
+      // Real time to be wrong before looking: the undo is asynchronous.
+      await wait(800)
+      await is('ctrl+Z in the editor moves nothing', () => run(MOVES), [])
+
+      await run('__setEditorOpen(false)')
+      await is('the editor closes', () => run('__editorOpen()'), false)
+      await run('__ui.reset()')
+      await run('__ui.key("z", { ctrlKey: true })')
+      // The half that proves it: had the editor's Ctrl+Z run the undo,
+      // the stack would be empty and this would move nothing.
+      await is('the undo is still there once the editor closes',
+        () => run(MOVES), [[['file-1'], 'root', 'fold-A']])
+    },
+  },
+
+  {
     name: 'undo a trash',
     harness: 'distiller',
     async run({ run, is }) {

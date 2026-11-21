@@ -7,6 +7,7 @@ import path from 'node:path'
 import { app } from 'electron'
 import { EventEmitter } from 'node:events'
 import { messageOf } from '../../shared/errors'
+import { GOOGLE_API_TIMEOUT_MS } from '../constants'
 
 /** The token endpoint's reply, narrowed to what is read. Refresh
  *  responses omit `refresh_token`, which is the whole reason the stored
@@ -189,6 +190,7 @@ export class GoogleAuthManager extends EventEmitter {
         // In the body, not the query string. Google accepts either,
         // and a URL is the half of a request that tooling logs.
         await fetch('https://oauth2.googleapis.com/revoke', {
+          signal: AbortSignal.timeout(GOOGLE_API_TIMEOUT_MS),
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ token: this.tokens.access_token }),
@@ -348,6 +350,7 @@ export class GoogleAuthManager extends EventEmitter {
    */
   private async exchangeCodeForTokens(code: string, codeVerifier: string): Promise<void> {
     const response = await fetch('https://oauth2.googleapis.com/token', {
+      signal: AbortSignal.timeout(GOOGLE_API_TIMEOUT_MS),
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -397,6 +400,7 @@ export class GoogleAuthManager extends EventEmitter {
 
     try {
       const response = await fetch('https://oauth2.googleapis.com/token', {
+        signal: AbortSignal.timeout(GOOGLE_API_TIMEOUT_MS),
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
@@ -585,6 +589,7 @@ export class GoogleAuthManager extends EventEmitter {
       }
 
       const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        signal: AbortSignal.timeout(GOOGLE_API_TIMEOUT_MS),
         headers: { Authorization: `Bearer ${token}` },
       })
 

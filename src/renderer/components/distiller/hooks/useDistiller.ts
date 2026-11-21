@@ -16,7 +16,7 @@ import { matchesRatingFilter, ratingFilterDescription, type RatingFilter } from 
 
 /** Everything the Workstation does to a Drive folder: browse, select,
  *  rename, move, trash and their undos. */
-export function useDistiller(onOpenEditor?: (file: EditorFile) => void, connected = true) {
+export function useDistiller(onOpenEditor?: (file: EditorFile) => void, connected = true, editorOpen = false) {
   // ── State ──
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
   const [rootFolderId, setRootFolderId] = useState<string | null>(null)
@@ -52,8 +52,10 @@ export function useDistiller(onOpenEditor?: (file: EditorFile) => void, connecte
    */
   const [draggingIds, setDraggingIds] = useState<string[] | null>(null)
 
-  // Ctrl+Z is bound inside the hook, so only push is needed here.
-  const { push: pushUndo } = useUndoStack()
+  // Ctrl+Z is bound inside the hook, so only push is needed here. Off
+  // while the editor is over the Workstation: there Ctrl+Z belongs to
+  // the edit, and would otherwise move a Drive file back unseen (F-090).
+  const { push: pushUndo } = useUndoStack({ enabled: !editorOpen })
 
   // Where the user is *now*. An undo may run long after the action, from
   // a different folder, and it should refresh whatever is on screen then

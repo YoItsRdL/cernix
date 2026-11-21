@@ -756,6 +756,7 @@ export const DEFAULT_PARAMS: EditParams = {
 const PRESET_EXCLUDED_KEYS = [
   // Geometry
   'crop', 'orientation', 'flipH', 'straightenDeg', 'frame', 'imageTransform',
+  'perspective', 'lensDistortion',
   // Per-image masks + retouching
   'masks', 'healSpots',
   // Texture / overlay effects
