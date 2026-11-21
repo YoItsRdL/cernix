@@ -26,6 +26,8 @@ describe('DriveUploadService retry classification', () => {
     for (const err of [
       new Error('fetch failed'),
       new Error('Request timeout'),
+      // What AbortSignal.timeout throws when a request stalls.
+      new DOMException('The operation was aborted due to timeout', 'TimeoutError'),
       new Error('network unreachable'),
       Object.assign(new Error('x'), { code: 'ECONNRESET' }),
       Object.assign(new Error('x'), { code: 'ETIMEDOUT' }),

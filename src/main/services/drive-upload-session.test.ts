@@ -103,6 +103,51 @@ describe('DriveUploadService.uploadSession', () => {
     expect(summary.status, 'a session with a failed file is not "complete"').not.toBe('complete')
   })
 
+  /**
+   * A token lives about an hour and a big card on a slow uplink takes
+   * longer. The one in hand when the session started must not be the one
+   * every later file is sent with (F-092).
+   */
+  it('sends each file with the token current when it starts, not the session\'s first', async () => {
+    write('2026/05/01/a.jpg', 64)
+    write('2026/05/01/b.jpg', 64)
+    const sentWith: string[] = []
+    vi.stubGlobal('fetch', async (_url: string, init?: { headers?: Record<string, string> }) => {
+      sentWith.push(init?.headers?.Authorization ?? '')
+      return { ok: true, status: 200, json: async () => ({ id: 'x' }) }
+    })
+    let calls = 0
+    const renewing = new DriveUploadService(async () => (calls++ === 0 ? 'first' : 'renewed'), driveClient as never)
+
+    const summary = await renewing.uploadSession({ sessionId: 's5', stagingPath: staging, driveFolderName: 's5-folder' })
+
+    expect(summary.completedFiles).toBe(2)
+    expect(sentWith).toEqual(['Bearer renewed', 'Bearer renewed'])
+  })
+
+  /**
+   * A transient failure waits out its backoff before the next attempt.
+   * Requeued before the wait, the job was picked up again about 100 ms
+   * later, so a busy server got hammered instead of given room (F-091).
+   */
+  it('waits out the backoff before retrying a transient failure', async () => {
+    write('2026/05/01/flaky.jpg', 64)
+    const attempts: number[] = []
+    vi.stubGlobal('fetch', async (url: string) => {
+      if (url.includes('generate_204')) return { ok: true, status: 204 }
+      attempts.push(Date.now())
+      if (attempts.length === 1) return { ok: false, status: 503, text: async () => 'backend error' }
+      return { ok: true, status: 200, json: async () => ({ id: 'x' }) }
+    })
+
+    const summary = await service().uploadSession({ sessionId: 's6', stagingPath: staging, driveFolderName: 's6-folder' })
+
+    expect(summary.completedFiles).toBe(1)
+    expect(attempts).toHaveLength(2)
+    // The first backoff is 2 s plus jitter.
+    expect(attempts[1] - attempts[0]).toBeGreaterThanOrEqual(1900)
+  }, 10_000)
+
   it('completes cleanly when there is nothing staged', async () => {
     const summary = await service().uploadSession({ sessionId: 's4', stagingPath: staging, driveFolderName: 's4-folder' })
     expect(summary.totalFiles).toBe(0)

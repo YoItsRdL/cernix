@@ -1,5 +1,38 @@
 # Cernix Workstation Changelog
 
+## [1.2.6] - 2026-11-21
+
+Fixes found by a structural read of the whole codebase.
+
+### Fixed
+- **Texture, Clarity, Dehaze and Sharpening do what they say.** They
+  were built on a blurred copy of the photograph that was never made,
+  so they brightened or darkened the whole image instead of adding
+  local contrast. Edits that already use them will look different.
+- **Long uploads no longer fail after about an hour.** An upload kept
+  the sign-in it started with; each file now asks for a current one.
+- **A failed upload waits before it tries again**, as it was meant to,
+  instead of retrying at once and running more than three at a time.
+- **Presets leave perspective and lens correction alone.** A preset
+  saved from a corrected photograph no longer straightens every
+  photograph it is applied to.
+- **Ctrl+Z in the editor undoes the edit**, not the last move or trash
+  in the Workstation behind it.
+- **A drive with no DCIM folder is not scanned** when it is the first
+  one seen. Cernix said it would not scan it, then did.
+- **A slow or failing connection cannot replace the library folder.**
+  If Drive did not answer in time while Cernix checked the folder it
+  remembered, it made a new, empty "Cernix" in its place.
+- Requests to Google give up after 30 seconds, and each upload request
+  after 3 minutes, so a stalled connection is retried instead of
+  holding the queue for 5 minutes.
+
+### Website
+- The text no longer flickers into its font as the page loads.
+- Scrolling is smoothed, and links to a section glide to it; both are
+  off for anyone who asks their system for reduced motion.
+- The film runs the full width of the page.
+
 ## [1.2.5] - 2026-11-04
 
 A release-readiness pass over the whole app: every surface was walked

@@ -113,8 +113,18 @@ export class GaussianBlurPass {
   private texPong: WebGLTexture | null = null
   private texW = 0
   private texH = 0
+  // What texPong holds. The input is the unadjusted source, so the blur
+  // only changes with the source or the radius; every other slider move
+  // reuses it instead of re-blurring the full-resolution image.
+  private lastSource: WebGLTexture | null = null
+  private lastSigma = -1
 
-  constructor(gl: WebGL2RenderingContext) {
+  /** `scale` is the target's size against the source. A wide blur loses
+   *  nothing at half size, and each full-size target of a 50 MP photo is
+   *  ~200 MB of GPU memory (measured: three passes at full size added
+   *  1.6 GB on an integrated GPU). The shader samples by UV, so the
+   *  target's size is invisible to it. Keep 1 for a radius near 1 px. */
+  constructor(gl: WebGL2RenderingContext, private readonly scale = 1) {
     this.gl = gl
     this.program = this.link(VERTEX_SRC, FRAGMENT_SRC)
     this.uInput     = gl.getUniformLocation(this.program, 'u_input')
@@ -141,6 +151,9 @@ export class GaussianBlurPass {
   resize(width: number, height: number): void {
     if (this.texW === width && this.texH === height && this.texPing && this.texPong) return
     const gl = this.gl
+    // This runs inside the binder loop, where the active unit holds
+    // another binder's texture; making the targets must not replace it.
+    const prevTex = gl.getParameter(gl.TEXTURE_BINDING_2D) as WebGLTexture | null
     this.disposeTargets()
     this.texPing = this.makeTarget(width, height)
     this.texPong = this.makeTarget(width, height)
@@ -151,8 +164,10 @@ export class GaussianBlurPass {
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fboPong)
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.texPong, 0)
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.bindTexture(gl.TEXTURE_2D, prevTex)
     this.texW = width
     this.texH = height
+    this.lastSource = null
   }
 
   /** Run the blur. `sourceTex` is the input image at `sourceW x sourceH`
@@ -160,13 +175,18 @@ export class GaussianBlurPass {
    *  ceiling). Returns the texture holding the blurred result; the
    *  caller binds this on a texture unit for the main shader. */
   run(sourceTex: WebGLTexture, sourceW: number, sourceH: number, sigmaPx: number): WebGLTexture | null {
+    const w = Math.max(1, Math.round(sourceW * this.scale))
+    const h = Math.max(1, Math.round(sourceH * this.scale))
+    this.resize(w, h)
     if (!this.fboPing || !this.fboPong || !this.texPing || !this.texPong) return null
-    if (this.texW !== sourceW || this.texH !== sourceH) this.resize(sourceW, sourceH)
 
     const gl = this.gl
     const sigma = Math.max(0, Math.min(sigmaPx, MAX_SIGMA_PX))
+    if (sourceTex === this.lastSource && sigma === this.lastSigma) return this.texPong
+    // In target pixels from here on.
+    const sigmaT = sigma * this.scale
     // Tap count: enough for ~3σ coverage, capped at MAX_KERNEL_TAPS.
-    const taps = Math.min(MAX_KERNEL_TAPS, Math.max(0, Math.ceil(sigma * 1.5)))
+    const taps = Math.min(MAX_KERNEL_TAPS, Math.max(0, Math.ceil(sigmaT * 1.5)))
 
     // Snapshot of GL state we'll mutate; restore on the way out so
     // the main render pass doesn't see partial state.
@@ -177,8 +197,8 @@ export class GaussianBlurPass {
 
     gl.useProgram(this.program)
     gl.bindVertexArray(this.vao)
-    gl.viewport(0, 0, sourceW, sourceH)
-    if (this.uSigma) gl.uniform1f(this.uSigma, sigma)
+    gl.viewport(0, 0, w, h)
+    if (this.uSigma) gl.uniform1f(this.uSigma, sigmaT)
     if (this.uTaps)  gl.uniform1i(this.uTaps,  taps)
 
     // Horizontal pass: source → texPing.
@@ -186,13 +206,13 @@ export class GaussianBlurPass {
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, sourceTex)
     if (this.uInput)     gl.uniform1i(this.uInput, 0)
-    if (this.uDirection) gl.uniform2f(this.uDirection, 1.0 / sourceW, 0)
+    if (this.uDirection) gl.uniform2f(this.uDirection, 1.0 / w, 0)
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
     // Vertical pass: texPing → texPong.
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fboPong)
     gl.bindTexture(gl.TEXTURE_2D, this.texPing)
-    if (this.uDirection) gl.uniform2f(this.uDirection, 0, 1.0 / sourceH)
+    if (this.uDirection) gl.uniform2f(this.uDirection, 0, 1.0 / h)
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
     // Restore GL state.
@@ -200,6 +220,8 @@ export class GaussianBlurPass {
     gl.bindVertexArray(prevVao)
     gl.useProgram(prevProgram)
     gl.viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3])
+    this.lastSource = sourceTex
+    this.lastSigma = sigma
     return this.texPong
   }
 

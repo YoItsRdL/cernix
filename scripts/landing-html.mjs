@@ -79,7 +79,7 @@ function expand(src, name, depth = 0) {
  * only the install page reads `version`, and warning about the other
  * three would teach everyone to ignore the warnings.
  */
-const EXEMPT_FROM_UNUSED = new Set(['out', 'assetv', 'version'])
+const EXEMPT_FROM_UNUSED = new Set(['out', 'assetv', 'version', 'lenisv'])
 
 /** Substitute {{ key }}. An unknown key is a build error, never a blank. */
 function substitute(src, data, name) {
@@ -141,6 +141,19 @@ for (const name of fs.readdirSync(fontsSrc)) {
 }
 
 /**
+ * Lenis, the wheel-scroll smoothing, served from the site like the fonts:
+ * the privacy page promises no third-party requests. Its name does not
+ * change between versions, so the pages ask for it with `?v={{ lenisv }}`
+ * to get past `/dist/*`'s year-long cache when it is upgraded.
+ */
+const lenisDir = path.join(ROOT, 'node_modules/lenis')
+const lenisv = JSON.parse(fs.readFileSync(path.join(lenisDir, 'package.json'), 'utf8')).version
+fs.copyFileSync(path.join(lenisDir, 'dist/lenis.min.js'), path.join(ROOT, 'landing/dist/lenis.min.js'))
+// MIT asks for the notice to travel with the code; the minified file has none.
+fs.copyFileSync(path.join(lenisDir, 'LICENSE'), path.join(ROOT, 'landing/dist/LICENSE-lenis.txt'))
+console.log(`  lenis      ${lenisv}`)
+
+/**
  * The app's version, stamped in as `{{ version }}`.
  *
  * The install page shows a version before `binary.json` is fetched, and
@@ -167,6 +180,7 @@ for (const file of fs.readdirSync(PAGES).sort()) {
   const { data, body } = frontMatter(src, file)
   data.assetv = assetv
   data.version = version
+  data.lenisv = lenisv
   const target = path.join(OUT, data.out || file)
 
   // Match whatever the file being replaced already used, so a page that

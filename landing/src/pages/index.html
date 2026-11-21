@@ -220,6 +220,7 @@
         </a>
         </div>
       </div>
+    </div>
 
       <!--
         The film: Cernix itself in one unbroken take, a card imported and
@@ -235,18 +236,21 @@
         H.264 for browsers without it. Nothing loads until the page has:
         the poster stands in until then, and with reduced motion it
         stands in for good.
+
+        Full bleed (owner, 2026-11-21): outside the hero's padded
+        max-w-7xl column, edge to edge at any width, square corners.
       -->
-      <div class="relative w-full max-w-7xl mx-auto reveal-stagger-2">
+      <div class="relative w-full reveal-stagger-2">
         <!-- One cut per theme, filmed with the app in that theme. Only the
              one on screen is shown, loaded and played; the theme toggle
              swaps them in place. Without script, the light cut stands. -->
-        <video data-film="light" class="block w-full aspect-video rounded-xl" muted loop playsinline preload="none"
+        <video data-film="light" class="block w-full aspect-video" muted loop playsinline preload="none"
                poster="/reel/cernix-film-v2-poster.webp"
                aria-label="Cernix in use: a memory card is imported and culled, the photos are sent to Google Drive, and one is edited.">
           <source src="/reel/cernix-film-v2.webm" type='video/webm; codecs="av01.0.09M.08"' />
           <source src="/reel/cernix-film-v2.mp4" type="video/mp4" />
         </video>
-        <video data-film="dark" class="block w-full aspect-video rounded-xl" muted loop playsinline preload="none" hidden
+        <video data-film="dark" class="block w-full aspect-video" muted loop playsinline preload="none" hidden
                poster="/reel/cernix-film-dark-v2-poster.webp"
                aria-label="Cernix in use: a memory card is imported and culled, the photos are sent to Google Drive, and one is edited.">
           <source src="/reel/cernix-film-dark-v2.webm" type='video/webm; codecs="av01.0.09M.08"' />
@@ -339,7 +343,6 @@
         })()
       </script>
 
-    </div>
   </section>
   <!--
     ─── MANIFESTO ────────────────────────────────────────────────────

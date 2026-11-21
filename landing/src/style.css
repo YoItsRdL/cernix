@@ -37,6 +37,21 @@
   :root { color-scheme: light; }
   :root.dark { color-scheme: dark; }
 
+  /* In-page links (the contents on the install, privacy and terms pages,
+   * "Skip to content") glide rather than jump. The browser does it, so
+   * focus and the address still follow the link. Lenis, which smooths
+   * the wheel, writes its own positions as instant, so the two do not
+   * fight. Off for a visitor who asks for reduced motion. */
+  @media (prefers-reduced-motion: no-preference) {
+    html { scroll-behavior: smooth; }
+  }
+
+  /* Lenis's own stylesheet (lenis/dist/lenis.css, 1.3.27), the rules
+   * this page needs: its root must size to the content, and a stopped
+   * Lenis holds the page still. */
+  html.lenis, html.lenis body { height: auto; }
+  .lenis:not(.lenis-autoToggle).lenis-stopped { overflow: clip; }
+
   /* Emoji need a font that has them. The page sets Geist Mono, which
    * does not, and a codepoint with no glyph in the stack falls back to
    * whatever the OS offers or renders as tofu. Named here so the answer

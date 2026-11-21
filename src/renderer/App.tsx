@@ -299,10 +299,12 @@ export default function App() {
   // dependency list only decides when the question gets asked again, so
   // it names everything the body reads. `volumes.length` alone would
   // have scanned a stale path if the array changed without changing
-  // length.
+  // length. Only a camera card, as in onVolumeDetected (decision 19): a
+  // stick without DCIM was announced as "not scanned" and then scanned
+  // here anyway (F-093).
   const hasAutoScanned = useRef(false)
   useEffect(() => {
-    if (volumes.length > 0 && sweepState === 'idle' && !hasAutoScanned.current) {
+    if (volumes.length > 0 && volumes[0].hasDcim !== false && sweepState === 'idle' && !hasAutoScanned.current) {
       hasAutoScanned.current = true
       startScan(volumes[0].path)
     }

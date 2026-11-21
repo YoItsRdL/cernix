@@ -47,8 +47,10 @@ export class PresenceBinder implements FeatureBinder {
     this.uBlurNarrow    = gl.getUniformLocation(program, 'u_blurNarrow')
     this.uBlurWide      = gl.getUniformLocation(program, 'u_blurWide')
 
-    this.narrow = new GaussianBlurPass(gl)
-    this.wide   = new GaussianBlurPass(gl)
+    // Half size: these radii (10 and 30 px) lose nothing to it, and full
+    // size cost ~200 MB of GPU memory per target on a 50 MP photo.
+    this.narrow = new GaussianBlurPass(gl, 0.5)
+    this.wide   = new GaussianBlurPass(gl, 0.5)
     // Eager placeholder creation: doing this lazily on first apply()
     // calls bindTexture against whatever active unit was last set by a
     // previous binder, silently rebinding their texture (e.g. the curve

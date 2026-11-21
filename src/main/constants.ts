@@ -134,6 +134,14 @@ export const SWEEP_CONCURRENCY = 4
 /** EXIF read timeout per file in milliseconds */
 export const EXIF_TIMEOUT_MS = 3000
 
+/** Timeout for a Google request that carries no file (listing, rename,
+ *  sign-in). Without one, a silent connection holds for fetch's 300 s. */
+export const GOOGLE_API_TIMEOUT_MS = 30_000
+
+/** Timeout for one upload request: an 8 MB chunk or a file under 5 MB.
+ *  Slower than ~45 KB/s is treated as stalled; the retry resumes. */
+export const UPLOAD_REQUEST_TIMEOUT_MS = 180_000
+
 // ── Helpers ──
 
 /** Build a date path from a Date object: "2017/May/08" */

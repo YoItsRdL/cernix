@@ -48,7 +48,7 @@ interface DistillerProps {
 /** Workstation: the Drive-backed library. Composition root; the parts
  *  are in distiller/. */
 export function Distiller({ onOpenEditor, editorOpen = false, connected = true, onConnect }: DistillerProps) {
-  const { state, actions, setters, refs } = useDistiller(onOpenEditor, connected)
+  const { state, actions, setters, refs } = useDistiller(onOpenEditor, connected, editorOpen)
 
   // Close context menu on external click
   useEffect(() => {
